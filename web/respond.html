@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trustnet — Share a Recommendation</title>
+<style>
+  :root { --green:#217A4B; --green-dark:#0D2B1F; --slate:#3D4F46; --slate-light:#7A9086; --bg:#F2F6F3; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:var(--bg); color:var(--slate); min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .card { background:#fff; border-radius:16px; max-width:480px; width:100%; box-shadow:0 8px 32px rgba(0,0,0,0.1); overflow:hidden; }
+  .hero { background:var(--green-dark); padding:24px; }
+  .brand { color:#fff; font-weight:800; font-size:18px; }
+  .body { padding:28px 24px; }
+  .ask { background:var(--bg); border-left:3px solid var(--green); border-radius:8px; padding:14px 16px; margin-bottom:24px; }
+  .ask-from { font-size:13px; color:var(--slate-light); margin-bottom:6px; }
+  .ask-text { font-size:16px; font-style:italic; color:var(--slate); }
+  label { display:block; font-size:12px; font-weight:600; color:var(--slate-light); letter-spacing:0.3px; margin-bottom:6px; text-transform:uppercase; }
+  input, textarea { width:100%; padding:12px 14px; border:1.5px solid #CDD9D1; border-radius:8px; font-size:15px; font-family:inherit; margin-bottom:18px; }
+  input:focus, textarea:focus { outline:none; border-color:var(--green); }
+  textarea { resize:vertical; min-height:90px; }
+  button { width:100%; background:var(--green); color:#fff; border:none; border-radius:8px; padding:14px; font-size:16px; font-weight:600; cursor:pointer; }
+  button:hover { background:#1A5235; }
+  button:disabled { opacity:0.5; cursor:not-allowed; }
+  .state { text-align:center; padding:40px 28px 32px; }
+  .state-icon { font-size:44px; margin-bottom:14px; }
+  .state-title { font-size:20px; font-weight:800; color:var(--slate); margin-bottom:8px; }
+  .state-body { font-size:14px; color:var(--slate-light); line-height:1.6; }
+  .hidden { display:none; }
+
+  /* Conversion block on thank-you */
+  .convert { background:linear-gradient(135deg,#EBF7F1,#fff); border:1px solid #C6EDD9; border-radius:14px; padding:22px 20px; margin-top:24px; text-align:left; }
+  .convert-badge { display:inline-block; font-size:11px; font-weight:700; color:#1A5235; background:#C6EDD9; padding:3px 10px; border-radius:10px; margin-bottom:12px; }
+  .convert-headline { font-size:16px; font-weight:800; color:var(--green-dark); margin-bottom:8px; line-height:1.4; }
+  .convert-body { font-size:13px; color:var(--slate); line-height:1.6; margin-bottom:18px; }
+  .convert-btn { display:block; width:100%; text-align:center; background:var(--green); color:#fff; text-decoration:none; font-weight:600; font-size:15px; padding:13px; border-radius:8px; }
+  .convert-btn:hover { background:#1A5235; }
+  .convert-sub { font-size:11px; color:var(--slate-light); text-align:center; margin-top:12px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="hero"><span class="brand">Trustnet</span></div>
+
+  <div id="loading" class="state">
+    <div class="state-icon">⏳</div>
+    <div class="state-title">Loading…</div>
+  </div>
+
+  <div id="form-view" class="body hidden">
+    <div class="ask">
+      <div class="ask-from" id="ask-from">Someone is asking</div>
+      <div class="ask-text" id="ask-text"></div>
+    </div>
+    <label for="rec-name">What do you recommend?</label>
+    <input id="rec-name" placeholder="e.g. A. Wong, Demon Copperhead, Dr. Cohen" maxlength="120">
+    <label for="rec-location">Location (optional)</label>
+    <input id="rec-location" placeholder="e.g. London, UK" maxlength="80">
+    <label for="rec-note">Your note</label>
+    <textarea id="rec-note" placeholder="What makes it great? Any tips?" maxlength="1000"></textarea>
+    <button id="submit-btn">Send recommendation</button>
+  </div>
+
+  <!-- Rich thank-you + conversion -->
+  <div id="thanks-view" class="state hidden">
+    <div class="state-icon">✅</div>
+    <div class="state-title" id="thanks-title">Sent!</div>
+    <div class="state-body" id="thanks-body">You just gave a recommendation they'll actually trust.</div>
+
+    <div class="convert">
+      <span class="convert-badge" id="convert-badge">YOU'RE A TRUSTED VOICE</span>
+      <div class="convert-headline" id="convert-headline">People ask you for recommendations all the time.</div>
+      <div class="convert-body" id="convert-body">
+        Trustnet keeps them all in one place — and lets you ask your own trusted people back.
+        No ads, no strangers, no algorithm.
+      </div>
+      <a class="convert-btn" id="convert-btn" href="https://trustnetsocial.netlify.app">Get your own Trustnet →</a>
+      <div style="font-size:11.5px;color:#7A9086;text-align:center;margin-top:8px;line-height:1.5;">Sign up with the email this request reached you on, and your answers link to you automatically.</div>
+      <div class="convert-sub">Free. Takes a minute.</div>
+    </div>
+  </div>
+
+  <div id="error-view" class="state hidden">
+    <div class="state-icon">🔒</div>
+    <div class="state-title" id="error-title">This link has expired</div>
+    <div class="state-body" id="error-body">Response links are valid for 72 hours and can only be used once.</div>
+  </div>
+</div>
+
+<script>
+window.TRUSTNET_CONFIG = {
+  FUNCTIONS_URL: "https://kgsdtfrcyjrxeyqqxoic.supabase.co/functions/v1",
+  APP_URL: location.origin
+};
+const CFG = window.TRUSTNET_CONFIG || {};
+const SUPABASE_FUNCTIONS_URL = CFG.FUNCTIONS_URL || window.TRUSTNET_FUNCTIONS_URL || "https://YOUR_PROJECT.supabase.co/functions/v1";
+const APP_URL = CFG.APP_URL || "https://trustnetsocial.netlify.app";
+
+const params = new URLSearchParams(location.search);
+const token = params.get("t");
+
+const $ = (id) => document.getElementById(id);
+function show(view) {
+  ["loading","form-view","thanks-view","error-view"].forEach((v) => $(v).classList.add("hidden"));
+  $(view).classList.remove("hidden");
+}
+
+let context = { requesterName: "them", circleName: "" };
+
+async function init() {
+  if (!token) { showError("Invalid link", "This link is missing its token."); return; }
+  try {
+    const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/response-meta?t=${encodeURIComponent(token)}`);
+    if (res.ok) {
+      const meta = await res.json();
+      if (meta.used) { showError("This link was already used", "Each response link works exactly once \u2014 a recommendation has already been sent from this one. If you have a newer request email, use the button in that message (in Gmail, the newest message sits at the bottom of the thread)."); return; }
+      if (meta.expired) { showError(); return; }
+      context.requesterName = meta.requester_name || "them";
+      context.circleName = meta.circle_name || "";
+      $("ask-from").textContent = context.requesterName + " is asking their " + context.circleName + " circle";
+      $("ask-text").textContent = '"' + (meta.query_text || "") + '"';
+    }
+  } catch (_) { /* show form anyway */ }
+  show("form-view");
+}
+
+function showError(title, body) {
+  if (title) $("error-title").textContent = title;
+  if (body) $("error-body").textContent = body;
+  show("error-view");
+}
+
+$("submit-btn").addEventListener("click", async () => {
+  const recName = $("rec-name").value.trim();
+  if (!recName) { $("rec-name").focus(); return; }
+  $("submit-btn").disabled = true;
+  $("submit-btn").textContent = "Sending…";
+  try {
+    const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/receive-response`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token,
+        rec_name: recName,
+        rec_location: $("rec-location").value.trim(),
+        rec_note: $("rec-note").value.trim(),
+      }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      // Personalise the conversion screen with real context
+      $("thanks-title").textContent = "Sent to " + context.requesterName + "!";
+      $("thanks-body").textContent =
+        "You just gave " + context.requesterName + " a recommendation they'll actually trust.";
+      if (context.circleName) {
+        $("convert-headline").textContent =
+          context.requesterName + " has you in their " + context.circleName + " circle.";
+        $("convert-body").textContent =
+          "People ask you for recommendations all the time. Trustnet keeps them in one place — and lets you ask your own trusted people back. No ads, no strangers, no algorithm.";
+      }
+      $("convert-btn").href = APP_URL;
+      try {
+        for (var ki = 0; ki < localStorage.length; ki++) {
+          var kk = localStorage.key(ki);
+          if (/^sb-.*-auth-token$/.test(kk)) {
+            $("convert-btn").textContent = "Open your Trustnet →";
+            break;
+          }
+        }
+      } catch (e) {}
+      show("thanks-view");
+    } else if (data.error === "token_already_used") {
+      showError("This link was already used", "Each response link works exactly once \u2014 a recommendation has already been sent from this one.");
+    } else if (data.error === "token_expired") {
+      showError();
+    } else {
+      $("submit-btn").disabled = false;
+      $("submit-btn").textContent = "Send recommendation";
+      alert("Something went wrong. Please try again.");
+    }
+  } catch (_) {
+    $("submit-btn").disabled = false;
+    $("submit-btn").textContent = "Send recommendation";
+    alert("Network error. Please try again.");
+  }
+});
+
+init();
+</script>
+</body>
+</html>

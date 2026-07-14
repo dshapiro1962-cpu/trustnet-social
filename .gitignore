@@ -1,0 +1,12 @@
+# Trustnet .gitignore  (rename this file to:  .gitignore )
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
+# never commit secrets or the credentials registry
+*credentials*
+*secret*
+
+supabase/.temp/

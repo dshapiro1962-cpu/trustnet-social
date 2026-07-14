@@ -1,0 +1,5 @@
+# Netlify config — Trustnet Social
+# The app is static files in /web; no build step.
+[build]
+  publish = "web"
+  command = "echo 'static site - no build'"
