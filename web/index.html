@@ -3,6 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="theme-color" content="#217A4B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Trustnet">
 <title>Trustnet</title>
 <style>
 /* ═══════════════════════════════════════════════
@@ -675,7 +683,16 @@ a { color: inherit; text-decoration: none; }
     <div id="login-sent" style="display:none;text-align:center;padding:10px 0;">
       <div style="font-size:40px;margin-bottom:12px;">📬</div>
       <h2 style="font-size:18px;font-weight:800;color:#0D2B1F;margin-bottom:8px;">Check your email</h2>
-      <p style="font-size:13px;color:#56695F;line-height:1.7;">We sent a sign-in link to <b id="login-sent-addr"></b>.<br>Open it on this device to continue.</p>
+      <p style="font-size:13px;color:#56695F;line-height:1.7;">We sent a sign-in link and a <b>6-digit code</b> to <b id="login-sent-addr"></b>.</p>
+      <div style="margin-top:16px;text-align:left;">
+        <div style="font-size:11px;font-weight:700;color:#56695F;letter-spacing:0.5px;margin-bottom:6px;">ENTER THE CODE</div>
+        <div style="display:flex;gap:8px;">
+          <input class="field-input" id="login-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" style="flex:1;text-align:center;font-size:20px;letter-spacing:6px;font-weight:700;">
+          <button class="btn btn-primary" id="login-verify" style="white-space:nowrap;">Sign in</button>
+        </div>
+        <p id="login-code-err" style="font-size:12px;color:#C0392B;margin-top:8px;display:none;"></p>
+        <p style="font-size:11.5px;color:#7A9086;margin-top:12px;line-height:1.6;">Tapping the link in the email works too. Wrong address? <a href="#" id="login-back" style="color:#217A4B;font-weight:600;">Go back</a></p>
+      </div>
     </div>
   </div>
 </div>
@@ -800,7 +817,7 @@ a { color: inherit; text-decoration: none; }
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.16.1 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.17.1 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1252,7 +1269,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.16.1 · live';
+const APP_VERSION = 'v0.17.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -2270,7 +2287,7 @@ function sheetItemHtml(it, idx) {
     return '<div dir="auto" style="font-size:12px;color:#3D4F46;line-height:1.6;margin-top:5px;">'
       + '<b style="color:#56695F;">' + esc(n.by) + ':</b> ' + esc(n.note) + '</div>';
   }).join('');
-  const links = domFindLinks(it.name || '', it.location || '', it.category || '');
+  const links = domFindLinks(it.name || '', it.location || '', it.category || '', it.primary_category || '');
   return '<div style="background:#fff;border:1px solid #E5EDE8;border-radius:12px;padding:14px 16px;margin-bottom:8px;">'
     + '<div style="display:flex;gap:12px;align-items:flex-start;">'
     + '<div style="font-size:22px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:var(--slate-50);border-radius:10px;flex-shrink:0;">' + esc(it.emoji || '📌') + '</div>'
@@ -2669,30 +2686,36 @@ function recCardHtml(rec, clickable, opts) {
    VIEW: REC DETAIL
    ═══════════════════════════════════════════════ */
 
-function domFindLinks(name, loc, dom) {
+function domFindLinks(name, loc, dom, cat) {
   if (!name) return '';
+  // The item's own AI category outranks the circle's domain (a ski-gear brand
+  // in a travel-typed circle must NOT get a Booking button — v0.17.1)
+  const eff = cat || dom || '';
+  // Google query: name + location, or name + category for brand/product-like items
+  const gq = encodeURIComponent(name + (loc ? ' ' + loc : (eff && eff !== 'other' ? ' ' + eff : '')));
   const q = encodeURIComponent(name + (loc ? ' ' + loc : ''));
   const qn = encodeURIComponent(name);
   let out = '';
-  if (dom === 'culture') {
+  if (eff === 'culture') {
     out += extLink('https://www.amazon.com/s?k=' + qn, '📚 Amazon');
-    out += extLink('https://www.google.com/search?q=' + q, '🔎 Google');
-  } else if (dom === 'travel') {
+  } else if (eff === 'travel') {
     out += extLink('https://www.booking.com/searchresults.html?ss=' + q, '🏨 Booking');
     out += extLink('https://www.google.com/maps/search/?api=1&query=' + q, '🗺 Maps');
-  } else if (dom === 'professional') {
-    out += extLink('https://www.google.com/search?q=' + q, '🔎 Google');
+  } else if (eff === 'professional') {
     out += extLink('https://www.linkedin.com/search/results/all/?keywords=' + qn, '🔗 LinkedIn');
+  } else if (eff === 'dining' || eff === 'healthcare' || eff === 'home') {
+    if (loc) out += extLink('https://www.google.com/maps/search/?api=1&query=' + q, '🗺 Maps');
   } else {
-    out += extLink('https://www.google.com/maps/search/?api=1&query=' + q, '🗺 Maps');
-    out += extLink('https://www.google.com/search?q=' + q, '🔎 Google');
+    // hobbies / products / other: Maps only when there is an actual place
+    if (loc) out += extLink('https://www.google.com/maps/search/?api=1&query=' + q, '🗺 Maps');
   }
+  out += extLink('https://www.google.com/search?q=' + gq, '\ud83d\udd0e Google');
   return out;
 }
 
 function respFindLinks(name, loc, circleId) {
   const c = circleId ? AppState.circleById(circleId) : null;
-  const links = domFindLinks(name, loc, c ? c.domain : '');
+  const links = domFindLinks(name, loc, c ? c.domain : '', '');
   if (!links) return '';
   return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">' + links + '</div>';
 }
@@ -2719,7 +2742,7 @@ function networkFeedHtml() {
   const cards = items.slice(0, 10).map(function(f, i) {
     const inLib = AppState.userRecs.some(function(r) { return r.canonicalId === f.canonical_id; });
     const stars = f.rating ? '★★★★★'.slice(0, f.rating) + '☆☆☆☆☆'.slice(0, 5 - f.rating) : '';
-    const links = domFindLinks(f.can_name || '', f.can_location || '', f.domain || '');
+    const links = domFindLinks(f.can_name || '', f.can_location || '', f.domain || '', f.primary_category || '');
     return '<div class="card" style="margin-bottom:10px;"><div class="card-body">'
       + '<div style="display:flex;gap:12px;align-items:flex-start;">'
       + '<div style="font-size:24px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:var(--slate-50);border-radius:10px;flex-shrink:0;">' + esc(f.can_emoji || '📌') + '</div>'
@@ -3049,20 +3072,22 @@ function renderRecDetail() {
   // Smart "find it" links, routed by the circle's domain
   const findQ = encodeURIComponent(can.name + (can.location ? ' ' + can.location : ''));
   const findName = encodeURIComponent(can.name);
-  const findDom = (circle && circle.domain) || (can.type === 'content' ? 'culture' : '');
+  // Item's own category first; circle domain is only a fallback (v0.17.1)
+  const findDom = can.primaryCategory || (circle && circle.domain) || (can.type === 'content' ? 'culture' : '');
+  const findGq = encodeURIComponent(can.name + (can.location ? ' ' + can.location : (findDom && findDom !== 'other' ? ' ' + findDom : '')));
   if (findDom === 'culture' || can.type === 'content') {
     linksHtml += extLink('https://www.amazon.com/s?k=' + findName, '📚 Find on Amazon');
-    linksHtml += extLink('https://www.google.com/search?q=' + findQ, '🔎 Google');
   } else if (findDom === 'travel') {
     linksHtml += extLink('https://www.booking.com/searchresults.html?ss=' + findQ, '🏨 Find on Booking');
     if (!can.googleUrl) linksHtml += extLink('https://www.google.com/maps/search/?api=1&query=' + findQ, '🗺 Google Maps');
   } else if (findDom === 'professional') {
-    linksHtml += extLink('https://www.google.com/search?q=' + findQ, '🔎 Google');
     if (!can.linkedinUrl) linksHtml += extLink('https://www.linkedin.com/search/results/all/?keywords=' + findName, '🔗 LinkedIn search');
+  } else if (findDom === 'dining' || findDom === 'healthcare' || findDom === 'home') {
+    if (!can.googleUrl && can.location) linksHtml += extLink('https://www.google.com/maps/search/?api=1&query=' + findQ, '🗺 Google Maps');
   } else {
-    if (!can.googleUrl) linksHtml += extLink('https://www.google.com/maps/search/?api=1&query=' + findQ, '🗺 Google Maps');
-    linksHtml += extLink('https://www.google.com/search?q=' + findQ, '🔎 Google');
+    if (!can.googleUrl && can.location) linksHtml += extLink('https://www.google.com/maps/search/?api=1&query=' + findQ, '🗺 Google Maps');
   }
+  linksHtml += extLink('https://www.google.com/search?q=' + findGq, '🔎 Search Google');
 
   return '<div style="max-width:640px;">'
     + '<button class="btn btn-ghost btn-sm" data-action="nav" data-view="library" style="margin-bottom:16px;">← Library</button>'
@@ -4692,6 +4717,39 @@ function showLoginScreen() {
       document.getElementById('login-sent-addr').textContent = email;
       document.getElementById('login-form').style.display = 'none';
       document.getElementById('login-sent').style.display = 'block';
+      const codeIn = document.getElementById('login-code');
+      if (codeIn) setTimeout(function() { codeIn.focus(); }, 100);
+    });
+  }
+  const vbtn = document.getElementById('login-verify');
+  if (vbtn && !vbtn._wired) {
+    vbtn._wired = true;
+    const doVerify = async function() {
+      const email = (document.getElementById('login-sent-addr') || {}).textContent || '';
+      const code = ((document.getElementById('login-code') || {}).value || '').trim();
+      const errEl = document.getElementById('login-code-err');
+      if (!/^[0-9]{6}$/.test(code)) { errEl.textContent = 'Enter the 6-digit code from the email.'; errEl.style.display = 'block'; return; }
+      errEl.style.display = 'none';
+      vbtn.disabled = true; vbtn.textContent = 'Checking…';
+      const r = await sb.auth.verifyOtp({ email: email, token: code, type: 'email' });
+      if (r.error) {
+        vbtn.disabled = false; vbtn.textContent = 'Sign in';
+        errEl.textContent = 'Sign-in failed: ' + r.error.message; errEl.style.display = 'block';
+        return;
+      }
+      location.reload();
+    };
+    vbtn.addEventListener('click', doVerify);
+    const codeEl = document.getElementById('login-code');
+    if (codeEl) codeEl.addEventListener('keydown', function(e) { if (e.key === 'Enter') doVerify(); });
+  }
+  const backLink = document.getElementById('login-back');
+  if (backLink && !backLink._wired) {
+    backLink._wired = true;
+    backLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      document.getElementById('login-sent').style.display = 'none';
+      document.getElementById('login-form').style.display = 'block';
     });
   }
 }
