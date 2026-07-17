@@ -21,10 +21,13 @@ jobs:
       - name: Deploy all functions
         run: |
           set -e
+          # Functions that must accept unauthenticated calls:
+          # whatsapp-webhook (Meta), get-collection (public shared lists)
+          NO_JWT="whatsapp-webhook get-collection"
           for dir in supabase/functions/*/; do
             fn=$(basename "$dir")
             [ "$fn" = "_shared" ] && continue
-            if [ "$fn" = "whatsapp-webhook" ]; then
+            if echo " $NO_JWT " | grep -q " $fn "; then
               echo "== deploying $fn (no-verify-jwt) =="
               supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt --use-api
             else

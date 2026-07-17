@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trustnet — Shared list</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="theme-color" content="#217A4B">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Heebo",Arial,sans-serif; background:#F4F8F5; color:#1C2420; }
+.hero { background:linear-gradient(160deg,#0D2B1F,#1A5235); color:#fff; padding:34px 20px 30px; }
+.hero-inner { max-width:640px; margin:0 auto; }
+.logo { display:inline-flex; align-items:center; gap:9px; margin-bottom:18px; }
+.logo-tile { width:34px; height:34px; border-radius:9px; background:#217A4B; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:17px; color:#fff; }
+.logo-name { font-weight:800; font-size:15px; letter-spacing:0.3px; }
+.col-title { font-size:26px; font-weight:800; letter-spacing:-0.5px; line-height:1.25; }
+.col-desc { font-size:14px; color:#BFD8C8; margin-top:8px; line-height:1.6; }
+.curator { display:inline-flex; align-items:center; gap:8px; margin-top:14px; background:rgba(255,255,255,0.1); border-radius:20px; padding:6px 14px 6px 8px; font-size:12.5px; }
+.curator-avatar { width:24px; height:24px; border-radius:50%; background:#E8A020; color:#fff; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; }
+.wrap { max-width:640px; margin:0 auto; padding:20px 16px 120px; }
+.card { background:#fff; border:1px solid #E5EDE8; border-radius:14px; padding:14px 16px; margin-bottom:10px; display:flex; gap:13px; align-items:flex-start; }
+.thumb { width:52px; height:52px; border-radius:11px; flex-shrink:0; background:#EAF3ED; display:flex; align-items:center; justify-content:center; font-size:24px; background-size:cover; background-position:center; }
+.item-name { font-size:15px; font-weight:800; color:#14201A; }
+.item-loc { font-size:12px; color:#7A9086; margin-top:1px; }
+.item-note { font-size:13px; color:#3D4F46; line-height:1.55; margin-top:6px; }
+.item-note b { color:#56695F; font-weight:700; }
+.stars { color:#E8A020; font-size:12px; margin-top:3px; letter-spacing:1px; }
+.chip { display:inline-block; font-size:9.5px; font-weight:700; padding:2px 8px; border-radius:9px; margin-top:7px; }
+.cta { position:fixed; bottom:0; left:0; right:0; background:linear-gradient(transparent, #F4F8F5 30%); padding:26px 16px 18px; }
+.cta-inner { max-width:640px; margin:0 auto; }
+.cta-btn { display:block; width:100%; text-align:center; background:#217A4B; color:#fff; font-size:15px; font-weight:800; padding:15px; border-radius:14px; text-decoration:none; box-shadow:0 8px 24px rgba(33,122,75,0.35); }
+.cta-sub { text-align:center; font-size:11.5px; color:#7A9086; margin-top:8px; }
+.state { text-align:center; padding:70px 20px; color:#56695F; font-size:14px; }
+.count-line { font-size:11px; font-weight:700; letter-spacing:0.6px; color:#7A9086; margin:4px 0 12px; }
+</style>
+</head>
+<body>
+<div class="hero"><div class="hero-inner">
+  <div class="logo"><div class="logo-tile">T</div><div class="logo-name">Trustnet</div></div>
+  <div class="col-title" id="c-title">Loading list…</div>
+  <div class="col-desc" id="c-desc" style="display:none;"></div>
+  <div class="curator" id="c-curator" style="display:none;"></div>
+</div></div>
+<div class="wrap">
+  <div class="count-line" id="c-count" style="display:none;"></div>
+  <div id="c-items"><div class="state">Loading…</div></div>
+</div>
+<div class="cta" id="c-cta" style="display:none;"><div class="cta-inner">
+  <a class="cta-btn" id="c-save" href="#">Save this list to your Trustnet</a>
+  <div class="cta-sub">Free · no password · every item stays credited to the person who recommended it</div>
+</div></div>
+<script>
+var FN_BASE = 'https://kgsdtfrcyjrxeyqqxoic.supabase.co/functions/v1';
+var CAT_HUES = {
+  dining:{fg:'#B84A0B',bg:'#FBEFE6'}, travel:{fg:'#2B5FA3',bg:'#E9F0FA'},
+  healthcare:{fg:'#B0325B',bg:'#FAEAF0'}, home:{fg:'#6B4FA3',bg:'#F0EBFA'},
+  culture:{fg:'#8A6D1A',bg:'#FAF4E1'}, hobbies:{fg:'#1F8A70',bg:'#E6F5F0'},
+  professional:{fg:'#3D4F46',bg:'#ECF1EE'}, other:{fg:'#7A9086',bg:'#EFF3F0'}
+};
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function catLabel(c) { return c ? c.charAt(0).toUpperCase() + c.slice(1) : ''; }
+function render(data) {
+  document.title = data.title + ' — Trustnet';
+  document.getElementById('c-title').textContent = data.title;
+  if (data.description) {
+    var d = document.getElementById('c-desc');
+    d.textContent = data.description; d.style.display = 'block';
+  }
+  var cu = document.getElementById('c-curator');
+  cu.innerHTML = '<span class="curator-avatar">' + esc((data.curator || '?').charAt(0).toUpperCase()) + '</span>'
+    + '<span>Curated by <b>' + esc(data.curator) + '</b></span>';
+  cu.style.display = 'inline-flex';
+  var cl = document.getElementById('c-count');
+  cl.textContent = data.count + (data.count === 1 ? ' RECOMMENDATION' : ' RECOMMENDATIONS');
+  cl.style.display = 'block';
+  var html = '';
+  for (var i = 0; i < data.items.length; i++) {
+    var it = data.items[i];
+    var h = CAT_HUES[it.category] || CAT_HUES.other;
+    var thumb = it.image_url
+      ? '<div class="thumb" style="background-image:url(&quot;' + esc(it.image_url) + '&quot;);"></div>'
+      : '<div class="thumb">' + esc(it.emoji || '\uD83D\uDCCC') + '</div>';
+    html += '<div class="card" dir="auto">' + thumb + '<div style="flex:1;min-width:0;">'
+      + '<div class="item-name">' + esc(it.name) + '</div>'
+      + (it.location ? '<div class="item-loc">' + esc(it.location) + '</div>' : '')
+      + (it.rating ? '<div class="stars">' + '\u2605\u2605\u2605\u2605\u2605'.slice(0, it.rating) + '</div>' : '')
+      + (it.note ? '<div class="item-note"><b>' + esc(data.curator) + ':</b> ' + esc(it.note) + '</div>' : '')
+      + (it.category ? '<span class="chip" style="color:' + h.fg + ';background:' + h.bg + ';">' + esc(catLabel(it.category)) + '</span>' : '')
+      + '</div></div>';
+  }
+  document.getElementById('c-items').innerHTML = html || '<div class="state">This list is empty.</div>';
+  var token = new URLSearchParams(location.search).get('t') || '';
+  document.getElementById('c-save').href = '/?collection=' + encodeURIComponent(token);
+  document.getElementById('c-cta').style.display = 'block';
+}
+(function() {
+  var token = new URLSearchParams(location.search).get('t');
+  if (!token) {
+    document.getElementById('c-title').textContent = 'List not found';
+    document.getElementById('c-items').innerHTML = '<div class="state">This link is missing its list code. Ask for the link again.</div>';
+    return;
+  }
+  fetch(FN_BASE + '/get-collection', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: token })
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    if (data && data.title) { render(data); }
+    else {
+      document.getElementById('c-title').textContent = 'List not found';
+      document.getElementById('c-items').innerHTML = '<div class="state">Error: ' + esc((data && data.error) || 'unknown') + '</div>';
+    }
+  }).catch(function(e) {
+    document.getElementById('c-title').textContent = 'Connection problem';
+    document.getElementById('c-items').innerHTML = '<div class="state">Could not load the list. Check your connection and refresh.<br>Error: ' + esc(e.message) + '</div>';
+  });
+})();
+</script>
+</body>
+</html>

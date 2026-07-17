@@ -17,7 +17,7 @@ let pass=0, fail=0; const check=(n,c,x)=>{ if(c){pass++;console.log('  ✓',n);}
 vm.runInContext(src, ctx, {filename:'app.js'});
 vm.runInContext('renderApp=function(){};toast=function(){};', ctx);
 const X = ctx.__x;
-check('APP_VERSION is v0.16.1', X.APP_VERSION === 'v0.16.1 · live', X.APP_VERSION);
+check('APP_VERSION is v0.18.0', X.APP_VERSION === 'v0.18.0 · live', X.APP_VERSION);
 // fixtures
 X.AppState.isDemoMode = false;
 X.AppState.userCircles = [{ id:'c1', name:'Dining', domain:'dining', color:'#217A4B' }];
