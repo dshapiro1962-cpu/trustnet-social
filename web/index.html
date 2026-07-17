@@ -817,7 +817,7 @@ a { color: inherit; text-decoration: none; }
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.17.3 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.17.4 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1269,7 +1269,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.17.3 · live';
+const APP_VERSION = 'v0.17.4 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -2287,7 +2287,7 @@ function sheetItemHtml(it, idx) {
     return '<div dir="auto" style="font-size:12px;color:#3D4F46;line-height:1.6;margin-top:5px;">'
       + '<b style="color:#56695F;">' + esc(n.by) + ':</b> ' + esc(n.note) + '</div>';
   }).join('');
-  const links = domFindLinks(it.name || '', it.location || '', it.category || '', it.primary_category || '');
+  const links = domFindLinks(it.name || '', it.location || '', it.category || '', it.primary_category || '', it.ai_tags || it.tags || []);
   return '<div style="background:#fff;border:1px solid #E5EDE8;border-radius:12px;padding:14px 16px;margin-bottom:8px;">'
     + '<div style="display:flex;gap:12px;align-items:flex-start;">'
     + '<div style="font-size:22px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:var(--slate-50);border-radius:10px;flex-shrink:0;">' + esc(it.emoji || '📌') + '</div>'
@@ -2686,13 +2686,18 @@ function recCardHtml(rec, clickable, opts) {
    VIEW: REC DETAIL
    ═══════════════════════════════════════════════ */
 
-function domFindLinks(name, loc, dom, cat) {
+function domFindLinks(name, loc, dom, cat, tags) {
   if (!name) return '';
   // The item's own AI category outranks the circle's domain (a ski-gear brand
   // in a travel-typed circle must NOT get a Booking button — v0.17.1)
   const eff = cat || dom || '';
-  // Google query: name + location, or name + category for brand/product-like items
-  const gq = encodeURIComponent(name + (loc ? ' ' + loc : (eff && eff !== 'other' ? ' ' + eff : '')));
+  // Google query disambiguator (v0.17.4): location > first AI tag > a category
+  // word that humans actually search. Internal drawer names like "hobbies"
+  // never leak into queries — tags ("ski") are the real search words.
+  const tag0 = (tags && tags.length) ? String(tags[0]) : '';
+  const SEARCHABLE_CATS = { dining: 1, travel: 1, healthcare: 1, professional: 1, culture: 1 };
+  const disamb = loc ? loc : (tag0 ? tag0 : (SEARCHABLE_CATS[eff] ? eff : ''));
+  const gq = encodeURIComponent(name + (disamb ? ' ' + disamb : ''));
   const q = encodeURIComponent(name + (loc ? ' ' + loc : ''));
   const qn = encodeURIComponent(name);
   let out = '';
@@ -2715,7 +2720,7 @@ function domFindLinks(name, loc, dom, cat) {
 
 function respFindLinks(name, loc, circleId) {
   const c = circleId ? AppState.circleById(circleId) : null;
-  const links = domFindLinks(name, loc, c ? c.domain : '', '');
+  const links = domFindLinks(name, loc, c ? c.domain : '', '', arguments.length > 3 ? arguments[3] : []);
   if (!links) return '';
   return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">' + links + '</div>';
 }
@@ -2742,7 +2747,7 @@ function networkFeedHtml() {
   const cards = items.slice(0, 10).map(function(f, i) {
     const inLib = AppState.userRecs.some(function(r) { return r.canonicalId === f.canonical_id; });
     const stars = f.rating ? '★★★★★'.slice(0, f.rating) + '☆☆☆☆☆'.slice(0, 5 - f.rating) : '';
-    const links = domFindLinks(f.can_name || '', f.can_location || '', f.domain || '', f.primary_category || '');
+    const links = domFindLinks(f.can_name || '', f.can_location || '', f.domain || '', f.primary_category || '', f.ai_tags || []);
     return '<div class="card" style="margin-bottom:10px;"><div class="card-body">'
       + '<div style="display:flex;gap:12px;align-items:flex-start;">'
       + '<div style="font-size:24px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:var(--slate-50);border-radius:10px;flex-shrink:0;">' + esc(f.can_emoji || '📌') + '</div>'
@@ -3074,7 +3079,10 @@ function renderRecDetail() {
   const findName = encodeURIComponent(can.name);
   // Item's own category first; circle domain is only a fallback (v0.17.1)
   const findDom = can.primaryCategory || (circle && circle.domain) || (can.type === 'content' ? 'culture' : '');
-  const findGq = encodeURIComponent(can.name + (can.location ? ' ' + can.location : (findDom && findDom !== 'other' ? ' ' + findDom : '')));
+  const findTag0 = (can.aiTags && can.aiTags.length) ? String(can.aiTags[0]) : (rec.tags && rec.tags.length ? String(rec.tags[0]) : '');
+  const FIND_SEARCHABLE = { dining: 1, travel: 1, healthcare: 1, professional: 1, culture: 1 };
+  const findDis = can.location ? can.location : (findTag0 ? findTag0 : (FIND_SEARCHABLE[findDom] ? findDom : ''));
+  const findGq = encodeURIComponent(can.name + (findDis ? ' ' + findDis : ''));
   if (findDom === 'culture' || can.type === 'content') {
     linksHtml += extLink('https://www.amazon.com/s?k=' + findName, '📚 Find on Amazon');
   } else if (findDom === 'travel') {
