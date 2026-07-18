@@ -42,7 +42,8 @@ const resp = { id:'qr1', contactId:'m1', recName:'Shawarma Emil', recNote:'go ea
 A.userQueries = [
   { id:'q1', circleId:'c1', text:'best shawarma?', degree:1, status:'sent', sentAt:'2026-07-14T10:00:00Z', resolvedAt:null, chosenResponseId:null, responses:[resp] },
 ];
-A.synCircles = []; A.synUsers = []; A._feed = []; A._notifications = [];
+A.synCircles = []; A.synUsers = []; A._feed = [];
+A._notifications = [{ id:'n1', type:'collection_shared', title:'dan shared a list with you', body:'5 recommendations', actor_name:'dan', link_url:'https://trustnetsocial.netlify.app/collection.html?t=abc', created_at:'2026-07-17T10:00:00Z' }];
 A.searchQuery=''; A.activeFilter='all'; A.activeCatFilter='all';
 A.viewParams = { circleId:'c1', recId:'r1', queryId:'q1' };
 A.queryState = { phase:'sent', text:'best shawarma?', circleId:'c1', queryId:'q1', responses:[resp], visibleCount:1,
@@ -60,6 +61,10 @@ for (const v of Object.keys(views)) {
   const leaks = ['>undefined<', '>NaN<', '[object Object]', 'undefined<'].filter(t => html.includes(t));
   check('  "' + v + '": no undefined/NaN leakage', leaks.length === 0, leaks.join(','));
 }
+// targeted: shared-list notification renders a View list button in inbox
+const inboxHtml = views['inbox']();
+check('inbox: collection_shared gets View list button', inboxHtml.includes('View list') && inboxHtml.includes('/collection.html?t=abc'));
+
 // targeted: home must have exactly ONE ask affordance (the ask box), not two buttons
 const home = views['home']();
 const askButtons = (home.match(/data-view="query"/g) || []).length + (home.match(/data-action="home-ask-go"/g) || []).length;

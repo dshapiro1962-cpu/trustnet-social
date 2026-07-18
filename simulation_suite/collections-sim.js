@@ -1,7 +1,7 @@
 // collections-sim.js — collections strip, create modal + handler, copy link, import flow (12 checks)
 const vm=require('vm'); const fs=require('fs');
 let src=fs.readFileSync('/home/claude/sim/app_script.js','utf8');
-src += ';globalThis.__x={renderCollectionsStrip,modalCollectionCreate,handleCreateCollection,handleCopyCollectionLink,handleImportCollection,collectionUrl,renderLibrary,AppState,APP_VERSION};';
+src += ';globalThis.__x={renderCollectionsStrip,modalCollectionCreate,modalCollectionSend,handleCreateCollection,handleCopyCollectionLink,handleSendCollection,handleImportCollection,collectionUrl,renderLibrary,AppState,APP_VERSION};';
 const el=(o)=>Object.assign({value:'',textContent:'',style:{},dataset:{},innerHTML:'',disabled:false,checked:false,addEventListener(){},querySelectorAll(){return[];},querySelector(){return null;},closest(){return null;},classList:{add(){},remove(){},toggle(){}},focus(){}},o||{});
 let sbOps=[]; let sbResults=[];
 function makeChain(){
@@ -38,7 +38,7 @@ vm.runInContext('renderApp=function(){};toast=function(m,t){globalThis.__toasts.
  +'CURRENT_UID="me";loadUserData=async function(){globalThis.__reloaded=true;};',ctx);
 ctx.__toasts=[];ctx.__fn=[];ctx.__fnImpl=async()=>({});
 const X=ctx.__x;
-ck('APP_VERSION is v0.18.1', X.APP_VERSION==='v0.18.1 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.19.0', X.APP_VERSION==='v0.19.0 · live', X.APP_VERSION);
 X.AppState.isDemoMode=false;
 X.AppState.userProfile={id:'me',name:'dan'};
 X.AppState.userCollections=[{id:'cl1',token:'tok123',title:'My Tel Aviv doctors',description:'',recIds:['r1','r2']}];
@@ -80,5 +80,27 @@ ctx.__reloaded=false;
 await X.handleImportCollection('tokZZZ');
 ck('import: calls save-collection, clears token, reloads data', ctx.__fn.some(c=>c[0]==='save-collection'&&c[1].token==='tokZZZ') && ctx.localStorage.getItem('tn_collection_token')===null && ctx.__reloaded===true);
 ck('import: curator-named toast', ctx.__toasts.some(t=>String(t[0]).includes('Saved 3 items from Rina')));
+// ---- send to circle ----
+X.AppState.userCircles=[{id:'c1',name:'Dining',color:'#217A4B',memberIds:['m1','m2','m3']}];
+X.AppState.userMembers=[
+ {id:'m1',contactMethod:'whatsapp',contactValue:'+972-50-5543402'},
+ {id:'m2',contactMethod:'email',contactValue:'n@x.com'},
+ {id:'m3',contactMethod:'app'}];
+const sendModal=X.modalCollectionSend({token:'tok123',title:'My list'});
+ck('send modal: circle radio + send action', sendModal.includes('name="cs-circle"') && sendModal.includes('data-action="send-collection"'));
+byId['cs-err']=el(); byId['cs-results']=el();
+ctx.__qsa['input[name="cs-circle"]']=[el({checked:true,value:'c1'})];
+ctx.__fn=[]; ctx.__toasts=[];
+ctx.__fnImpl=async()=>({engine:'send-collection-v1',ok:true,title:'My list',deliveries:[
+ {member_id:'m1',member:'dan test',channel:'whatsapp',status:'manual',error:null},
+ {member_id:'m2',member:'naama',channel:'email',status:'sent',error:null},
+ {member_id:'m3',member:'uri',channel:'app',status:'failed',error:'rls_denied'}]});
+const sbtn=el({dataset:{token:'tok123',title:'My list'}});
+await X.handleSendCollection(sbtn);
+ck('send: posts token+circle+share_url', ctx.__fn.some(c=>c[0]==='send-collection'&&c[1].circle_id==='c1'&&c[1].share_url.includes('/collection.html?t=tok123')));
+const results=byId['cs-results'].innerHTML;
+ck('send: whatsapp row gets wa.me one-tap with digits only', results.includes('https://wa.me/972505543402?text=') && results.includes('Open WhatsApp'));
+ck('send: email Sent + app failure verbatim', results.includes('>Sent<') && results.includes('rls_denied'));
+ck('send: button flips to close', sbtn.dataset.action==='close-modal');
 console.log('\nRESULT:', pass+' passed, '+fail+' failed'); process.exit(fail?1:0);
 })();

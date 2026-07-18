@@ -402,7 +402,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.18.1 · live';
+const APP_VERSION = 'v0.19.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -1292,12 +1292,15 @@ function renderInbox() {
       actions = '<button class="btn btn-primary btn-sm" data-action="open-sheet" data-query-id="' + esc(it.queryId) + '">📋 Answer sheet</button> '
         + '<button class="btn btn-ghost btn-sm" data-action="nav-history-detail" data-query-id="' + esc(it.queryId) + '">View query</button>';
     } else {
-      icon = it.type === 'pick_won' ? '🏆' : (it.type === 'invite_accepted' ? '👥' : (it.type === 'query' ? '🎯' : '🔔'));
+      icon = it.type === 'pick_won' ? '🏆' : (it.type === 'invite_accepted' ? '👥' : (it.type === 'query' ? '🎯' : ((it.type === 'collection_shared' || it.type === 'collection_saved') ? '📋' : '🔔')));
       title = esc(it.title || 'Notification');
       body = esc(it.body || '');
       if (it.type === 'query' && it.token) {
         actions = '<a class="btn btn-primary btn-sm" style="text-decoration:none;" '
           + 'href="respond.html?t=' + esc(it.token) + '" target="_blank" rel="noopener">✍️ Answer</a>';
+      } else if (it.type === 'collection_shared' && it.linkUrl && /^https:\/\//.test(it.linkUrl)) {
+        actions = '<a class="btn btn-primary btn-sm" style="text-decoration:none;" '
+          + 'href="' + esc(it.linkUrl) + '" target="_blank" rel="noopener">📋 View list</a>';
       } else {
         actions = it.circleId
           ? '<button class="btn btn-ghost btn-sm" data-action="nav" data-view="circles">View circles</button>'
@@ -1681,6 +1684,7 @@ function renderCollectionsStrip() {
       + '<div style="font-size:13px;font-weight:700;color:#1C2420;" dir="auto">' + esc(c.title) + '</div>'
       + '<div style="font-size:11px;color:#7A9086;">' + c.recIds.length + ' item' + (c.recIds.length !== 1 ? 's' : '') + '</div>'
       + '</div>'
+      + '<button class="btn btn-primary btn-sm" data-action="open-modal" data-modal="collection-send" data-token="' + esc(c.token) + '" data-title="' + esc(c.title) + '">Send to circle</button>'
       + '<button class="btn btn-secondary btn-sm" data-action="copy-collection-link" data-token="' + esc(c.token) + '">Copy link</button>'
       + '<a class="btn btn-ghost btn-sm" href="' + esc(collectionUrl(c.token)) + '" target="_blank" rel="noopener">View</a>'
       + '</div>';
@@ -1692,6 +1696,75 @@ function renderCollectionsStrip() {
     + '</div>'
     + (rows || '<div style="padding:12px;font-size:12px;color:#7A9086;">Curated lists you can share with one link \u2014 your best-of, ready to send instead of retyping.</div>')
     + '</div>';
+}
+
+function modalCollectionSend(params) {
+  const token = params && params.token ? params.token : '';
+  const title = params && params.title ? params.title : 'this list';
+  const circleRows = AppState.userCircles.map(function(c) {
+    return '<label style="display:flex;align-items:center;gap:9px;padding:8px 4px;border-bottom:1px solid #F0F5F1;cursor:pointer;font-size:13px;">'
+      + '<input type="radio" name="cs-circle" value="' + esc(c.id) + '">'
+      + '<span style="width:10px;height:10px;border-radius:3px;background:' + esc(c.color || '#217A4B') + ';"></span>'
+      + '<b>' + esc(c.name) + '</b><span style="color:#7A9086;font-size:11px;">' + (c.memberIds ? c.memberIds.length : 0) + ' members</span>'
+      + '</label>';
+  }).join('');
+  return '<div class="modal" style="max-width:460px;">'
+    + '<div class="modal-header"><div class="modal-title">Send \u201c' + esc(title) + '\u201d</div>'
+    + '<button class="modal-close" data-action="close-modal">\u00d7</button></div>'
+    + '<div class="modal-body">'
+    + '<div class="field"><div class="field-label">TO WHICH CIRCLE?</div>'
+    + '<div style="border:1px solid #E5EDE8;border-radius:10px;padding:4px 8px;">'
+    + (circleRows || '<div style="padding:10px;font-size:12px;color:#7A9086;">No circles yet.</div>')
+    + '</div></div>'
+    + '<p style="font-size:11px;color:#7A9086;line-height:1.6;">Members with Trustnet get an in-app notification. Email members get an email. WhatsApp members get a one-tap button here \u2014 the message goes from <b>your</b> WhatsApp, personally.</p>'
+    + '<p id="cs-err" style="font-size:12px;color:#C0392B;display:none;"></p>'
+    + '<div id="cs-results"></div>'
+    + '<button class="btn btn-primary" id="cs-send-btn" data-action="send-collection" data-token="' + esc(token) + '" data-title="' + esc(title) + '" style="width:100%;justify-content:center;">Send</button>'
+    + '</div></div>';
+}
+
+async function handleSendCollection(btn) {
+  const token = btn.dataset.token || '';
+  const title = btn.dataset.title || 'My list';
+  let circleId = '';
+  document.querySelectorAll('input[name="cs-circle"]').forEach(function(r) { if (r.checked) circleId = r.value; });
+  const errEl = document.getElementById('cs-err');
+  if (!circleId) { errEl.textContent = 'Pick a circle.'; errEl.style.display = 'block'; return; }
+  errEl.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Sending\u2026';
+  let res;
+  try { res = await fnPost('send-collection', { token: token, circle_id: circleId, share_url: collectionUrl(token) }); }
+  catch (e) { btn.disabled = false; btn.textContent = 'Send'; errEl.textContent = 'Could not reach the server.'; errEl.style.display = 'block'; return; }
+  if (!res || res.error) {
+    btn.disabled = false; btn.textContent = 'Send';
+    errEl.textContent = 'Send failed: ' + ((res && res.error) || 'unknown'); errEl.style.display = 'block'; return;
+  }
+  const waText = '\u201c' + title + '\u201d \u2014 my recommendations list on Trustnet: ' + collectionUrl(token);
+  const rows = (res.deliveries || []).map(function(d) {
+    let right;
+    if (d.status === 'manual' && d.channel === 'whatsapp') {
+      const digits = ''; // resolved below from members
+      const m = AppState.userMembers.find(function(x) { return x.id === d.member_id; });
+      const ph = m && m.contactValue ? String(m.contactValue).replace(/[^0-9]/g, '') : '';
+      right = ph
+        ? '<a class="btn btn-primary btn-sm" style="text-decoration:none;" target="_blank" rel="noopener" href="https://wa.me/' + esc(ph) + '?text=' + encodeURIComponent(waText) + '">Open WhatsApp</a>'
+        : '<span style="font-size:11px;color:#C0392B;">no number</span>';
+    } else if (d.status === 'sent') {
+      right = '<span style="font-size:11px;font-weight:700;color:#2D9460;">Sent</span>';
+    } else {
+      right = '<span style="font-size:11px;font-weight:700;color:#C0392B;" title="' + esc(d.error || '') + '">Failed: ' + esc(d.error || 'unknown') + '</span>';
+    }
+    return '<div style="display:flex;align-items:center;gap:8px;padding:7px 4px;border-top:1px solid #EEF4F0;">'
+      + '<span style="font-size:12px;font-weight:600;flex:1;" dir="auto">' + esc(d.member) + '</span>'
+      + '<span style="font-size:10.5px;color:#7A9086;">' + esc(channelWord(d.channel)) + '</span>'
+      + right + '</div>';
+  }).join('');
+  const resEl = document.getElementById('cs-results');
+  if (resEl) resEl.innerHTML = '<div style="margin:10px 0 4px;font-size:11px;font-weight:700;color:#56695F;letter-spacing:0.5px;">DELIVERY</div>' + rows;
+  btn.textContent = 'Done \u2014 close when finished';
+  btn.disabled = false;
+  btn.dataset.action = 'close-modal';
+  toast('List sent to the circle.');
 }
 
 function modalCollectionCreate() {
@@ -2132,6 +2205,8 @@ function mergeLiveData(queryRows, notifRows) {
         toast('🏆 ' + (n.title || 'Your recommendation won!'));
       } else if (n.type === 'invite_accepted') {
         toast('👥 ' + (n.title || 'Someone joined your circle'));
+      } else if (n.type === 'collection_shared' || n.type === 'collection_saved') {
+        toast('📋 ' + (n.title || 'A list update — check your Inbox'));
       } else {
         toast('🔔 ' + (n.title || 'New activity — check your Inbox'));
       }
@@ -2158,7 +2233,7 @@ async function refreshLive() {
 function inboxItems() {
   const items = [];
   (AppState._notifications || []).forEach(function(n) {
-    items.push({ kind: 'notif', type: n.type || 'note', title: n.title || '', body: n.body || '',
+    items.push({ kind: 'notif', type: n.type || 'note', title: n.title || '', body: n.body || '', linkUrl: n.link_url || '',
       circleId: n.circle_id || null, token: n.response_token || null,
       ts: new Date(n.created_at).getTime() || 0 });
   });
@@ -2538,6 +2613,7 @@ function openModal(name, params) {
   else if (name === 'resolve-query') html = modalResolveQuery(params);
   else if (name === 'fab-menu') html = modalFabMenu();
   else if (name === 'collection-create') html = modalCollectionCreate();
+  else if (name === 'collection-send') html = modalCollectionSend(params);
   else return;
 
   const root = document.getElementById('modal-root');
@@ -3746,6 +3822,9 @@ document.addEventListener('click', function(e) {
   }
   else if (action === 'copy-collection-link') {
     handleCopyCollectionLink(target);
+  }
+  else if (action === 'send-collection') {
+    handleSendCollection(target);
   }
   else if (action === 'select-circle') {
     const cid = target.dataset.circleId;
