@@ -64,7 +64,7 @@ function check(name, cond, extra) {
     + 'fnPost = async function(n,b){ globalThis.__calls.push([n,b]); return globalThis.__fnPostImpl(n,b); };', ctx);
   ctx.__toasts = toasts; ctx.__calls = fnPostCalls; ctx.__fnPostImpl = (n, b) => fnPostImpl(n, b);
 
-  check('APP_VERSION bumped to v0.19.0', X.APP_VERSION === 'v0.19.0 · live', X.APP_VERSION);
+  check('APP_VERSION bumped to v0.19.1', X.APP_VERSION === 'v0.19.1 · live', X.APP_VERSION);
   check('renderDeliveryStrip exists', typeof X.renderDeliveryStrip === 'function');
 
   // ── 2. Strip rendering ──

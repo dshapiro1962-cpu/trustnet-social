@@ -17,7 +17,7 @@ let pass=0, fail=0; const check=(n,c,x)=>{ if(c){pass++;console.log('  ✓',n);}
 vm.runInContext(src, ctx, {filename:'app.js'});
 vm.runInContext('renderApp=function(){};toast=function(){};', ctx);
 const X = ctx.__x;
-check('APP_VERSION is v0.19.0', X.APP_VERSION === 'v0.19.0 · live', X.APP_VERSION);
+check('APP_VERSION is v0.19.1', X.APP_VERSION === 'v0.19.1 · live', X.APP_VERSION);
 // brand-new user
 X.AppState.isDemoMode = false;
 X.AppState.userProfile = { id:'me', name:'dan shapiro' };

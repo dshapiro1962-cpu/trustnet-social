@@ -1,7 +1,7 @@
 // collections-sim.js — collections strip, create modal + handler, copy link, import flow (12 checks)
 const vm=require('vm'); const fs=require('fs');
 let src=fs.readFileSync('/home/claude/sim/app_script.js','utf8');
-src += ';globalThis.__x={renderCollectionsStrip,modalCollectionCreate,modalCollectionSend,handleCreateCollection,handleCopyCollectionLink,handleSendCollection,handleImportCollection,collectionUrl,renderLibrary,AppState,APP_VERSION};';
+src += ';globalThis.__x={openModal,renderCollectionsStrip,modalCollectionCreate,modalCollectionSend,handleCreateCollection,handleCopyCollectionLink,handleSendCollection,handleImportCollection,collectionUrl,renderLibrary,AppState,APP_VERSION};';
 const el=(o)=>Object.assign({value:'',textContent:'',style:{},dataset:{},innerHTML:'',disabled:false,checked:false,addEventListener(){},querySelectorAll(){return[];},querySelector(){return null;},closest(){return null;},classList:{add(){},remove(){},toggle(){}},focus(){}},o||{});
 let sbOps=[]; let sbResults=[];
 function makeChain(){
@@ -38,7 +38,7 @@ vm.runInContext('renderApp=function(){};toast=function(m,t){globalThis.__toasts.
  +'CURRENT_UID="me";loadUserData=async function(){globalThis.__reloaded=true;};',ctx);
 ctx.__toasts=[];ctx.__fn=[];ctx.__fnImpl=async()=>({});
 const X=ctx.__x;
-ck('APP_VERSION is v0.19.0', X.APP_VERSION==='v0.19.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.19.1', X.APP_VERSION==='v0.19.1 · live', X.APP_VERSION);
 X.AppState.isDemoMode=false;
 X.AppState.userProfile={id:'me',name:'dan'};
 X.AppState.userCollections=[{id:'cl1',token:'tok123',title:'My Tel Aviv doctors',description:'',recIds:['r1','r2']}];
@@ -80,6 +80,17 @@ ctx.__reloaded=false;
 await X.handleImportCollection('tokZZZ');
 ck('import: calls save-collection, clears token, reloads data', ctx.__fn.some(c=>c[0]==='save-collection'&&c[1].token==='tokZZZ') && ctx.localStorage.getItem('tn_collection_token')===null && ctx.__reloaded===true);
 ck('import: curator-named toast', ctx.__toasts.some(t=>String(t[0]).includes('Saved 3 items from Rina')));
+// ---- WIRE-LEVEL: strip button dataset must survive into the modal (v0.19.1 regression) ----
+const stripHtml = X.renderCollectionsStrip();
+const mBtn = stripHtml.match(/data-modal="collection-send"[^>]*data-token="([^"]+)"[^>]*data-title="([^"]+)"/);
+ck('strip: send button carries token+title data attrs', !!mBtn && mBtn[1]==='tok123');
+const overlay = el(); overlay.querySelector = () => null;
+const modalRoot = el(); modalRoot.querySelector = () => overlay;
+byId['modal-root'] = modalRoot;
+// exactly what the fixed dispatcher forwards: the full dataset
+X.openModal('collection-send', { modal:'collection-send', token: mBtn[1], title: mBtn[2] });
+ck('wire: modal shows real title + Send carries token', modalRoot.innerHTML.includes('My Tel Aviv doctors') && modalRoot.innerHTML.includes('data-token="tok123"'));
+
 // ---- send to circle ----
 X.AppState.userCircles=[{id:'c1',name:'Dining',color:'#217A4B',memberIds:['m1','m2','m3']}];
 X.AppState.userMembers=[

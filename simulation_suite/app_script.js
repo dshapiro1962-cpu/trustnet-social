@@ -402,7 +402,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.19.0 · live';
+const APP_VERSION = 'v0.19.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3569,7 +3569,9 @@ document.addEventListener('click', function(e) {
     showView(view, params);
   }
   else if (action === 'open-modal') {
-    openModal(target.dataset.modal, { circleId: target.dataset.circleId });
+    // Forward the FULL dataset — modals declare their params as data-* on the
+    // opening button (v0.19.1 fix: token/title were being dropped)
+    openModal(target.dataset.modal, Object.assign({}, target.dataset));
   }
   else if (action === 'close-modal') {
     closeModal();
