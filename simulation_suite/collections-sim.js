@@ -38,7 +38,7 @@ vm.runInContext('renderApp=function(){};toast=function(m,t){globalThis.__toasts.
  +'CURRENT_UID="me";loadUserData=async function(){globalThis.__reloaded=true;};',ctx);
 ctx.__toasts=[];ctx.__fn=[];ctx.__fnImpl=async()=>({});
 const X=ctx.__x;
-ck('APP_VERSION is v0.19.1', X.APP_VERSION==='v0.19.1 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.19.2', X.APP_VERSION==='v0.19.2 · live', X.APP_VERSION);
 X.AppState.isDemoMode=false;
 X.AppState.userProfile={id:'me',name:'dan'};
 X.AppState.userCollections=[{id:'cl1',token:'tok123',title:'My Tel Aviv doctors',description:'',recIds:['r1','r2']}];
@@ -102,10 +102,10 @@ ck('send modal: circle radio + send action', sendModal.includes('name="cs-circle
 byId['cs-err']=el(); byId['cs-results']=el();
 ctx.__qsa['input[name="cs-circle"]']=[el({checked:true,value:'c1'})];
 ctx.__fn=[]; ctx.__toasts=[];
-ctx.__fnImpl=async()=>({engine:'send-collection-v1',ok:true,title:'My list',deliveries:[
- {member_id:'m1',member:'dan test',channel:'whatsapp',status:'manual',error:null},
- {member_id:'m2',member:'naama',channel:'email',status:'sent',error:null},
- {member_id:'m3',member:'uri',channel:'app',status:'failed',error:'rls_denied'}]});
+ctx.__fnImpl=async()=>({engine:'send-collection-v3',ok:true,title:'My list',deliveries:[
+ {member_id:'m1',member:'dan test',channel:'whatsapp',status:'manual',error:null,app_doorway:true},
+ {member_id:'m2',member:'naama',channel:'email',status:'sent',error:null,app_doorway:true},
+ {member_id:'m3',member:'uri',channel:'app',status:'failed',error:'rls_denied',app_doorway:false}]});
 const sbtn=el({dataset:{token:'tok123',title:'My list'}});
 await X.handleSendCollection(sbtn);
 ck('send: posts token+circle+share_url', ctx.__fn.some(c=>c[0]==='send-collection'&&c[1].circle_id==='c1'&&c[1].share_url.includes('/collection.html?t=tok123')));
@@ -113,5 +113,9 @@ const results=byId['cs-results'].innerHTML;
 ck('send: whatsapp row gets wa.me one-tap with digits only', results.includes('https://wa.me/972505543402?text=') && results.includes('Open WhatsApp'));
 ck('send: email Sent + app failure verbatim', results.includes('>Sent<') && results.includes('rls_denied'));
 ck('send: button flips to close', sbtn.dataset.action==='close-modal');
+ck('send: dual doorway rendered (In-app ✓ beside channel)', (results.match(/In-app \u2713/g)||[]).length===2);
+ck('send: external links reuse one named tab', results.includes('target="tn_ext"') && !results.includes('target="_blank"'));
+const strip2=X.renderCollectionsStrip();
+ck('strip: View reuses the named tab too', strip2.includes('target="tn_ext"'));
 console.log('\nRESULT:', pass+' passed, '+fail+' failed'); process.exit(fail?1:0);
 })();

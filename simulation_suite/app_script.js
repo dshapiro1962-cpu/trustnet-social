@@ -402,7 +402,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.19.1 · live';
+const APP_VERSION = 'v0.19.2 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -1300,7 +1300,7 @@ function renderInbox() {
           + 'href="respond.html?t=' + esc(it.token) + '" target="_blank" rel="noopener">✍️ Answer</a>';
       } else if (it.type === 'collection_shared' && it.linkUrl && /^https:\/\//.test(it.linkUrl)) {
         actions = '<a class="btn btn-primary btn-sm" style="text-decoration:none;" '
-          + 'href="' + esc(it.linkUrl) + '" target="_blank" rel="noopener">📋 View list</a>';
+          + 'href="' + esc(it.linkUrl) + '" target="tn_ext" rel="noopener">📋 View list</a>';
       } else {
         actions = it.circleId
           ? '<button class="btn btn-ghost btn-sm" data-action="nav" data-view="circles">View circles</button>'
@@ -1686,7 +1686,7 @@ function renderCollectionsStrip() {
       + '</div>'
       + '<button class="btn btn-primary btn-sm" data-action="open-modal" data-modal="collection-send" data-token="' + esc(c.token) + '" data-title="' + esc(c.title) + '">Send to circle</button>'
       + '<button class="btn btn-secondary btn-sm" data-action="copy-collection-link" data-token="' + esc(c.token) + '">Copy link</button>'
-      + '<a class="btn btn-ghost btn-sm" href="' + esc(collectionUrl(c.token)) + '" target="_blank" rel="noopener">View</a>'
+      + '<a class="btn btn-ghost btn-sm" href="' + esc(collectionUrl(c.token)) + '" target="tn_ext" rel="noopener">View</a>'
       + '</div>';
   }).join('');
   return '<div id="collections-strip" style="border-radius:12px;border:1px solid #E5EDE8;background:#fff;margin-bottom:20px;overflow:hidden;">'
@@ -1747,12 +1747,15 @@ async function handleSendCollection(btn) {
       const m = AppState.userMembers.find(function(x) { return x.id === d.member_id; });
       const ph = m && m.contactValue ? String(m.contactValue).replace(/[^0-9]/g, '') : '';
       right = ph
-        ? '<a class="btn btn-primary btn-sm" style="text-decoration:none;" target="_blank" rel="noopener" href="https://wa.me/' + esc(ph) + '?text=' + encodeURIComponent(waText) + '">Open WhatsApp</a>'
+        ? '<a class="btn btn-primary btn-sm" style="text-decoration:none;" target="tn_ext" rel="noopener" href="https://wa.me/' + esc(ph) + '?text=' + encodeURIComponent(waText) + '">Open WhatsApp</a>'
         : '<span style="font-size:11px;color:#C0392B;">no number</span>';
     } else if (d.status === 'sent') {
       right = '<span style="font-size:11px;font-weight:700;color:#2D9460;">Sent</span>';
     } else {
       right = '<span style="font-size:11px;font-weight:700;color:#C0392B;" title="' + esc(d.error || '') + '">Failed: ' + esc(d.error || 'unknown') + '</span>';
+    }
+    if (d.app_doorway) {
+      right = '<span style="font-size:10px;font-weight:700;color:#2D9460;background:#E9F6EE;border-radius:8px;padding:2px 7px;">In-app \u2713</span> ' + right;
     }
     return '<div style="display:flex;align-items:center;gap:8px;padding:7px 4px;border-top:1px solid #EEF4F0;">'
       + '<span style="font-size:12px;font-weight:600;flex:1;" dir="auto">' + esc(d.member) + '</span>'

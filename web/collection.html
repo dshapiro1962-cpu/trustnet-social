@@ -64,6 +64,7 @@ function esc(s) {
 }
 function catLabel(c) { return c ? c.charAt(0).toUpperCase() + c.slice(1) : ''; }
 function render(data) {
+  window.__curator = data.curator;
   document.title = data.title + ' — Trustnet';
   document.getElementById('c-title').textContent = data.title;
   if (data.description) {
@@ -94,7 +95,22 @@ function render(data) {
   }
   document.getElementById('c-items').innerHTML = html || '<div class="state">This list is empty.</div>';
   var token = new URLSearchParams(location.search).get('t') || '';
-  document.getElementById('c-save').href = '/?collection=' + encodeURIComponent(token);
+  var saveBtn = document.getElementById('c-save');
+  saveBtn.href = '/?collection=' + encodeURIComponent(token);
+  // Session-aware CTA: a signed-in Trustnet user (same origin) sees an
+  // "open" verb, not a "sign up" verb — saving stays idempotent either way.
+  var hasSession = false;
+  try {
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (k && k.indexOf('sb-') === 0 && k.indexOf('auth-token') > -1 && localStorage.getItem(k)) { hasSession = true; break; }
+    }
+  } catch (e) { /* storage blocked: keep default CTA */ }
+  if (hasSession) {
+    saveBtn.textContent = 'Open in my Trustnet';
+    var sub = document.querySelector('.cta-sub');
+    if (sub) sub.textContent = 'Anything not already in your library will be added, credited to ' + (window.__curator || 'the curator');
+  }
   document.getElementById('c-cta').style.display = 'block';
 }
 (function() {

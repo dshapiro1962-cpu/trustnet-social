@@ -9,7 +9,7 @@
 import { adminClient, userClient, getUserId, json, err, handleOptions } from "../_shared/utils.ts";
 import { sendEmail } from "../_shared/channels.ts";
 
-const ENGINE = "send-collection-v1";
+const ENGINE = "send-collection-v3";
 
 interface Body { token: string; circle_id: string; share_url: string; }
 
@@ -52,21 +52,30 @@ Deno.serve(async (req: Request) => {
     .eq("collection_id", col.id);
   const nItems = itemCount ?? 0;
 
-  const deliveries: { member_id: string; member: string; channel: string; status: string; error: string | null }[] = [];
+  const deliveries: { member_id: string; member: string; channel: string; status: string; error: string | null; app_doorway: boolean }[] = [];
 
   for (const m of (members ?? []).filter((x: any) => !x.is_external_source)) {
     const linkedOther = !!m.linked_user_id && m.linked_user_id !== userId;
     let status = "failed"; let errMsg: string | null = "unsupported_channel"; let channel = m.contact_method ?? "unknown";
+    let appDoorway = false;
 
+    // Dual doorway (v3): linked members ALWAYS get the in-app notification,
+    // in ADDITION to their contact channel below — same principle as send-query.
     if (linkedOther) {
-      channel = "app";
       const { error: nErr } = await admin.from("notifications").insert({
         user_id: m.linked_user_id, type: "collection_shared",
         title: senderName + " shared a list with you: \u201C" + col.title + "\u201D",
         body: nItems + " recommendation" + (nItems !== 1 ? "s" : "") + " \u2014 tap to view and save them to your library.",
         actor_name: senderName, circle_id: circle.id, link_url: shareUrl,
       });
-      status = nErr ? "failed" : "sent"; errMsg = nErr ? nErr.message : null;
+      appDoorway = !nErr;
+      if (nErr) console.error("collection_app_doorway_failed", m.name, nErr.message);
+    }
+
+    if (m.contact_method === "app") {
+      channel = "app";
+      status = appDoorway ? "sent" : (linkedOther ? "failed" : "failed");
+      errMsg = appDoorway ? null : (linkedOther ? "notification_insert_failed" : "member_not_linked");
     } else if (m.contact_method === "email" && m.contact_value) {
       const html = "<div style=\"font-family:Arial,sans-serif;max-width:520px;\">"
         + "<h2 style=\"color:#0D2B1F;\">" + senderName + " shared a list with you</h2>"
@@ -81,7 +90,7 @@ Deno.serve(async (req: Request) => {
       status = "manual"; errMsg = null; // app renders a wa.me one-tap link for the sender
     }
 
-    deliveries.push({ member_id: m.id, member: m.name, channel, status, error: errMsg });
+    deliveries.push({ member_id: m.id, member: m.name, channel, status, error: errMsg, app_doorway: appDoorway && m.contact_method !== "app" });
   }
 
   return json({ engine: ENGINE, ok: true, title: col.title, deliveries });
