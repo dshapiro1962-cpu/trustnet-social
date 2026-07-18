@@ -8,7 +8,7 @@
 // ============================================================================
 import { adminClient, userClient, getUserId, json, err, handleOptions } from "../_shared/utils.ts";
 
-const ENGINE = "save-collection-v1";
+const ENGINE = "save-collection-v2";
 
 interface Body { token: string; }
 
@@ -50,6 +50,11 @@ Deno.serve(async (req: Request) => {
     .from("recommendations").select("canonical_id").eq("owner_id", userId);
   const have = new Set((mine ?? []).map((m: any) => m.canonical_id));
 
+  const { data: receiver } = await admin
+    .from("users").select("name").eq("id", userId).single();
+  const receiverName = receiver?.name || "Someone";
+  const sourceLabel = curatorName + " \u00b7 " + col.title;
+
   const today = new Date().toISOString().slice(0, 10);
   let imported = 0, skipped = 0;
   for (const r of (rows ?? []) as any[]) {
@@ -65,6 +70,8 @@ Deno.serve(async (req: Request) => {
       rating: null,
       tags: [],
       status: "saved",
+      source_collection_id: col.id,
+      source_label: sourceLabel,
       is_anonymous: false,
       degree: 1,
       shared_to_network: false,              // never auto-reshare someone else's list
@@ -73,6 +80,18 @@ Deno.serve(async (req: Request) => {
     if (insErr) return err("import_failed: " + insErr.message, 500);
     have.add(rec.canonical_id);
     imported++;
+  }
+
+  // Gratitude loop: tell the curator their list was saved (best-effort —
+  // an unexpected notification-type constraint must never fail the import)
+  if (imported > 0) {
+    const { error: nErr } = await admin.from("notifications").insert({
+      user_id: col.owner_id, type: "collection_saved",
+      title: receiverName + " saved your list \u201c" + col.title + "\u201d",
+      body: imported + " recommendation" + (imported !== 1 ? "s" : "") + " now live in their library, credited to you.",
+      actor_name: receiverName,
+    });
+    if (nErr) console.error("collection_saved_notification_failed", nErr.message);
   }
 
   return json({ engine: ENGINE, ok: true, imported, skipped, curator: curatorName, title: col.title });

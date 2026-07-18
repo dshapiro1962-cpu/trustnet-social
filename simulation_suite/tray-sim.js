@@ -57,7 +57,7 @@ const check = (n, c, x) => { if (c) { pass++; console.log('  ✓', n); } else { 
   ctx.__toasts = toasts;
   const X = ctx.__x;
 
-  check('APP_VERSION is v0.18.0', X.APP_VERSION === 'v0.18.0 · live', X.APP_VERSION);
+  check('APP_VERSION is v0.18.1', X.APP_VERSION === 'v0.18.1 · live', X.APP_VERSION);
 
   // fixtures
   X.AppState.isDemoMode = false;
@@ -70,7 +70,7 @@ const check = (n, c, x) => { if (c) { pass++; console.log('  ✓', n); } else { 
     { id: 'k2', name: 'Some Book', primaryCategory: 'culture', imageEmoji: '📖', imageUrl: '' },
   ];
   X.AppState.userRecs = [
-    { id: 'r1', canonicalId: 'k1', circleId: '', note: 'from whatsapp' },
+    { id: 'r1', canonicalId: 'k1', circleId: '', note: 'from whatsapp', sourceLabel: 'Rina \u00b7 Tel Aviv doctors' },
     { id: 'r2', canonicalId: 'k2', circleId: '', note: '' },
     { id: 'r3', canonicalId: 'k1', circleId: 'c-din', note: 'already filed' },
   ];
@@ -93,6 +93,7 @@ const check = (n, c, x) => { if (c) { pass++; console.log('  ✓', n); } else { 
   check('chips carry triage-assign action', (tray.match(/data-action="triage-assign"/g) || []).length === 4);
   check('thumbnail used when image_url present', tray.includes('img.example/h.jpg'));
   check('no tinder-swipe anywhere', !tray.toLowerCase().includes('swipe'));
+  check('imported items announce their list', tray.includes('From Rina') && tray.includes('Tel Aviv doctors'));
 
   const sug = X.suggestedCircleFor({ primaryCategory: 'travel' });
   check('suggestedCircleFor matches circle domain', sug && sug.id === 'c-trv');

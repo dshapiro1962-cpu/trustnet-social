@@ -817,7 +817,7 @@ a { color: inherit; text-decoration: none; }
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.18.0 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.18.1 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1090,6 +1090,7 @@ async function loadUserData() {
   const rs = await sb.from('recommendations').select('*').eq('owner_id', CURRENT_UID).order('created_at');
   AppState.userRecs = (rs.data || []).map(function(r){ return { id:r.id, canonicalId:r.canonical_id, circleId:r.circle_id||'',
     recommendedBy: r.recommended_by_member_id || r.recommended_by_user_id || CURRENT_UID, queryId:r.query_id,
+    sourceLabel: r.source_label || '',
     note:r.note||'', rating:r.rating||0, tags:r.tags||[], status:r.status||'saved', isAnonymous:!!r.is_anonymous, sharedToNetwork:!!r.shared_to_network,
     degree:r.degree||1, date:r.rec_date }; });
 
@@ -1276,7 +1277,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.18.0 · live';
+const APP_VERSION = 'v0.18.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -2685,6 +2686,7 @@ function renderTriageTray() {
       + icon
       + '<div style="flex:1;min-width:0;">'
       + '<div style="font-size:13px;font-weight:700;color:#1C2420;" dir="auto">' + esc(can.name) + (can.location ? ' <span style="font-weight:400;color:#7A9086;font-size:11px;">\u00b7 ' + esc(can.location) + '</span>' : '') + '</div>'
+      + (rec.sourceLabel ? '<div style="font-size:10.5px;color:#5B3E9E;font-weight:700;margin:2px 0 2px;" dir="auto">\ud83d\udccb From ' + esc(rec.sourceLabel) + '</div>' : '')
       + (rec.note ? '<div style="font-size:11px;color:#56695F;margin:2px 0 6px;" dir="auto">' + esc(rec.note) + '</div>' : '<div style="height:4px;"></div>')
       + '<div style="display:flex;gap:6px;flex-wrap:wrap;">' + chips + '</div>'
       + '</div>'
@@ -2748,9 +2750,7 @@ function renderLibrary() {
     }).join('')
     + '</div>';
 
-  const shareBtn = (!AppState.isDemoMode && allRecs.length > 0)
-    ? '<button class="btn btn-secondary" data-action="open-share-list" style="flex-shrink:0;white-space:nowrap;">🔗 Share as list</button>'
-    : '';
+  const shareBtn = ''; // retired v0.18.1 — Collections (the strip above) is the real share-a-list
 
   const searchBar = '<div style="display:flex;gap:10px;margin-bottom:20px;">'
     + '<div class="search-wrap"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg><input class="search-input" id="lib-search" placeholder="Search recommendations…" value="' + esc(AppState.searchQuery) + '"></div>'
@@ -2794,6 +2794,7 @@ function recCardHtml(rec, clickable, opts) {
     + (recommender ? '<span class="rec-by">via ' + esc(recommender.name) + '</span>' : (rec.isAnonymous ? '<span class="rec-by">Anonymous (D2)</span>' : ''))
     + '<span class="rec-status">' + statusDot(rec.status) + ' ' + esc(rec.status || 'saved') + '</span>'
     + (rec.tags && rec.tags.length ? '<span style="font-size:10px;color:var(--slate-300);">' + rec.tags.slice(0,3).map(function(t){return'#'+esc(t);}).join(' ') + '</span>' : '')
+    + (rec.sourceLabel ? '<span style="font-size:9.5px;background:#F3EEFB;color:#5B3E9E;padding:2px 8px;border-radius:9px;font-weight:700;" dir="auto">\ud83d\udccb ' + esc(rec.sourceLabel) + '</span>' : '')
     + (opts && opts.semantic ? '<span class="sem-tag">\u2728 matched by meaning</span>' : '')
     + '</div>'
     + '</div>'
