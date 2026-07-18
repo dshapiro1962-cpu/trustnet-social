@@ -65,6 +65,7 @@ function esc(s) {
 function catLabel(c) { return c ? c.charAt(0).toUpperCase() + c.slice(1) : ''; }
 function render(data) {
   window.__curator = data.curator;
+  window.__ownerId = data.owner_id || null;
   document.title = data.title + ' — Trustnet';
   document.getElementById('c-title').textContent = data.title;
   if (data.description) {
@@ -99,16 +100,40 @@ function render(data) {
   saveBtn.href = '/?collection=' + encodeURIComponent(token);
   // Session-aware CTA: a signed-in Trustnet user (same origin) sees an
   // "open" verb, not a "sign up" verb — saving stays idempotent either way.
-  var hasSession = false;
+  var viewerId = null;
   try {
     for (var i = 0; i < localStorage.length; i++) {
       var k = localStorage.key(i);
-      if (k && k.indexOf('sb-') === 0 && k.indexOf('auth-token') > -1 && localStorage.getItem(k)) { hasSession = true; break; }
+      if (k && k.indexOf('sb-') === 0 && k.indexOf('auth-token') > -1) {
+        var rawTok = localStorage.getItem(k);
+        if (!rawTok) continue;
+        try {
+          var sess = JSON.parse(rawTok);
+          if (sess && sess.user && sess.user.id) { viewerId = sess.user.id; }
+          else if (sess && sess.access_token) {
+            var payload = JSON.parse(atob(sess.access_token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+            if (payload && payload.sub) viewerId = payload.sub;
+          }
+        } catch (e2) { viewerId = viewerId || 'unknown'; }
+        break;
+      }
     }
   } catch (e) { /* storage blocked: keep default CTA */ }
-  if (hasSession) {
+  var sub = document.querySelector('.cta-sub');
+  if (viewerId && window.__ownerId && viewerId === window.__ownerId) {
+    // The curator on their own page: the useful verb is SHARE, not save
+    saveBtn.textContent = 'Copy share link';
+    saveBtn.href = '#';
+    saveBtn.onclick = function(ev) {
+      ev.preventDefault();
+      var link = location.origin + '/collection.html?t=' + encodeURIComponent(token);
+      var done = function() { saveBtn.textContent = 'Link copied \u2713 \u2014 paste it anywhere'; };
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(link).then(done, done); }
+      else { window.prompt('Copy this link:', link); done(); }
+    };
+    if (sub) sub.textContent = 'This is your list \u2014 anyone with the link can view it, no app needed';
+  } else if (viewerId) {
     saveBtn.textContent = 'Open in my Trustnet';
-    var sub = document.querySelector('.cta-sub');
     if (sub) sub.textContent = 'Anything not already in your library will be added, credited to ' + (window.__curator || 'the curator');
   }
   document.getElementById('c-cta').style.display = 'block';

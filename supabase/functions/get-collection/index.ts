@@ -6,7 +6,7 @@
 // ============================================================================
 import { adminClient, json, err, handleOptions } from "../_shared/utils.ts";
 
-const ENGINE = "get-collection-v1";
+const ENGINE = "get-collection-v2";
 
 Deno.serve(async (req: Request) => {
   const pre = handleOptions(req);
@@ -54,6 +54,7 @@ Deno.serve(async (req: Request) => {
 
   return json({
     engine: ENGINE,
+    owner_id: col.owner_id,
     title: col.title,
     description: col.description || "",
     curator: me?.name || "A Trustnet member",

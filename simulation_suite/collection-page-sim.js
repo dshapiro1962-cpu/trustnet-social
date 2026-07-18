@@ -9,7 +9,7 @@ function run(opts) {
   ['c-title','c-desc','c-curator','c-count','c-items','c-cta','c-save'].forEach(mk);
   const sub = { textContent: '' };
   let fetched = null;
-  const store = opts.session ? { 'sb-kgsdtfrcyjrxeyqqxoic-auth-token': '{"access_token":"x"}' } : {};
+  const store = opts.session ? { 'sb-kgsdtfrcyjrxeyqqxoic-auth-token': JSON.stringify({ access_token: 'x', user: { id: opts.viewerId || 'viewer-1' } }) } : {};
   const ctx = {
     console, document: {
       title: '', getElementById: (i) => els[i] || null,
@@ -20,16 +20,16 @@ function run(opts) {
       get length() { return Object.keys(store).length; },
       key: (i) => Object.keys(store)[i], getItem: (k) => store[k] || null,
     },
-    URLSearchParams, encodeURIComponent, window: {},
+    URLSearchParams, encodeURIComponent, atob: (b)=>Buffer.from(b,'base64').toString('utf8'), navigator: { clipboard: { writeText: async (t)=>{ ctxRef.__copied = t; } } }, prompt(){}, window: {},
     fetch: (url, init) => { fetched = { url, body: JSON.parse(init.body) };
       return Promise.resolve({ json: () => Promise.resolve(opts.response) }); },
   };
-  ctx.window = ctx;
+  ctx.window = ctx; const ctxRef = ctx;
   vm.createContext(ctx); vm.runInContext(src, ctx);
   return { els, sub, fetched, ctx };
 }
 (async () => {
-  const data = { title:'My Tel Aviv doctors', description:'15 years', curator:'dan', count:2,
+  const data = { owner_id:'owner-9', title:'My Tel Aviv doctors', description:'15 years', curator:'dan', count:2,
     items:[{name:'Dr. Levi',location:'Tel Aviv',category:'healthcare',emoji:'🩺',image_url:null,note:'thorough',rating:5},
            {name:'Dr. Cohen',location:'',category:'healthcare',emoji:'🦷',image_url:'https://img/x.jpg',note:'',rating:null}]};
   // anonymous visitor
@@ -39,11 +39,18 @@ function run(opts) {
   ck('renders title, curator, both items', r.els['c-title'].textContent==='My Tel Aviv doctors' && r.els['c-curator'].innerHTML.includes('dan') && r.els['c-items'].innerHTML.includes('Dr. Levi') && r.els['c-items'].innerHTML.includes('Dr. Cohen'));
   ck('notes carry curator attribution', r.els['c-items'].innerHTML.includes('dan:') && r.els['c-items'].innerHTML.includes('thorough'));
   ck('anonymous CTA: save verb + app link with token', r.els['c-save'].href==='/?collection=tok123' && r.els['c-save'].textContent==='');
-  // signed-in visitor
-  r = run({ token:'tok123', session:true, response:data });
+  // signed-in visitor who is NOT the curator
+  r = run({ token:'tok123', session:true, viewerId:'viewer-1', response:data });
   await new Promise((res)=>setImmediate(res)); await new Promise((res)=>setImmediate(res));
-  ck('signed-in CTA: "Open in my Trustnet"', r.els['c-save'].textContent==='Open in my Trustnet');
-  ck('signed-in sub-line names the curator', r.sub.textContent.includes('credited to dan'));
+  ck('other user CTA: "Open in my Trustnet"', r.els['c-save'].textContent==='Open in my Trustnet');
+  ck('other user sub-line names the curator', r.sub.textContent.includes('credited to dan'));
+  // the CURATOR on their own page
+  r = run({ token:'tok123', session:true, viewerId:'owner-9', response:data });
+  await new Promise((res)=>setImmediate(res)); await new Promise((res)=>setImmediate(res));
+  ck('curator CTA: "Copy share link" (no self-import)', r.els['c-save'].textContent==='Copy share link');
+  ck('curator sub-line: sharing hint', r.sub.textContent.includes('This is your list'));
+  await r.els['c-save'].onclick({ preventDefault(){} });
+  ck('curator click: link copied + feedback', r.ctx.__copied==='https://trustnetsocial.netlify.app/collection.html?t=tok123' && r.els['c-save'].textContent.includes('Link copied'));
   // missing token
   r = run({ token:'', session:false, response:data });
   ck('missing token: clear error state, no fetch', r.els['c-title'].textContent==='List not found' && r.fetched===null);
