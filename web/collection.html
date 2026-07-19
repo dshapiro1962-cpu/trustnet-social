@@ -83,9 +83,11 @@ function render(data) {
   for (var i = 0; i < data.items.length; i++) {
     var it = data.items[i];
     var h = CAT_HUES[it.category] || CAT_HUES.other;
+    var h2 = CAT_HUES[it.category] || CAT_HUES.other;
+    var letter = String(it.name || '?').trim().charAt(0).toUpperCase() || '?';
     var thumb = it.image_url
       ? '<div class="thumb" style="background-image:url(&quot;' + esc(it.image_url) + '&quot;);"></div>'
-      : '<div class="thumb">' + esc(it.emoji || '\uD83D\uDCCC') + '</div>';
+      : '<div class="thumb" style="background:' + h2.bg + ';color:' + h2.fg + ';font-weight:800;font-size:22px;">' + esc(letter) + '</div>';
     html += '<div class="card" dir="auto">' + thumb + '<div style="flex:1;min-width:0;">'
       + '<div class="item-name">' + esc(it.name) + '</div>'
       + (it.location ? '<div class="item-loc">' + esc(it.location) + '</div>' : '')

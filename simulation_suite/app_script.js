@@ -402,7 +402,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.19.2 · live';
+const APP_VERSION = 'v0.20.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -778,7 +778,7 @@ function renderCircleDetail() {
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
     + '<h2 style="font-size:13px;font-weight:700;color:var(--slate-600);">MEMBERS (' + members.length + ')</h2>'
     + (!isDemo ? '<div style="display:flex;gap:6px;">'
-        + '<button class="btn btn-ghost btn-sm" data-action="open-circle-link" data-circle-id="' + esc(cid) + '" data-circle-name="' + esc(circle.name) + '">🔗 Invite link</button>'
+        + '<button class="btn btn-ghost btn-sm" data-action="open-circle-link" data-circle-id="' + esc(cid) + '" data-circle-name="' + esc(circle.name) + '">Invite link</button>'
         + '<button class="btn btn-ghost btn-sm" data-action="open-invite" data-circle-name="' + esc(circle.name) + '">✉️ Invite</button>'
         + '<button class="btn btn-ghost btn-sm" data-action="open-modal" data-modal="add-member" data-circle-id="' + esc(cid) + '">+ Add member</button>'
         + '</div>' : '')
@@ -959,7 +959,7 @@ function renderQuerySent(qs) {
       + '<div class="response-body">'
       + '<div class="response-name">' + (member ? esc(member.name) : 'Anonymous contact (D2)') + '</div>'
       + '<div style="display:flex;align-items:center;gap:8px;margin:6px 0 4px;">'
-      + '<span style="font-size:16px;">' + esc(resp.recEmoji || '📌') + '</span>'
+
       + '<span style="font-size:13px;font-weight:700;color:#1C2420;">' + esc(resp.recName) + '</span>'
       + (resp.recLoc ? '<span style="font-size:11px;color:#7A9086;">· ' + esc(resp.recLoc) + '</span>' : '')
       + '</div>'
@@ -1058,7 +1058,7 @@ function initQueryView() {
       + (counts.app ? '<span class="chip">💬 ' + counts.app + ' in-app</span>' : '')
       + (counts.whatsapp ? '<span class="chip">📱 ' + counts.whatsapp + ' WhatsApp</span>' : '')
       + (counts.email ? '<span class="chip">✉️ ' + counts.email + ' email</span>' : '')
-      + (counts.linkedin ? '<span class="chip">🔗 ' + counts.linkedin + ' LinkedIn</span>' : '')
+      + (counts.linkedin ? '<span class="chip">' + counts.linkedin + ' LinkedIn</span>' : '')
       + '</div>';
   }
 }
@@ -1292,15 +1292,22 @@ function renderInbox() {
       actions = '<button class="btn btn-primary btn-sm" data-action="open-sheet" data-query-id="' + esc(it.queryId) + '">📋 Answer sheet</button> '
         + '<button class="btn btn-ghost btn-sm" data-action="nav-history-detail" data-query-id="' + esc(it.queryId) + '">View query</button>';
     } else {
-      icon = it.type === 'pick_won' ? '🏆' : (it.type === 'invite_accepted' ? '👥' : (it.type === 'query' ? '🎯' : ((it.type === 'collection_shared' || it.type === 'collection_saved') ? '📋' : '🔔')));
+      const _svgs = {
+        pick_won: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M6 3h12v6a6 6 0 01-12 0V3z"/><path d="M6 5H3v2a4 4 0 004 4M18 5h3v2a4 4 0 01-4 4"/></svg>',
+        invite_accepted: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>',
+        query: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>',
+        collection: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+        bell: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>'
+      };
+      icon = it.type === 'pick_won' ? _svgs.pick_won : (it.type === 'invite_accepted' ? _svgs.invite_accepted : (it.type === 'query' ? _svgs.query : ((it.type === 'collection_shared' || it.type === 'collection_saved') ? _svgs.collection : _svgs.bell)));
       title = esc(it.title || 'Notification');
       body = esc(it.body || '');
       if (it.type === 'query' && it.token) {
         actions = '<a class="btn btn-primary btn-sm" style="text-decoration:none;" '
-          + 'href="respond.html?t=' + esc(it.token) + '" target="_blank" rel="noopener">✍️ Answer</a>';
+          + 'href="respond.html?t=' + esc(it.token) + '" target="_blank" rel="noopener">Answer</a>';
       } else if (it.type === 'collection_shared' && it.linkUrl && /^https:\/\//.test(it.linkUrl)) {
         actions = '<a class="btn btn-primary btn-sm" style="text-decoration:none;" '
-          + 'href="' + esc(it.linkUrl) + '" target="tn_ext" rel="noopener">📋 View list</a>';
+          + 'href="' + esc(it.linkUrl) + '" target="tn_ext" rel="noopener">View list</a>';
       } else {
         actions = it.circleId
           ? '<button class="btn btn-ghost btn-sm" data-action="nav" data-view="circles">View circles</button>'
@@ -1384,7 +1391,7 @@ function renderSheet() {
     if (!groups[cat]) return;
     sections += '<div style="margin-bottom:22px;">'
       + '<div style="font-size:13px;font-weight:800;color:var(--slate-700);margin-bottom:10px;">'
-      + (SHEET_CAT_EMOJI[cat] || '📌') + ' ' + domainLabel(cat).toUpperCase()
+      + domainLabel(cat).toUpperCase()
       + ' <span style="font-weight:400;color:#A8BDAF;">(' + groups[cat].length + ')</span></div>'
       + groups[cat].map(function(g) { return sheetItemHtml(g.it, g.idx); }).join('')
       + '</div>';
@@ -1414,7 +1421,7 @@ function sheetItemHtml(it, idx) {
   if (it.from_you && it.recommenders.length) {
     sourceLine = '<span style="color:#1A5235;font-weight:700;">✓ In your library · also recommended by ' + esc(it.recommenders.join(', ')) + '</span>';
   } else if (it.from_you) {
-    sourceLine = '<span style="color:#7A9086;">📚 From your library</span>';
+    sourceLine = '<span style="color:#7A9086;">From your library</span>';
   } else {
     sourceLine = '<span style="color:#2D9460;">👤 Recommended by ' + esc(it.recommenders.join(', ')) + '</span>';
   }
@@ -1426,7 +1433,7 @@ function sheetItemHtml(it, idx) {
   const links = domFindLinks(it.name || '', it.location || '', it.category || '', it.primary_category || '', it.ai_tags || it.tags || []);
   return '<div style="background:#fff;border:1px solid #E5EDE8;border-radius:12px;padding:14px 16px;margin-bottom:8px;">'
     + '<div style="display:flex;gap:12px;align-items:flex-start;">'
-    + '<div style="font-size:22px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:var(--slate-50);border-radius:10px;flex-shrink:0;">' + esc(it.emoji || '📌') + '</div>'
+    + tnTile(it.name, cat, null, 40)
     + '<div style="flex:1;min-width:0;">'
     + '<div dir="auto" style="font-size:14px;font-weight:700;color:#1C2420;">' + esc(it.name)
     + (it.location ? ' <span style="font-weight:400;font-size:11px;color:#7A9086;">· ' + esc(it.location) + '</span>' : '') + stars + '</div>'
@@ -1543,7 +1550,7 @@ function renderHistoryDetail() {
           + '<div class="response-body">'
           + '<div class="response-name">' + (member ? esc(member.name) : 'Anonymous (D2)') + '</div>'
           + '<div style="display:flex;align-items:center;gap:8px;margin:6px 0 4px;">'
-          + '<span style="font-size:16px;">' + esc(resp.recEmoji || '📌') + '</span>'
+    
           + '<span style="font-size:13px;font-weight:700;color:#1C2420;">' + esc(resp.recName || '') + '</span>'
           + (resp.recLoc ? '<span style="font-size:11px;color:#7A9086;">· ' + esc(resp.recLoc) + '</span>' : '')
           + '</div>'
@@ -1615,6 +1622,16 @@ const CAT_HUES = {
   professional:{ fg:'#3D4F46', bg:'#ECF1EE' },
   other:       { fg:'#7A9086', bg:'#EFF3F0' }
 };
+function tnTile(name, cat, imageUrl, px) {
+  const size = px || 44;
+  if (imageUrl && /^https?:\/\//i.test(imageUrl)) {
+    return '<div class="tn-tile" style="width:' + size + 'px;height:' + size + 'px;background-image:url(&quot;' + esc(imageUrl) + '&quot;);"></div>';
+  }
+  const h = CAT_HUES[cat] || CAT_HUES.other;
+  const letter = String(name || '?').trim().charAt(0).toUpperCase() || '?';
+  return '<div class="tn-tile" style="width:' + size + 'px;height:' + size + 'px;background:' + h.bg + ';color:' + h.fg + ';font-size:' + Math.round(size * 0.44) + 'px;">' + esc(letter) + '</div>';
+}
+
 function catChipSmall(cat) {
   if (!cat) return '';
   const h = CAT_HUES[cat] || CAT_HUES.other;
@@ -1652,7 +1669,7 @@ function libFilterRecs() {
 function libResultsHtml(f) {
   const search = (AppState.searchQuery || '').trim();
   const shimmer = (AppState._semPending && search.length >= 3)
-    ? '<div class="sem-shimmer" id="sem-shimmer">\u2728 also searching by meaning\u2026</div>' : '';
+    ? '<div class="sem-shimmer" id="sem-shimmer">also searching by meaning\u2026</div>' : '';
   if (!f.filtered.length) {
     return shimmer + '<div class="empty-state"><div class="empty-icon">\ud83d\udcda</div><div class="empty-title">' + (search ? 'No matches' : 'Nothing here yet') + '</div><div class="empty-body">' + (search ? 'Try different keywords.' : 'Your library fills as you ask questions and save recommendations.') + '</div></div>';
   }
@@ -1679,7 +1696,7 @@ function renderCollectionsStrip() {
   const cols = AppState.userCollections || [];
   const rows = cols.map(function(c) {
     return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #EEF4F0;">'
-      + '<span style="font-size:15px;">\ud83d\udccb</span>'
+      + '<span style="color:#56695F;display:flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></span>'
       + '<div style="flex:1;min-width:0;">'
       + '<div style="font-size:13px;font-weight:700;color:#1C2420;" dir="auto">' + esc(c.title) + '</div>'
       + '<div style="font-size:11px;color:#7A9086;">' + c.recIds.length + ' item' + (c.recIds.length !== 1 ? 's' : '') + '</div>'
@@ -1879,15 +1896,12 @@ function renderTriageTray() {
           : 'background:#fff;color:#3D4F46;border:1px solid #CDD9D1;')
         + '">' + (isSug ? '\u2605 ' : '') + esc(c.name) + (isSug ? ' <span style="font-size:9px;opacity:0.85;">Suggested</span>' : '') + '</button>';
     }).join('');
-    const thumbOk = can.imageUrl && /^https?:\/\//i.test(can.imageUrl);
-    const icon = thumbOk
-      ? '<div style="width:34px;height:34px;border-radius:9px;flex-shrink:0;background-image:url(&quot;' + esc(can.imageUrl) + '&quot;);background-size:cover;background-position:center;"></div>'
-      : '<div style="width:34px;height:34px;border-radius:9px;flex-shrink:0;background:#EAF3ED;display:flex;align-items:center;justify-content:center;font-size:16px;">' + (can.imageEmoji || '\ud83d\udccc') + '</div>';
+    const icon = tnTile(can.name, can.primaryCategory, can.imageUrl, 34);
     return '<div class="triage-row" style="display:flex;gap:10px;padding:10px 12px;border-top:1px solid #EEF4F0;align-items:flex-start;">'
       + icon
       + '<div style="flex:1;min-width:0;">'
       + '<div style="font-size:13px;font-weight:700;color:#1C2420;" dir="auto">' + esc(can.name) + (can.location ? ' <span style="font-weight:400;color:#7A9086;font-size:11px;">\u00b7 ' + esc(can.location) + '</span>' : '') + '</div>'
-      + (rec.sourceLabel ? '<div style="font-size:10.5px;color:#5B3E9E;font-weight:700;margin:2px 0 2px;" dir="auto">\ud83d\udccb From ' + esc(rec.sourceLabel) + '</div>' : '')
+      + (rec.sourceLabel ? '<div style="font-size:10.5px;color:#5B3E9E;font-weight:700;margin:2px 0 2px;" dir="auto">From ' + esc(rec.sourceLabel) + '</div>' : '')
       + (rec.note ? '<div style="font-size:11px;color:#56695F;margin:2px 0 6px;" dir="auto">' + esc(rec.note) + '</div>' : '<div style="height:4px;"></div>')
       + '<div style="display:flex;gap:6px;flex-wrap:wrap;">' + chips + '</div>'
       + '</div>'
@@ -1895,7 +1909,6 @@ function renderTriageTray() {
   }).join('');
   return '<div id="triage-tray" style="border-radius:12px;border:1px solid #E5EDE8;background:#fff;margin-bottom:20px;overflow:hidden;">'
     + '<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#FFFBEB;">'
-    + '<span style="font-size:14px;">\ud83d\uddc2\ufe0f</span>'
     + '<span style="font-size:11px;font-weight:700;color:#8A6D1A;letter-spacing:0.5px;">NEEDS FILING</span>'
     + '<span style="margin-left:auto;font-size:11px;color:#8A6D1A;">' + unfiled.length + ' saved without a circle</span>'
     + '</div>' + rows + '</div>';
@@ -1979,10 +1992,7 @@ function recCardHtml(rec, clickable, opts) {
     recommender = AppState.userProfile;
   }
   const action = clickable ? 'data-action="nav" data-view="rec-detail" data-rec-id="' + esc(rec.id) + '"' : '';
-  const thumbOk = can.imageUrl && /^https?:\/\//i.test(can.imageUrl);
-  const iconHtml = thumbOk
-    ? '<div class="rec-emoji" style="background-image:url(&quot;' + esc(can.imageUrl) + '&quot;);background-size:cover;background-position:center;border-radius:10px;"></div>'
-    : '<div class="rec-emoji">' + (can.imageEmoji || '📌') + '</div>';
+  const iconHtml = tnTile(can.name, can.primaryCategory, can.imageUrl, 44);
   return '<div class="rec-card" ' + action + '>'
     + iconHtml
     + '<div class="rec-body">'
@@ -1995,8 +2005,8 @@ function recCardHtml(rec, clickable, opts) {
     + (recommender ? '<span class="rec-by">via ' + esc(recommender.name) + '</span>' : (rec.isAnonymous ? '<span class="rec-by">Anonymous (D2)</span>' : ''))
     + '<span class="rec-status">' + statusDot(rec.status) + ' ' + esc(rec.status || 'saved') + '</span>'
     + (rec.tags && rec.tags.length ? '<span style="font-size:10px;color:var(--slate-300);">' + rec.tags.slice(0,3).map(function(t){return'#'+esc(t);}).join(' ') + '</span>' : '')
-    + (rec.sourceLabel ? '<span style="font-size:9.5px;background:#F3EEFB;color:#5B3E9E;padding:2px 8px;border-radius:9px;font-weight:700;" dir="auto">\ud83d\udccb ' + esc(rec.sourceLabel) + '</span>' : '')
-    + (opts && opts.semantic ? '<span class="sem-tag">\u2728 matched by meaning</span>' : '')
+    + (rec.sourceLabel ? '<span style="font-size:9.5px;background:#F3EEFB;color:#5B3E9E;padding:2px 8px;border-radius:9px;font-weight:700;" dir="auto">' + esc(rec.sourceLabel) + '</span>' : '')
+    + (opts && opts.semantic ? '<span class="sem-tag">matched by meaning</span>' : '')
     + '</div>'
     + '</div>'
     + '</div>';
@@ -2022,19 +2032,19 @@ function domFindLinks(name, loc, dom, cat, tags) {
   const qn = encodeURIComponent(name);
   let out = '';
   if (eff === 'culture') {
-    out += extLink('https://www.amazon.com/s?k=' + qn, '📚 Amazon');
+    out += extLink('https://www.amazon.com/s?k=' + qn, 'Amazon');
   } else if (eff === 'travel') {
-    out += extLink('https://www.booking.com/searchresults.html?ss=' + q, '🏨 Booking');
-    out += extLink('https://www.google.com/maps/search/?api=1&query=' + q, '🗺 Maps');
+    out += extLink('https://www.booking.com/searchresults.html?ss=' + q, 'Booking');
+    out += extLink('https://www.google.com/maps/search/?api=1&query=' + q, 'Maps');
   } else if (eff === 'professional') {
-    out += extLink('https://www.linkedin.com/search/results/all/?keywords=' + qn, '🔗 LinkedIn');
+    out += extLink('https://www.linkedin.com/search/results/all/?keywords=' + qn, 'LinkedIn');
   } else if (eff === 'dining' || eff === 'healthcare' || eff === 'home') {
-    if (loc) out += extLink('https://www.google.com/maps/search/?api=1&query=' + q, '🗺 Maps');
+    if (loc) out += extLink('https://www.google.com/maps/search/?api=1&query=' + q, 'Maps');
   } else {
     // hobbies / products / other: Maps only when there is an actual place
-    if (loc) out += extLink('https://www.google.com/maps/search/?api=1&query=' + q, '🗺 Maps');
+    if (loc) out += extLink('https://www.google.com/maps/search/?api=1&query=' + q, 'Maps');
   }
-  out += extLink('https://www.google.com/search?q=' + gq, '\ud83d\udd0e Google');
+  out += extLink('https://www.google.com/search?q=' + gq, 'Google');
   return out;
 }
 
@@ -2203,13 +2213,13 @@ function mergeLiveData(queryRows, notifRows) {
     if (seeded && freshN.length) {
       const n = freshN[0];
       if (n.type === 'query') {
-        toast('🎯 ' + (n.title || 'Someone is asking for a recommendation') + ' — answer from your Inbox');
+        toast((n.title || 'Someone is asking for a recommendation') + ' — answer from your Inbox');
       } else if (n.type === 'pick_won') {
-        toast('🏆 ' + (n.title || 'Your recommendation won!'));
+        toast((n.title || 'Your recommendation won!'));
       } else if (n.type === 'invite_accepted') {
-        toast('👥 ' + (n.title || 'Someone joined your circle'));
+        toast((n.title || 'Someone joined your circle'));
       } else if (n.type === 'collection_shared' || n.type === 'collection_saved') {
-        toast('📋 ' + (n.title || 'A list update — check your Inbox'));
+        toast((n.title || 'A list update — check your Inbox'));
       } else {
         toast('🔔 ' + (n.title || 'New activity — check your Inbox'));
       }
@@ -2394,8 +2404,8 @@ function renderRecDetail() {
   let linksHtml = '';
   // Links stored on the canonical itself (when known)
   if (can.websiteUrl) linksHtml += extLink(can.websiteUrl, '🌐 Website');
-  if (can.googleUrl) linksHtml += extLink(can.googleUrl, '🗺 Google Maps');
-  if (can.linkedinUrl) linksHtml += extLink(can.linkedinUrl, '🔗 LinkedIn');
+  if (can.googleUrl) linksHtml += extLink(can.googleUrl, 'Google Maps');
+  if (can.linkedinUrl) linksHtml += extLink(can.linkedinUrl, 'LinkedIn');
   // Smart "find it" links, routed by the circle's domain
   const findQ = encodeURIComponent(can.name + (can.location ? ' ' + can.location : ''));
   const findName = encodeURIComponent(can.name);
@@ -2406,18 +2416,18 @@ function renderRecDetail() {
   const findDis = can.location ? can.location : (findTag0 ? findTag0 : (FIND_SEARCHABLE[findDom] ? findDom : ''));
   const findGq = encodeURIComponent(can.name + (findDis ? ' ' + findDis : ''));
   if (findDom === 'culture' || can.type === 'content') {
-    linksHtml += extLink('https://www.amazon.com/s?k=' + findName, '📚 Find on Amazon');
+    linksHtml += extLink('https://www.amazon.com/s?k=' + findName, 'Find on Amazon');
   } else if (findDom === 'travel') {
-    linksHtml += extLink('https://www.booking.com/searchresults.html?ss=' + findQ, '🏨 Find on Booking');
-    if (!can.googleUrl) linksHtml += extLink('https://www.google.com/maps/search/?api=1&query=' + findQ, '🗺 Google Maps');
+    linksHtml += extLink('https://www.booking.com/searchresults.html?ss=' + findQ, 'Find on Booking');
+    if (!can.googleUrl) linksHtml += extLink('https://www.google.com/maps/search/?api=1&query=' + findQ, 'Google Maps');
   } else if (findDom === 'professional') {
-    if (!can.linkedinUrl) linksHtml += extLink('https://www.linkedin.com/search/results/all/?keywords=' + findName, '🔗 LinkedIn search');
+    if (!can.linkedinUrl) linksHtml += extLink('https://www.linkedin.com/search/results/all/?keywords=' + findName, 'LinkedIn search');
   } else if (findDom === 'dining' || findDom === 'healthcare' || findDom === 'home') {
-    if (!can.googleUrl && can.location) linksHtml += extLink('https://www.google.com/maps/search/?api=1&query=' + findQ, '🗺 Google Maps');
+    if (!can.googleUrl && can.location) linksHtml += extLink('https://www.google.com/maps/search/?api=1&query=' + findQ, 'Google Maps');
   } else {
-    if (!can.googleUrl && can.location) linksHtml += extLink('https://www.google.com/maps/search/?api=1&query=' + findQ, '🗺 Google Maps');
+    if (!can.googleUrl && can.location) linksHtml += extLink('https://www.google.com/maps/search/?api=1&query=' + findQ, 'Google Maps');
   }
-  linksHtml += extLink('https://www.google.com/search?q=' + findGq, '🔎 Search Google');
+  linksHtml += extLink('https://www.google.com/search?q=' + findGq, 'Search Google');
 
   return '<div style="max-width:640px;">'
     + '<button class="btn btn-ghost btn-sm" data-action="nav" data-view="library" style="margin-bottom:16px;">← Library</button>'
@@ -2425,7 +2435,7 @@ function renderRecDetail() {
     + '<div class="card" style="margin-bottom:20px;">'
     + '<div class="card-body">'
     + '<div style="display:flex;gap:14px;align-items:flex-start;">'
-    + '<div style="font-size:40px;line-height:1;width:60px;height:60px;background:var(--slate-50);border-radius:12px;display:flex;align-items:center;justify-content:center;">' + (can.imageEmoji || '📌') + '</div>'
+    + tnTile(can.name, can.primaryCategory, can.imageUrl, 60)
     + '<div style="flex:1;">'
     + '<div style="font-size:20px;font-weight:800;letter-spacing:-0.3px;margin-bottom:3px;">' + esc(can.name) + '</div>'
     + '<div style="font-size:13px;color:var(--slate-400);margin-bottom:10px;">' + esc(can.category || '') + (can.location ? ' · ' + esc(can.location) : '') + '</div>'
@@ -2776,7 +2786,7 @@ function modalAddRec() {
     + '<div class="field"><div class="field-label">HAVE A LINK? <span style="font-weight:400;color:#A8BDAF;">(TikTok, Booking, Maps, any page — optional)</span></div>'
     + '<div style="display:flex;gap:8px;">'
     + '<input class="field-input" id="ar-url" placeholder="Paste a link and let AI fill this form" style="flex:1;">'
-    + '<button class="btn btn-secondary" data-action="ingest-link" id="ar-url-btn" style="flex-shrink:0;">✨ Fetch</button>'
+    + '<button class="btn btn-secondary" data-action="ingest-link" id="ar-url-btn" style="flex-shrink:0;">Fetch</button>'
     + '</div></div>'
     + '<div class="field"><div class="field-label">WHAT ARE YOU RECOMMENDING?</div><input class="field-input" id="ar-name" placeholder="Restaurant, book, doctor, place…" maxlength="80"></div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
@@ -3627,7 +3637,7 @@ document.addEventListener('click', function(e) {
       let r;
       try { r = await fnPost('ingest-link', { url: url }); }
       catch (e) { r = { error: 'network' }; }
-      if (btn) { btn.disabled = false; btn.textContent = '✨ Fetch'; }
+      if (btn) { btn.disabled = false; btn.textContent = 'Fetch'; }
       if (!r || r.error) { toast('Could not read that link' + (r && r.error ? ' (' + r.error + ')' : '') + ' — fill it in manually.', 'warn'); return; }
       const setV = function(id, v) { const el = document.getElementById(id); if (el && v) el.value = v; };
       setV('ar-name', r.name || r.source_title || '');
