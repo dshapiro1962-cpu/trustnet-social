@@ -19,7 +19,7 @@ function makeCtx(opts) {
   const byId = {};
   ['loading','form-view','thanks-view','error-view','ask-from','ask-text','rec-name','rec-location','rec-note',
    'submit-btn','thanks-title','thanks-body','convert-badge','convert-headline','convert-body','convert-btn',
-   'error-title','error-body','lib-strip','lib-search','lib-results','lib-filled'].forEach(id => {
+   'error-title','error-body','lib-strip','lib-search','lib-results','lib-filled','lib-debug'].forEach(id => {
     const e = el(); e.classList._p = e; byId[id] = e;
   });
   byId['form-view']._cls.hidden = true; byId['thanks-view']._cls.hidden = true;
@@ -48,16 +48,16 @@ function makeCtx(opts) {
     fetch: async (url, init2) => {
       ctx.__fetches.push({ url, init: init2 || {} });
       if (url.indexOf('response-meta') >= 0) {
-        return { ok: true, json: async () => (opts.meta || { requester_name: 'Dan', circle_name: 'Dining', query_text: 'best skin doctor?' }) };
+        return { ok: true, status: 200, json: async () => (opts.meta || { requester_name: 'Dan', circle_name: 'Dining', query_text: 'best skin doctor?' }) };
       }
       if (url.indexOf('/rest/v1/recommendations') >= 0) {
-        return { ok: true, json: async () => (opts.libRows || []) };
+        return { ok: true, status: 200, json: async () => (opts.libRows || []) };
       }
       if (url.indexOf('receive-response') >= 0) {
         ctx.__submitBody = JSON.parse(init2.body);
         return { ok: true, json: async () => ({ success: true }) };
       }
-      return { ok: false, json: async () => ({}) };
+      return { ok: false, status: 400, text: async () => 'stub', json: async () => ({}) };
     },
     __fetches: [], __alerts: [], __byId: byId, __docHandlers: docHandlers
   };
@@ -87,9 +87,10 @@ const clickSubmit = async (ctx) => {
   // ── Scenario 1: anonymous answerer — nothing changes ──
   let c = makeCtx({ localStorageData: {} });
   vm.runInContext(src, c, { filename: 'respond.js' }); await tick(); await tick();
-  ck('version marker r2.0-lib present', /r2\.0-lib/.test(src) && fs.readFileSync('/home/claude/respond/respond.html','utf8').indexOf('>r2.0-lib</div>') >= 0);
+  ck('version marker r2.1-lib present', fs.readFileSync('/home/claude/respond/respond.html','utf8').indexOf('>r2.1-lib</div>') >= 0);
   ck('anon: form shown, strip stays hidden', !c.__byId['form-view']._cls.hidden && c.__byId['lib-strip']._cls.hidden);
   ck('anon: no REST call made', !c.__fetches.some(f => f.url.indexOf('/rest/v1/') >= 0));
+  ck('no debug param: panel stays hidden', c.__byId['lib-debug'].textContent === '');
   await clickSubmit(c); // empty name → focus, no post
   c.__byId['rec-name'].value = 'Dr. Cohen'; await clickSubmit(c); await tick();
   ck('anon regression: plain submit works', c.__submitBody && c.__submitBody.rec_name === 'Dr. Cohen' && c.__submitBody.token === 'tok123' && !c.__byId['thanks-view']._cls.hidden);
@@ -99,6 +100,7 @@ const clickSubmit = async (ctx) => {
     localStorageData: { 'sb-kgsdtfrcyjrxeyqqxoic-auth-token': JSON.stringify({ access_token: jwt }) },
     libRows: LIBROWS
   });
+  c.location.search = '?t=tok123&debug=1';
   vm.runInContext(src, c, { filename: 'respond.js' }); await tick(); await tick();
   const rest = c.__fetches.find(f => f.url.indexOf('/rest/v1/recommendations') >= 0);
   ck('session: REST fetch with uid from JWT + both auth headers', rest
@@ -126,6 +128,8 @@ const clickSubmit = async (ctx) => {
     && c.__submitBody.rec_note === 'מאבחנת מעולה — תגידי שדן שלח אותך'
     && !c.__byId['thanks-view']._cls.hidden);
   ck('thanks: convert button flips for signed-in member', c.__byId['convert-btn'].textContent === 'Open your Trustnet →');
+  const dbgTxt = c.__byId['lib-debug'].textContent;
+  ck('debug=1: full trace printed', dbgTxt.indexOf('uid=uid-77') >= 0 && dbgTxt.indexOf('REST status: 200') >= 0 && dbgTxt.indexOf('rows returned: 3') >= 0 && dbgTxt.indexOf('strip: SHOWN') >= 0 && c.__byId['lib-debug'].style.display === 'block');
 
   // ── Scenario 3: used token — error path untouched by the new code ──
   c = makeCtx({

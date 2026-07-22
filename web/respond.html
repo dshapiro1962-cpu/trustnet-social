@@ -52,6 +52,7 @@
       <div class="ask-from" id="ask-from">Someone is asking</div>
       <div class="ask-text" id="ask-text"></div>
     </div>
+    <div id="lib-debug" style="display:none;background:#F5F5F0;border:1px dashed #B9C7BE;border-radius:8px;padding:8px 10px;margin-bottom:14px;font-size:10.5px;color:#3D4F46;font-family:monospace;white-space:pre-wrap;direction:ltr;text-align:left;"></div>
     <div id="lib-strip" class="hidden" style="background:var(--bg);border:1px solid #DCE7E0;border-radius:10px;padding:12px 14px;margin-bottom:20px;">
       <div style="font-size:11px;font-weight:700;color:#1A5235;letter-spacing:0.4px;margin-bottom:8px;">ANSWER FROM YOUR LIBRARY</div>
       <input id="lib-search" dir="auto" placeholder="Search your saved recommendations…" style="margin-bottom:8px;">
@@ -65,7 +66,7 @@
     <label for="rec-note">Your note</label>
     <textarea id="rec-note" placeholder="What makes it great? Any tips?" maxlength="1000"></textarea>
     <button id="submit-btn">Send recommendation</button>
-    <div style="font-size:9px;color:#A8BDAF;text-align:center;margin-top:10px;">r2.0-lib</div>
+    <div style="font-size:9px;color:#A8BDAF;text-align:center;margin-top:10px;">r2.1-lib</div>
   </div>
 
   <!-- Rich thank-you + conversion -->
@@ -102,7 +103,13 @@ window.TRUSTNET_CONFIG = {
 const CFG = window.TRUSTNET_CONFIG || {};
 const SUPABASE_FUNCTIONS_URL = CFG.FUNCTIONS_URL || window.TRUSTNET_FUNCTIONS_URL || "https://YOUR_PROJECT.supabase.co/functions/v1";
 const APP_URL = CFG.APP_URL || "https://trustnetsocial.netlify.app";
-const RESPOND_VERSION = "r2.0-lib";
+const RESPOND_VERSION = "r2.1-lib";
+const LIB_DEBUG = new URLSearchParams(location.search).get("debug") === "1";
+function dbg(line) {
+  if (!LIB_DEBUG) return;
+  const el = document.getElementById("lib-debug");
+  if (el) { el.style.display = "block"; el.textContent += line + "\n"; }
+}
 const SUPABASE_REST_URL = "https://kgsdtfrcyjrxeyqqxoic.supabase.co/rest/v1";
 const SUPABASE_ANON_KEY = "sb_publishable_8MAMd56FzHTyNZtnO2XK4A_cp2lFGEm";
 
@@ -164,23 +171,37 @@ function readTnSession() {
 }
 
 async function initLibraryLookup() {
+  dbg("respond " + RESPOND_VERSION);
+  let keyList = [];
+  try { for (let i = 0; i < localStorage.length; i++) keyList.push(localStorage.key(i)); } catch (e) { dbg("localStorage error: " + e.message); }
+  dbg("storage keys (" + keyList.length + "): " + keyList.join(" | "));
   const sess = readTnSession();
-  if (!sess) return;
+  if (!sess) { dbg("session: NONE matched /^sb-.*-auth-token$/ -> strip stays hidden"); return; }
+  dbg("session: found, uid=" + sess.uid + ", token len=" + (sess.token || "").length);
   let rows = [];
   try {
     const res = await fetch(SUPABASE_REST_URL + "/recommendations?select=id,note,rating,canonicals(name,location,primary_category)&owner_id=eq." + encodeURIComponent(sess.uid), {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + sess.token }
     });
-    if (!res.ok) return;
+    dbg("REST status: " + res.status);
+    if (!res.ok) {
+      let bodyTxt = "";
+      try { bodyTxt = await res.text(); } catch (e) {}
+      dbg("REST error body: " + bodyTxt.slice(0, 300));
+      return;
+    }
     rows = await res.json();
-  } catch (e) { return; }
+    dbg("rows returned: " + (rows ? rows.length : "null"));
+  } catch (e) { dbg("fetch exception: " + e.message); return; }
   LIB = (rows || []).filter((r) => r.canonicals && r.canonicals.name).map((r) => ({
     name: r.canonicals.name,
     location: r.canonicals.location || "",
     cat: r.canonicals.primary_category || "",
     note: r.note || ""
   }));
-  if (!LIB.length) return;
+  dbg("usable items (with canonical): " + LIB.length);
+  if (!LIB.length) { dbg("library empty -> strip stays hidden"); return; }
+  dbg("strip: SHOWN");
   $("lib-strip").classList.remove("hidden");
   $("lib-search").addEventListener("input", renderLibResults);
   renderLibResults();
