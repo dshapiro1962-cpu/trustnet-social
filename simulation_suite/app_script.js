@@ -402,7 +402,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.20.0 · live';
+const APP_VERSION = 'v0.21.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -1687,6 +1687,212 @@ function libUpdateResultsInPlace() {
   resultsEl.innerHTML = libResultsHtml(f);
 }
 
+function normalizeIlPhone(raw) {
+  let d = String(raw || '').replace(/[^0-9+]/g, '');
+  if (!d) return '';
+  if (d.indexOf('00') === 0) d = '+' + d.slice(2);
+  if (d.charAt(0) === '+') { return d.length >= 11 ? d : ''; }
+  if (d.indexOf('972') === 0) return '+' + d;
+  if (d.charAt(0) === '0' && (d.length === 9 || d.length === 10)) return '+972' + d.slice(1);
+  if (d.length >= 11) return '+' + d;
+  return '';
+}
+
+async function handlePickContacts() {
+  const box = document.getElementById('pc-review');
+  if (!box) return;
+  let picked = [];
+  try {
+    picked = await navigator.contacts.select(['name', 'tel'], { multiple: true });
+  } catch (e) {
+    if (e && e.name !== 'AbortError') toast('Contact picker failed: ' + (e.message || e.name), 'warn');
+    return;
+  }
+  if (!picked || !picked.length) return;
+  let skipped = 0;
+  const rows = [];
+  picked.forEach(function(c) {
+    const nm = (c.name && c.name[0]) ? String(c.name[0]).trim() : '';
+    const tel = normalizeIlPhone(c.tel && c.tel[0] ? c.tel[0] : '');
+    if (!nm || !tel) { skipped++; return; }
+    rows.push('<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid #F0F5F1;cursor:pointer;font-size:13px;" dir="auto">'
+      + '<input type="checkbox" class="pc-cb" checked data-name="' + esc(nm) + '" data-tel="' + esc(tel) + '">'
+      + '<b style="flex:1;min-width:0;">' + esc(nm) + '</b>'
+      + '<span style="color:#7A9086;font-size:11.5px;direction:ltr;">' + esc(tel) + '</span>'
+      + '</label>');
+  });
+  box.innerHTML = (rows.length
+      ? '<div style="border:1px solid #E5EDE8;border-radius:10px;padding:4px 8px;margin-top:8px;">' + rows.join('') + '</div>'
+        + '<button type="button" class="btn btn-primary btn-sm" data-action="add-picked-members" style="margin-top:8px;">Add ' + rows.length + ' as WhatsApp members</button>'
+      : '')
+    + (skipped ? '<div style="font-size:11px;color:#C0392B;margin-top:6px;">' + skipped + ' skipped (no usable number)</div>' : '');
+}
+
+async function handleAddPickedMembers(btn) {
+  const mb = document.querySelector('.modal-body[data-circle-id]');
+  const circleId = mb ? mb.dataset.circleId : AppState.viewParams.circleId;
+  if (!circleId) { toast('No circle selected.', 'error'); return; }
+  const circle = AppState.userCircles.find(function(c) { return c.id === circleId; });
+  const initials = function(str) { return (str || '').split(' ').map(function(w) { return w[0] || ''; }).join('').slice(0, 2).toUpperCase(); };
+  const palette = ['#217A4B', '#1A6FA8', '#C0392B', '#E8A020', '#8B2FC9', '#2D6A8A'];
+  let added = 0;
+  document.querySelectorAll('.pc-cb').forEach(function(cb) {
+    if (!cb.checked) return;
+    const nm = cb.dataset.name || ''; const tel = cb.dataset.tel || '';
+    if (!nm || !tel) return;
+    const dup = AppState.userMembers.find(function(m) { return m.circleId === circleId && m.contactValue === tel; });
+    if (dup) return;
+    const m = { id: uid(), name: nm, avatar: initials(nm),
+      avatarColor: palette[Math.floor(Math.random() * palette.length)],
+      isExternalSource: false, trustBasis: '', contactMethod: 'whatsapp',
+      contactValue: tel, responseRate: 'high', circleId: circleId,
+      addedAt: new Date().toISOString() };
+    AppState.userMembers.push(m);
+    if (circle) { if (!circle.memberIds) circle.memberIds = []; circle.memberIds.push(m.id); }
+    added++;
+  });
+  if (!added) { toast('Nobody selected (or all already in the circle).', 'warn'); return; }
+  btn.disabled = true;
+  await saveCircles();
+  await saveMembers();
+  toast('Added ' + added + ' member' + (added !== 1 ? 's' : '') + ' via WhatsApp.');
+  closeModal();
+  renderApp();
+}
+
+function stripBidi(t) { return String(t || '').replace(/[\u200e\u200f\u202a-\u202e]/g, ''); }
+
+function parseWaExport(text) {
+  const NOISE = ['end-to-end encrypted', 'created this group', 'added you', 'omitted', '<attached', 'was deleted', 'joined using', 'changed the subject', 'changed this group', 'pinned a message', 'left'];
+  const IOS = /^\[(\d{1,2}\/\d{1,2}\/\d{2,4}),? (\d{1,2}:\d{2}(?::\d{2})?)\]\s*([^:]+?):\s([\s\S]*)$/;
+  const AND = /^(\d{1,2}\/\d{1,2}\/\d{2,4}),? (\d{1,2}:\d{2})\s*-\s*([^:]+?):\s([\s\S]*)$/;
+  const out = [];
+  stripBidi(text).split(/\r?\n/).forEach(function(line) {
+    const m = line.match(IOS) || line.match(AND);
+    if (m) {
+      out.push({ d: m[1], s: m[3].trim(), t: m[4] });
+    } else if (out.length && line.trim()) {
+      out[out.length - 1].t += '\n' + line;
+    }
+  });
+  return out.filter(function(msg) {
+    const low = msg.t.toLowerCase();
+    if (msg.t.trim().length < 8) return false;
+    return !NOISE.some(function(nz) { return low.indexOf(nz) >= 0; });
+  });
+}
+
+function modalChatImport() {
+  return '<div class="modal" style="max-width:480px;">'
+    + '<div class="modal-header"><div class="modal-title">Import a WhatsApp chat</div>'
+    + '<button class="modal-close" data-action="close-modal">\u00d7</button></div>'
+    + '<div class="modal-body">'
+    + '<p style="font-size:12.5px;color:#56695F;line-height:1.7;">In WhatsApp: open the group \u2192 \u22ee \u2192 More \u2192 <b>Export chat</b> \u2192 <b>Without media</b> \u2192 save the .txt file, then choose it here. Trustnet scans it for recommendations \u2014 you review everything before anything is saved.</p>'
+    + '<input type="file" id="ci-file" accept=".txt,text/plain" style="margin:6px 0 10px;width:100%;">'
+    + '<p style="font-size:11px;color:#7A9086;line-height:1.6;">Privacy: notes never name group members, minors are excluded, and only service providers\u2019 phone numbers are kept.</p>'
+    + '<div id="ci-status" style="font-size:12.5px;color:#1A5235;font-weight:600;margin:8px 0;"></div>'
+    + '<div id="ci-review"></div>'
+    + '<button class="btn btn-primary" id="ci-run" data-action="chat-import-run" style="width:100%;justify-content:center;">Scan chat</button>'
+    + '</div></div>';
+}
+
+async function handleChatImportRun(btn) {
+  const inp = document.getElementById('ci-file');
+  const st = document.getElementById('ci-status');
+  const file = inp && inp.files && inp.files[0];
+  if (!file) { st.textContent = 'Choose the exported .txt file first.'; return; }
+  btn.disabled = true; btn.textContent = 'Scanning\u2026';
+  const text = await file.text();
+  const msgs = parseWaExport(text);
+  if (!msgs.length) {
+    st.textContent = 'No messages found \u2014 is this a WhatsApp \u201cExport chat\u201d text file?';
+    btn.disabled = false; btn.textContent = 'Scan chat'; return;
+  }
+  const srcLabel = (file.name || 'WhatsApp chat').replace(/^WhatsApp Chat (with|-)?\s*/i, '').replace(/\.txt$/i, '').replace(/^_?chat$/i, 'WhatsApp chat').trim() || 'WhatsApp chat';
+  const BATCH = 150;
+  const batches = [];
+  for (let i = 0; i < msgs.length; i += BATCH) batches.push(msgs.slice(i, i + BATCH));
+  const found = [];
+  for (let b = 0; b < batches.length; b++) {
+    st.textContent = 'Scanning\u2026 part ' + (b + 1) + ' of ' + batches.length + ' (' + found.length + ' found so far)';
+    let res;
+    try { res = await fnPost('extract-chat-recs', { mode: 'extract', source: srcLabel, messages: batches[b] }); }
+    catch (e) { st.textContent = 'Scan failed on part ' + (b + 1) + ': ' + (e.message || 'network'); btn.disabled = false; btn.textContent = 'Scan chat'; return; }
+    if (res && res.error) { st.textContent = 'Scan failed: ' + res.error; btn.disabled = false; btn.textContent = 'Scan chat'; return; }
+    (res && res.items ? res.items : []).forEach(function(it) { found.push(it); });
+  }
+  const byName = {};
+  found.forEach(function(it) {
+    const k = String(it.name || '').toLowerCase().trim();
+    if (!k) return;
+    if (byName[k]) {
+      byName[k].count++;
+      if ((it.note || '').length > (byName[k].note || '').length) byName[k].note = it.note;
+      if (!byName[k].phone && it.phone) byName[k].phone = it.phone;
+    } else {
+      byName[k] = { name: it.name, category: it.category || 'other', location: it.location || '', note: it.note || '', phone: it.phone || '', count: 1 };
+    }
+  });
+  const items = Object.keys(byName).map(function(k) { return byName[k]; });
+  AppState._chatImportItems = items;
+  AppState._chatImportSource = srcLabel;
+  st.textContent = items.length
+    ? 'Found ' + items.length + ' recommendation' + (items.length !== 1 ? 's' : '') + ' in ' + msgs.length + ' messages \u2014 review and save:'
+    : 'Scanned ' + msgs.length + ' messages \u2014 no clear recommendations found.';
+  const rev = document.getElementById('ci-review');
+  if (items.length && rev) {
+    const rows = items.map(function(it, i) {
+      return '<label style="display:flex;align-items:flex-start;gap:8px;padding:7px 4px;border-bottom:1px solid #F0F5F1;cursor:pointer;font-size:13px;" dir="auto">'
+        + '<input type="checkbox" class="ci-cb" checked data-idx="' + i + '" style="margin-top:3px;">'
+        + '<span style="flex:1;min-width:0;"><b>' + esc(it.name) + '</b>'
+        + (it.count > 1 ? ' <span style="font-size:10px;background:#E9F6EE;color:#1A5235;border-radius:8px;padding:1px 7px;font-weight:700;">\u00d7' + it.count + '</span>' : '')
+        + (it.location ? ' <span style="color:#7A9086;font-size:11px;">\u00b7 ' + esc(it.location) + '</span>' : '')
+        + (it.note ? '<br><span style="color:#56695F;font-size:11.5px;">' + esc(it.note.slice(0, 90)) + '</span>' : '')
+        + '</span>'
+        + catChipSmall(it.category)
+        + '</label>';
+    }).join('');
+    const circleOpts = ['<option value="">Needs Filing tray</option>'].concat(
+      AppState.userCircles.map(function(c) { return '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>'; })).join('');
+    rev.innerHTML = '<div style="border:1px solid #E5EDE8;border-radius:10px;padding:4px 8px;max-height:250px;overflow-y:auto;">' + rows + '</div>'
+      + '<div class="field" style="margin-top:10px;"><div class="field-label">FILE INTO</div><select class="field-input" id="ci-circle" style="width:100%;">' + circleOpts + '</select></div>'
+      + '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin:8px 0;cursor:pointer;"><input type="checkbox" id="ci-mkcol" checked> Also create a shareable collection</label>'
+      + '<input class="field-input" id="ci-coltitle" dir="auto" maxlength="80" style="width:100%;" value="' + esc('\u05d4\u05de\u05d5\u05de\u05dc\u05e6\u05d9\u05dd \u05de\u05d4\u05e7\u05d1\u05d5\u05e6\u05d4') + '">'
+      + '<button class="btn btn-primary" data-action="chat-import-save" style="width:100%;justify-content:center;margin-top:10px;">Save selected</button>';
+  }
+  btn.style.display = 'none';
+}
+
+async function handleChatImportSave(btn) {
+  const items = AppState._chatImportItems || [];
+  const chosen = [];
+  document.querySelectorAll('.ci-cb').forEach(function(cb) {
+    if (cb.checked && items[Number(cb.dataset.idx)]) chosen.push(items[Number(cb.dataset.idx)]);
+  });
+  if (!chosen.length) { toast('Nothing selected.', 'warn'); return; }
+  const circleId = (document.getElementById('ci-circle') || {}).value || '';
+  const mkcol = !!((document.getElementById('ci-mkcol') || {}).checked);
+  const colTitle = ((document.getElementById('ci-coltitle') || {}).value || '').trim();
+  btn.disabled = true; btn.textContent = 'Saving\u2026';
+  let res;
+  try {
+    res = await fnPost('extract-chat-recs', { mode: 'save', items: chosen,
+      circle_id: circleId || null, source: AppState._chatImportSource || 'WhatsApp chat',
+      collection_title: mkcol ? (colTitle || 'WhatsApp chat picks') : '' });
+  } catch (e) { btn.disabled = false; btn.textContent = 'Save selected'; toast('Save failed: ' + (e.message || 'network'), 'error'); return; }
+  if (!res || res.error) { btn.disabled = false; btn.textContent = 'Save selected'; toast('Save failed: ' + ((res && res.error) || 'unknown'), 'error'); return; }
+  let msg = 'Saved ' + res.saved + ' item' + (res.saved !== 1 ? 's' : '') + (res.skipped ? ' (' + res.skipped + ' already in your library)' : '');
+  if (res.collection_token) {
+    try { await navigator.clipboard.writeText(collectionUrl(res.collection_token)); msg += ' \u2014 collection link copied!'; }
+    catch (e) { msg += ' \u2014 collection created.'; }
+  }
+  toast(msg);
+  closeModal();
+  try { await loadUserData(); } catch (e) { /* view only */ }
+  renderApp();
+  showView('library');
+}
+
 function collectionUrl(token) {
   return location.origin + '/collection.html?t=' + encodeURIComponent(token);
 }
@@ -1710,6 +1916,7 @@ function renderCollectionsStrip() {
     + '<div style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:#F6FAF7;">'
     + '<span style="font-size:11px;font-weight:700;color:#56695F;letter-spacing:0.5px;">MY COLLECTIONS</span>'
     + '<button class="btn btn-primary btn-sm" data-action="open-modal" data-modal="collection-create" style="margin-left:auto;">+ New collection</button>'
+    + '<button class="btn btn-secondary btn-sm" data-action="open-modal" data-modal="chat-import">Import WhatsApp chat</button>'
     + '</div>'
     + (rows || '<div style="padding:12px;font-size:12px;color:#7A9086;">Curated lists you can share with one link \u2014 your best-of, ready to send instead of retyping.</div>')
     + '</div>';
@@ -2627,6 +2834,7 @@ function openModal(name, params) {
   else if (name === 'fab-menu') html = modalFabMenu();
   else if (name === 'collection-create') html = modalCollectionCreate();
   else if (name === 'collection-send') html = modalCollectionSend(params);
+  else if (name === 'chat-import') html = modalChatImport();
   else return;
 
   const root = document.getElementById('modal-root');
@@ -2721,6 +2929,11 @@ function modalAddMember(params) {
   // Person fields
   const isSourceEdit = !!(em && em.isExternalSource);
   const personFields = '<div id="nm-person-fields" style="display:' + (isSourceEdit ? 'none' : 'flex') + ';flex-direction:column;gap:14px;">'
+    + ((!editId && typeof navigator !== 'undefined' && navigator.contacts && navigator.contacts.select)
+        ? '<div style="margin-bottom:10px;"><button type="button" class="btn btn-secondary btn-sm" data-action="pick-contacts">Pick from contacts</button>'
+          + '<span style="font-size:11px;color:#7A9086;margin-inline-start:8px;">choose one or many \u2014 Trustnet only sees who you pick</span>'
+          + '<div id="pc-review"></div></div>'
+        : '')
     + '<div class="field"><div class="field-label">FULL NAME</div><input class="field-input" id="nm-name" placeholder="e.g. Yael Ben-David" maxlength="60" value="' + esc(em && !isSourceEdit ? em.name : '') + '"></div>'
     + '<div class="field"><div class="field-label">WHY DO YOU TRUST THEM?</div><textarea class="field-input field-textarea" id="nm-trust" placeholder="e.g. Food journalist, same taste in wine. Or: Managed her team for 3 years." style="min-height:60px;">' + esc(em && !isSourceEdit ? (em.trustBasis || '') : '') + '</textarea></div>'
     + '<div class="field"><div class="field-label">HOW TO REACH THEM</div>' + methodPicker + '</div>'
@@ -3840,6 +4053,18 @@ document.addEventListener('click', function(e) {
   }
   else if (action === 'send-collection') {
     handleSendCollection(target);
+  }
+  else if (action === 'pick-contacts') {
+    handlePickContacts();
+  }
+  else if (action === 'add-picked-members') {
+    handleAddPickedMembers(target);
+  }
+  else if (action === 'chat-import-run') {
+    handleChatImportRun(target);
+  }
+  else if (action === 'chat-import-save') {
+    handleChatImportSave(target);
   }
   else if (action === 'select-circle') {
     const cid = target.dataset.circleId;
