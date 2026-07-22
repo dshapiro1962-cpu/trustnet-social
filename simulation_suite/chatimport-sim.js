@@ -24,7 +24,7 @@ vm.runInContext('renderApp=function(){};showView=function(v){globalThis.__view=v
  +'CURRENT_UID="me";loadUserData=async function(){globalThis.__reloaded=true;};',ctx);
 ctx.__toasts=[];ctx.__fn=[];ctx.__qsa={};
 const X=ctx.__x;
-ck('APP_VERSION is v0.21.0', X.APP_VERSION==='v0.21.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.21.0', X.APP_VERSION==='v0.21.1 · live', X.APP_VERSION);
 
 // ---- PARSER vs the REAL שיכון export ----
 const fixture = fs.readFileSync('/home/claude/sim/shikun_fixture.txt','utf8');
@@ -53,16 +53,18 @@ ck('scan: batches posted with mode extract', ctx.__fn.filter(c=>c[0]==='extract-
 const revHtml=byId['ci-review'].innerHTML;
 ck('dedup: shushan merged with ×2 badge + longest note kept', revHtml.includes('\u00d72') && revHtml.includes('שיפוצניק מקצועי'));
 ck('review: circle picker + collection option + save action', revHtml.includes('id="ci-circle"') && revHtml.includes('id="ci-mkcol"') && revHtml.includes('chat-import-save'));
+ck('review: names are editable inputs', (revHtml.match(/class="ci-name"/g)||[]).length===2);
 ck('status announces found count', byId['ci-status'].textContent.indexOf('Found 2')===0);
 
 // ---- save flow ----
 ctx.__qsa['.ci-cb']=[el({checked:true,dataset:{idx:'0'}}),el({checked:false,dataset:{idx:'1'}})];
+ctx.__qsa['.ci-name']=[el({value:'שושן שמוליק — שיפוצניק',dataset:{idx:'0'}}),el({value:'ד"ר לירן חורב',dataset:{idx:'1'}})];
 byId['ci-circle']=el({value:'c1'}); byId['ci-mkcol']=el({checked:true}); byId['ci-coltitle']=el({value:'המומלצים של השכונה'});
 ctx.__fnImpl=async(n,b)=>({engine:'extract-chat-recs-v1',saved:1,skipped:0,collection_token:'tok123abc456'});
 ctx.__closed=false; ctx.__copied=''; ctx.__reloaded=false;
 await X.handleChatImportSave(el());
 const saveCall=ctx.__fn.find(c=>c[1]&&c[1].mode==='save');
-ck('save: posts selected item + circle + collection title', saveCall && saveCall[1].items.length===1 && saveCall[1].circle_id==='c1' && saveCall[1].collection_title==='המומלצים של השכונה');
+ck('save: posts selected item with EDITED name + circle + collection', saveCall && saveCall[1].items.length===1 && saveCall[1].items[0].name==='שושן שמוליק — שיפוצניק' && saveCall[1].circle_id==='c1' && saveCall[1].collection_title==='המומלצים של השכונה');
 ck('save: link copied + modal closed + data reloaded + library shown', ctx.__copied.includes('/collection.html?t=tok123abc456') && ctx.__closed===true && ctx.__reloaded===true && ctx.__view==='library');
 console.log('\nRESULT:', pass+' passed, '+fail+' failed'); process.exit(fail?1:0);
 })();

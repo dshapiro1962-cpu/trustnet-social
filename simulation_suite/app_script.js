@@ -402,7 +402,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.21.0 · live';
+const APP_VERSION = 'v0.21.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -1844,7 +1844,7 @@ async function handleChatImportRun(btn) {
     const rows = items.map(function(it, i) {
       return '<label style="display:flex;align-items:flex-start;gap:8px;padding:7px 4px;border-bottom:1px solid #F0F5F1;cursor:pointer;font-size:13px;" dir="auto">'
         + '<input type="checkbox" class="ci-cb" checked data-idx="' + i + '" style="margin-top:3px;">'
-        + '<span style="flex:1;min-width:0;"><b>' + esc(it.name) + '</b>'
+        + '<span style="flex:1;min-width:0;"><input class="ci-name" data-idx="' + i + '" dir="auto" value="' + esc(it.name) + '" style="font-weight:700;font-size:13px;border:none;border-bottom:1px dashed #C6EDD9;background:transparent;width:100%;max-width:210px;padding:0 0 1px;">'
         + (it.count > 1 ? ' <span style="font-size:10px;background:#E9F6EE;color:#1A5235;border-radius:8px;padding:1px 7px;font-weight:700;">\u00d7' + it.count + '</span>' : '')
         + (it.location ? ' <span style="color:#7A9086;font-size:11px;">\u00b7 ' + esc(it.location) + '</span>' : '')
         + (it.note ? '<br><span style="color:#56695F;font-size:11.5px;">' + esc(it.note.slice(0, 90)) + '</span>' : '')
@@ -1866,8 +1866,18 @@ async function handleChatImportRun(btn) {
 async function handleChatImportSave(btn) {
   const items = AppState._chatImportItems || [];
   const chosen = [];
+  const editedNames = {};
+  document.querySelectorAll('.ci-name').forEach(function(inp) {
+    const v = (inp.value || '').trim();
+    if (v) editedNames[Number(inp.dataset.idx)] = v;
+  });
   document.querySelectorAll('.ci-cb').forEach(function(cb) {
-    if (cb.checked && items[Number(cb.dataset.idx)]) chosen.push(items[Number(cb.dataset.idx)]);
+    const idx = Number(cb.dataset.idx);
+    if (cb.checked && items[idx]) {
+      const it = Object.assign({}, items[idx]);
+      if (editedNames[idx]) it.name = editedNames[idx];
+      chosen.push(it);
+    }
   });
   if (!chosen.length) { toast('Nothing selected.', 'warn'); return; }
   const circleId = (document.getElementById('ci-circle') || {}).value || '';

@@ -12,7 +12,7 @@
 // ============================================================================
 import { adminClient, getUserId, json, err, handleOptions } from "../_shared/utils.ts";
 
-const ENGINE = "extract-chat-recs-v1";
+const ENGINE = "extract-chat-recs-v2";
 const CATEGORIES = ["dining", "travel", "healthcare", "home", "culture", "hobbies", "professional", "other"];
 
 interface Msg { d: string; s: string; t: string; }
@@ -63,7 +63,9 @@ Deno.serve(async (req: Request) => {
                 "(1) NEVER include the names of chat participants in notes — use generic attribution like 'הומלץ בקבוצה'. " +
                 "(2) EXCLUDE entirely anyone described as a minor/child/teen (e.g. a 13-year-old babysitter). " +
                 "(3) phone numbers only for the recommended provider, never for group members chatting. " +
-                "(4) Only actual recommendations/endorsements — not questions, complaints, items for sale, or lost&found. " +
+                "(4) Only actual recommendations/endorsements — not questions, complaints, one-off items for sale, or lost&found. " +
+                "(5) DO include services people offer themselves (e.g. an adult babysitter or dog-sitter advertising availability) and recurring visiting vendors/stands — these count as community recommendations. " +
+                "(6) DO include strong third-party endorsements even when the provider's name or contact is missing from the text: give a short descriptive name (e.g. 'איש אלומיניום (דרך מידרג)'), phone \"\", and end the note with 'הפרטים נמסרו בקבוצה'. " +
                 "If nothing qualifies, return {\"items\": []}.",
             },
             { role: "user", content: transcript },

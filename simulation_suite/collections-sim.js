@@ -38,7 +38,7 @@ vm.runInContext('renderApp=function(){};toast=function(m,t){globalThis.__toasts.
  +'CURRENT_UID="me";loadUserData=async function(){globalThis.__reloaded=true;};',ctx);
 ctx.__toasts=[];ctx.__fn=[];ctx.__fnImpl=async()=>({});
 const X=ctx.__x;
-ck('APP_VERSION is v0.21.0', X.APP_VERSION==='v0.21.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.21.1', X.APP_VERSION==='v0.21.1 · live', X.APP_VERSION);
 X.AppState.isDemoMode=false;
 X.AppState.userProfile={id:'me',name:'dan'};
 X.AppState.userCollections=[{id:'cl1',token:'tok123',title:'My Tel Aviv doctors',description:'',recIds:['r1','r2']}];
