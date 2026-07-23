@@ -1,0 +1,49 @@
+name: E2E (Playwright)
+
+# Runs after code is pushed. Waits a moment for Netlify to publish, then
+# drives the LIVE site through real browsers.
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'web/**'
+      - 'e2e/**'
+  workflow_dispatch: {}   # allow manual "Run workflow" from the Actions tab
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: e2e
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install deps
+        run: npm ci || npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      # Give Netlify time to finish publishing the just-pushed commit.
+      - name: Wait for deploy
+        run: sleep 60
+
+      - name: Run E2E against live site
+        env:
+          BASE_URL: https://trustnetsocial.netlify.app
+          # Live-login spec self-skips if this secret is not set.
+          TN_TEST_LOGIN_CODE: ${{ secrets.TN_TEST_LOGIN_CODE }}
+        run: npx playwright test
+
+      - name: Upload report (always, so failures ship their evidence)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 14
