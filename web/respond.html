@@ -41,6 +41,7 @@
 <body>
 <div class="card">
   <div class="hero"><span class="brand">Trustnet</span></div>
+  <div id="lib-debug" style="display:none;background:#F5F5F0;border-bottom:1px dashed #B9C7BE;padding:8px 12px;font-size:10.5px;color:#3D4F46;font-family:monospace;white-space:pre-wrap;direction:ltr;text-align:left;"></div>
 
   <div id="loading" class="state">
     <div class="state-icon">⏳</div>
@@ -52,7 +53,6 @@
       <div class="ask-from" id="ask-from">Someone is asking</div>
       <div class="ask-text" id="ask-text"></div>
     </div>
-    <div id="lib-debug" style="display:none;background:#F5F5F0;border:1px dashed #B9C7BE;border-radius:8px;padding:8px 10px;margin-bottom:14px;font-size:10.5px;color:#3D4F46;font-family:monospace;white-space:pre-wrap;direction:ltr;text-align:left;"></div>
     <div id="lib-strip" class="hidden" style="background:var(--bg);border:1px solid #DCE7E0;border-radius:10px;padding:12px 14px;margin-bottom:20px;">
       <div style="font-size:11px;font-weight:700;color:#1A5235;letter-spacing:0.4px;margin-bottom:8px;">ANSWER FROM YOUR LIBRARY</div>
       <input id="lib-search" dir="auto" placeholder="Search your saved recommendations…" style="margin-bottom:8px;">
@@ -66,7 +66,7 @@
     <label for="rec-note">Your note</label>
     <textarea id="rec-note" placeholder="What makes it great? Any tips?" maxlength="1000"></textarea>
     <button id="submit-btn">Send recommendation</button>
-    <div style="font-size:9px;color:#A8BDAF;text-align:center;margin-top:10px;">r2.1-lib</div>
+    <div style="font-size:9px;color:#A8BDAF;text-align:center;margin-top:10px;">r2.2-lib</div>
   </div>
 
   <!-- Rich thank-you + conversion -->
@@ -103,7 +103,7 @@ window.TRUSTNET_CONFIG = {
 const CFG = window.TRUSTNET_CONFIG || {};
 const SUPABASE_FUNCTIONS_URL = CFG.FUNCTIONS_URL || window.TRUSTNET_FUNCTIONS_URL || "https://YOUR_PROJECT.supabase.co/functions/v1";
 const APP_URL = CFG.APP_URL || "https://trustnetsocial.netlify.app";
-const RESPOND_VERSION = "r2.1-lib";
+const RESPOND_VERSION = "r2.2-lib";
 const LIB_DEBUG = new URLSearchParams(location.search).get("debug") === "1";
 function dbg(line) {
   if (!LIB_DEBUG) return;
@@ -125,6 +125,7 @@ function show(view) {
 let context = { requesterName: "them", circleName: "" };
 
 async function init() {
+  if (LIB_DEBUG) initLibraryLookup();
   if (!token) { showError("Invalid link", "This link is missing its token."); return; }
   try {
     const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/response-meta?t=${encodeURIComponent(token)}`);
@@ -170,7 +171,10 @@ function readTnSession() {
   return null;
 }
 
+let libInitDone = false;
 async function initLibraryLookup() {
+  if (libInitDone) return;
+  libInitDone = true;
   dbg("respond " + RESPOND_VERSION);
   let keyList = [];
   try { for (let i = 0; i < localStorage.length; i++) keyList.push(localStorage.key(i)); } catch (e) { dbg("localStorage error: " + e.message); }

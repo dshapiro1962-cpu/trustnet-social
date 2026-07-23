@@ -87,7 +87,7 @@ const clickSubmit = async (ctx) => {
   // ── Scenario 1: anonymous answerer — nothing changes ──
   let c = makeCtx({ localStorageData: {} });
   vm.runInContext(src, c, { filename: 'respond.js' }); await tick(); await tick();
-  ck('version marker r2.1-lib present', fs.readFileSync('/home/claude/respond/respond.html','utf8').indexOf('>r2.1-lib</div>') >= 0);
+  ck('version marker r2.2-lib present', fs.readFileSync('/home/claude/respond/respond.html','utf8').indexOf('>r2.2-lib</div>') >= 0);
   ck('anon: form shown, strip stays hidden', !c.__byId['form-view']._cls.hidden && c.__byId['lib-strip']._cls.hidden);
   ck('anon: no REST call made', !c.__fetches.some(f => f.url.indexOf('/rest/v1/') >= 0));
   ck('no debug param: panel stays hidden', c.__byId['lib-debug'].textContent === '');
@@ -141,6 +141,18 @@ const clickSubmit = async (ctx) => {
     && c.__byId['error-title'].textContent.indexOf('already used') >= 0
     && !c.__fetches.some(f => f.url.indexOf('/rest/v1/') >= 0)
     && c.__byId['lib-strip']._cls.hidden);
+
+  // ── Scenario 4: used token + debug=1 — diagnostic runs anyway ──
+  c = makeCtx({
+    localStorageData: { 'sb-x-auth-token': JSON.stringify({ access_token: jwt, user: { id: 'uid-77' } }) },
+    libRows: LIBROWS, meta: { used: true }
+  });
+  c.location.search = '?t=selftest&debug=1';
+  vm.runInContext(src, c, { filename: 'respond.js' }); await tick(); await tick();
+  const d4 = c.__byId['lib-debug'].textContent;
+  ck('debug on error view: trace fully printed', !c.__byId['error-view']._cls.hidden
+    && d4.indexOf('uid=uid-77') >= 0 && d4.indexOf('REST status: 200') >= 0
+    && d4.indexOf('rows returned: 3') >= 0 && c.__byId['lib-debug'].style.display === 'block');
 
   console.log('\nRESULT:', pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
