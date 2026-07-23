@@ -24,7 +24,7 @@ vm.runInContext('renderApp=function(){};showView=function(v){globalThis.__view=v
  +'CURRENT_UID="me";loadUserData=async function(){globalThis.__reloaded=true;};',ctx);
 ctx.__toasts=[];ctx.__fn=[];ctx.__qsa={};
 const X=ctx.__x;
-ck('APP_VERSION is v0.21.0', X.APP_VERSION==='v0.21.1 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.21.0', X.APP_VERSION==='v0.22.0 · live', X.APP_VERSION);
 
 // ---- PARSER vs the REAL שיכון export ----
 const fixture = fs.readFileSync('/home/claude/sim/shikun_fixture.txt','utf8');

@@ -825,7 +825,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.21.1 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.22.0 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1285,7 +1285,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.21.1 · live';
+const APP_VERSION = 'v0.22.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -1664,6 +1664,8 @@ function renderCircleDetail() {
         + '<button class="btn btn-ghost btn-sm" data-action="open-circle-link" data-circle-id="' + esc(cid) + '" data-circle-name="' + esc(circle.name) + '">Invite link</button>'
         + '<button class="btn btn-ghost btn-sm" data-action="open-invite" data-circle-name="' + esc(circle.name) + '">✉️ Invite</button>'
         + '<button class="btn btn-ghost btn-sm" data-action="open-modal" data-modal="add-member" data-circle-id="' + esc(cid) + '">+ Add member</button>'
+        + '<button class="btn btn-ghost btn-sm" data-action="open-modal" data-modal="edit-circle" data-circle-id="' + esc(cid) + '">Edit</button>'
+        + '<button class="btn btn-ghost btn-sm" data-action="delete-circle" data-circle-id="' + esc(cid) + '" style="color:#C0392B;">Delete</button>'
         + '</div>' : '')
     + '</div>'
 
@@ -2786,6 +2788,200 @@ async function handleChatImportSave(btn) {
   showView('library');
 }
 
+function modalEditRec(params) {
+  const rec = AppState.userRecs.find(function(r) { return r.id === (params && params.recId); });
+  const can = rec ? AppState.canonicalById(rec.canonicalId) : null;
+  if (!rec || !can) return '<div class="modal"><div class="modal-body">Item not found.</div></div>';
+  const circleOpts = ['<option value="">No circle (Needs Filing)</option>'].concat(
+    AppState.userCircles.map(function(c) {
+      return '<option value="' + esc(c.id) + '"' + (rec.circleId === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>';
+    })).join('');
+  return '<div class="modal" style="max-width:460px;">'
+    + '<div class="modal-header"><div class="modal-title">Edit item</div>'
+    + '<button class="modal-close" data-action="close-modal">\u00d7</button></div>'
+    + '<div class="modal-body" data-rec-id="' + esc(rec.id) + '">'
+    + '<div class="field"><div class="field-label">NAME</div><input class="field-input" id="er-name" dir="auto" maxlength="80" style="width:100%;" value="' + esc(can.name) + '"></div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
+    + '<div class="field"><div class="field-label">WHAT IS IT</div><input class="field-input" id="er-cat" dir="auto" maxlength="40" placeholder="e.g. ski, dermatologist" value="' + esc(can.category || '') + '"></div>'
+    + '<div class="field"><div class="field-label">LOCATION</div><input class="field-input" id="er-loc" dir="auto" maxlength="80" value="' + esc(can.location || '') + '"></div>'
+    + '</div>'
+    + '<div class="field"><div class="field-label">NOTE</div><textarea class="field-input field-textarea" id="er-note" dir="auto" style="min-height:70px;">' + esc(rec.note || '') + '</textarea></div>'
+    + '<div class="field"><div class="field-label">TAGS (comma-separated)</div><input class="field-input" id="er-tags" dir="auto" style="width:100%;" value="' + esc((rec.tags || []).join(', ')) + '"></div>'
+    + '<div class="field"><div class="field-label">CIRCLE</div><select class="field-input" id="er-circle" style="width:100%;">' + circleOpts + '</select></div>'
+    + '<button class="btn btn-primary" data-action="save-edit-rec" data-rec-id="' + esc(rec.id) + '" style="width:100%;justify-content:center;">Save changes</button>'
+    + '</div></div>';
+}
+
+async function handleSaveEditRec(btn) {
+  const rec = AppState.userRecs.find(function(r) { return r.id === btn.dataset.recId; });
+  const can = rec ? AppState.canonicalById(rec.canonicalId) : null;
+  if (!rec || !can) { toast('Item not found.', 'error'); return; }
+  const name = ((document.getElementById('er-name') || {}).value || '').trim();
+  if (!name) { toast('Name is required.', 'warn'); return; }
+  can.name = name;
+  can.category = ((document.getElementById('er-cat') || {}).value || '').trim();
+  can.location = ((document.getElementById('er-loc') || {}).value || '').trim();
+  rec.note = ((document.getElementById('er-note') || {}).value || '').trim();
+  rec.tags = (((document.getElementById('er-tags') || {}).value || '')).split(',').map(function(t) { return t.trim(); }).filter(Boolean);
+  rec.circleId = ((document.getElementById('er-circle') || {}).value || '');
+  btn.disabled = true;
+  await saveCanonicals();
+  await saveRecs();
+  closeModal();
+  renderApp();
+  toast('\u201c' + name + '\u201d updated.');
+}
+
+async function handleDeleteRec(btn) {
+  const rec = AppState.userRecs.find(function(r) { return r.id === btn.dataset.recId; });
+  const can = rec ? AppState.canonicalById(rec.canonicalId) : null;
+  if (!rec) return;
+  if (!confirm('Delete \u201c' + (can ? can.name : 'this item') + '\u201d from your library? This cannot be undone.')) return;
+  AppState.userRecs = AppState.userRecs.filter(function(r) { return r.id !== rec.id; });
+  await saveRecs();
+  showView('library');
+  toast('Deleted.');
+}
+
+function recShareText(rec, can) {
+  const line1 = '\ud83d\udca1 ' + can.name + (can.location ? ' \u00b7 ' + can.location : '') + (can.category ? ' (' + can.category + ')' : '');
+  const link = can.location
+    ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(can.name + ' ' + can.location)
+    : 'https://www.google.com/search?q=' + encodeURIComponent(can.name);
+  return line1 + (rec.note ? '\n' + rec.note : '') + '\n' + link;
+}
+
+function modalShareRec(params) {
+  const rec = AppState.userRecs.find(function(r) { return r.id === (params && params.recId); });
+  const can = rec ? AppState.canonicalById(rec.canonicalId) : null;
+  if (!rec || !can) return '<div class="modal"><div class="modal-body">Item not found.</div></div>';
+  const seen = {};
+  const rows = AppState.userMembers.filter(function(m) {
+    if (m.isExternalSource) return false;
+    const key = m.name + '|' + (m.contactValue || '');
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  }).map(function(m) {
+    const circle = AppState.circleById(m.circleId);
+    const text = recShareText(rec, can);
+    let action;
+    if (m.contactMethod === 'whatsapp' && m.contactValue) {
+      const ph = String(m.contactValue).replace(/[^0-9]/g, '');
+      action = '<a class="btn btn-primary btn-sm" style="text-decoration:none;" target="tn_ext" rel="noopener" href="https://wa.me/' + esc(ph) + '?text=' + encodeURIComponent(text) + '">WhatsApp</a>';
+    } else if (m.contactMethod === 'email' && m.contactValue) {
+      action = '<a class="btn btn-secondary btn-sm" style="text-decoration:none;" href="mailto:' + esc(m.contactValue) + '?subject=' + encodeURIComponent('\u05d4\u05de\u05dc\u05e6\u05d4 \u05d1\u05e9\u05d1\u05d9\u05dc\u05da: ' + can.name) + '&body=' + encodeURIComponent(text) + '">Email</a>';
+    } else {
+      action = '<span style="font-size:10.5px;color:#A8BDAF;">no direct contact</span>';
+    }
+    return '<div class="sr-row" style="display:flex;align-items:center;gap:9px;padding:8px 4px;border-bottom:1px solid #F0F5F1;" data-name="' + esc((m.name + ' ' + (circle ? circle.name : '')).toLowerCase()) + '">'
+      + avatarEl(m, 'sm')
+      + '<span style="flex:1;min-width:0;"><b dir="auto" style="font-size:13px;">' + esc(m.name) + '</b>'
+      + '<span style="display:block;font-size:10.5px;color:#7A9086;">' + esc(circle ? circle.name : '') + '</span></span>'
+      + action
+      + '</div>';
+  }).join('');
+  return '<div class="modal" style="max-width:460px;">'
+    + '<div class="modal-header"><div><div class="modal-title">Send \u201c' + esc(can.name) + '\u201d</div>'
+    + '<div style="font-size:11px;color:#7A9086;margin-top:2px;">Sent personally, from you \u2014 via WhatsApp or email</div></div>'
+    + '<button class="modal-close" data-action="close-modal">\u00d7</button></div>'
+    + '<div class="modal-body">'
+    + '<input class="field-input" id="sr-search" dir="auto" placeholder="Search members\u2026" style="width:100%;margin-bottom:8px;">'
+    + '<div style="max-height:300px;overflow-y:auto;border:1px solid #E5EDE8;border-radius:10px;padding:2px 8px;">'
+    + (rows || '<div style="padding:12px;font-size:12px;color:#7A9086;">No members yet \u2014 add people to a circle first.</div>')
+    + '</div></div></div>';
+}
+
+function modalEditCircle(params) {
+  const c = AppState.userCircles.find(function(x) { return x.id === (params && params.circleId); });
+  if (!c) return '<div class="modal"><div class="modal-body">Circle not found.</div></div>';
+  const domainOptions = ['dining','travel','healthcare','home','culture','hobbies','professional','other']
+    .map(function(d) { return '<option value="' + d + '"' + (c.domain === d ? ' selected' : '') + '>' + domainLabel(d) + '</option>'; }).join('');
+  const colorOptions = ['#217A4B','#1A6FA8','#C0392B','#E8A020','#8B2FC9','#2D6A8A','#3D4F46','#E67E22']
+    .map(function(col) { return '<option value="' + col + '"' + (c.color === col ? ' selected' : '') + '>' + col + '</option>'; }).join('');
+  return '<div class="modal" style="max-width:440px;">'
+    + '<div class="modal-header"><div class="modal-title">Edit \u201c' + esc(c.name) + '\u201d</div>'
+    + '<button class="modal-close" data-action="close-modal">\u00d7</button></div>'
+    + '<div class="modal-body">'
+    + '<div class="field"><div class="field-label">NAME</div><input class="field-input" id="ec-name" dir="auto" maxlength="40" style="width:100%;" value="' + esc(c.name) + '"></div>'
+    + '<div class="field"><div class="field-label">DOMAIN</div><select class="field-input field-select" id="ec-domain" style="width:100%;">' + domainOptions + '</select></div>'
+    + '<div class="field"><div class="field-label">DESCRIPTION</div><textarea class="field-input field-textarea" id="ec-desc" dir="auto" style="min-height:60px;">' + esc(c.description || '') + '</textarea></div>'
+    + '<div class="field"><div class="field-label">COLOUR</div><select class="field-input field-select" id="ec-color" style="width:100%;">' + colorOptions + '</select></div>'
+    + '<button class="btn btn-primary" data-action="save-edit-circle" data-circle-id="' + esc(c.id) + '" style="width:100%;justify-content:center;">Save changes</button>'
+    + '</div></div>';
+}
+
+async function handleSaveEditCircle(btn) {
+  const c = AppState.userCircles.find(function(x) { return x.id === btn.dataset.circleId; });
+  if (!c) return;
+  const name = ((document.getElementById('ec-name') || {}).value || '').trim();
+  if (!name) { toast('Name is required.', 'warn'); return; }
+  c.name = name;
+  c.domain = ((document.getElementById('ec-domain') || {}).value || c.domain);
+  c.description = ((document.getElementById('ec-desc') || {}).value || '').trim();
+  c.color = ((document.getElementById('ec-color') || {}).value || c.color);
+  btn.disabled = true;
+  await saveCircles();
+  closeModal();
+  renderApp();
+  toast('Circle updated.');
+}
+
+async function handleDeleteCircle(btn) {
+  const c = AppState.userCircles.find(function(x) { return x.id === btn.dataset.circleId; });
+  if (!c) return;
+  const memberCount = AppState.userMembers.filter(function(m) { return m.circleId === c.id; }).length;
+  if (!confirm('Delete the \u201c' + c.name + '\u201d circle? Its ' + memberCount + ' member' + (memberCount !== 1 ? 's' : '') + ' will be removed; saved items stay in your library (moved to Needs Filing).')) return;
+  AppState.userMembers = AppState.userMembers.filter(function(m) { return m.circleId !== c.id; });
+  AppState.userRecs.forEach(function(r) { if (r.circleId === c.id) r.circleId = ''; });
+  AppState.userCircles = AppState.userCircles.filter(function(x) { return x.id !== c.id; });
+  await saveMembers();
+  await saveRecs();
+  await saveCircles();
+  showView('circles');
+  toast('Circle deleted.');
+}
+
+function modalEditCollection(params) {
+  const c = (AppState.userCollections || []).find(function(x) { return x.id === (params && params.collId); });
+  if (!c) return '<div class="modal"><div class="modal-body">Collection not found.</div></div>';
+  return '<div class="modal" style="max-width:440px;">'
+    + '<div class="modal-header"><div class="modal-title">Edit collection</div>'
+    + '<button class="modal-close" data-action="close-modal">\u00d7</button></div>'
+    + '<div class="modal-body">'
+    + '<div class="field"><div class="field-label">NAME</div><input class="field-input" id="ecl-title" dir="auto" maxlength="80" style="width:100%;" value="' + esc(c.title) + '"></div>'
+    + '<div class="field"><div class="field-label">ONE LINE ABOUT IT</div><input class="field-input" id="ecl-desc" dir="auto" maxlength="140" style="width:100%;" value="' + esc(c.description || '') + '"></div>'
+    + '<button class="btn btn-primary" data-action="save-edit-collection" data-coll-id="' + esc(c.id) + '" style="width:100%;justify-content:center;">Save changes</button>'
+    + '</div></div>';
+}
+
+async function handleSaveEditCollection(btn) {
+  const c = (AppState.userCollections || []).find(function(x) { return x.id === btn.dataset.collId; });
+  if (!c) return;
+  const title = ((document.getElementById('ecl-title') || {}).value || '').trim();
+  if (!title) { toast('Name is required.', 'warn'); return; }
+  const desc = ((document.getElementById('ecl-desc') || {}).value || '').trim();
+  btn.disabled = true;
+  const r = await sb.from('collections').update({ title: title, description: desc }).eq('id', c.id);
+  if (r.error) { btn.disabled = false; toast('Could not save: ' + r.error.message, 'warn'); return; }
+  c.title = title; c.description = desc;
+  closeModal();
+  renderApp();
+  toast('Collection updated.');
+}
+
+async function handleDeleteCollection(btn) {
+  const c = (AppState.userCollections || []).find(function(x) { return x.id === btn.dataset.collId; });
+  if (!c) return;
+  if (!confirm('Delete the list \u201c' + c.title + '\u201d? Its share link stops working; the items stay in your library.')) return;
+  await sb.from('collection_items').delete().eq('collection_id', c.id);
+  const r = await sb.from('collections').delete().eq('id', c.id);
+  if (r.error) { toast('Could not delete: ' + r.error.message, 'warn'); return; }
+  AppState.userCollections = AppState.userCollections.filter(function(x) { return x.id !== c.id; });
+  renderApp();
+  toast('Collection deleted.');
+}
+
 function collectionUrl(token) {
   return location.origin + '/collection.html?t=' + encodeURIComponent(token);
 }
@@ -2802,6 +2998,8 @@ function renderCollectionsStrip() {
       + '</div>'
       + '<button class="btn btn-primary btn-sm" data-action="open-modal" data-modal="collection-send" data-token="' + esc(c.token) + '" data-title="' + esc(c.title) + '">Send to circle</button>'
       + '<button class="btn btn-secondary btn-sm" data-action="copy-collection-link" data-token="' + esc(c.token) + '">Copy link</button>'
+      + '<button class="btn btn-ghost btn-sm" data-action="open-modal" data-modal="edit-collection" data-coll-id="' + esc(c.id) + '">Edit</button>'
+      + '<button class="btn btn-ghost btn-sm" data-action="delete-collection" data-coll-id="' + esc(c.id) + '" style="color:#C0392B;">Delete</button>'
       + '<a class="btn btn-ghost btn-sm" href="' + esc(collectionUrl(c.token)) + '" target="tn_ext" rel="noopener">View</a>'
       + '</div>';
   }).join('');
@@ -3523,11 +3721,26 @@ function renderRecDetail() {
   } else if (findDom === 'professional') {
     if (!can.linkedinUrl) linksHtml += extLink('https://www.linkedin.com/search/results/all/?keywords=' + findName, 'LinkedIn search');
   } else if (findDom === 'dining' || findDom === 'healthcare' || findDom === 'home') {
-    if (!can.googleUrl && can.location) linksHtml += extLink('https://www.google.com/maps/search/?api=1&query=' + findQ, 'Google Maps');
+    if (!can.googleUrl) linksHtml += extLink('https://www.google.com/maps/search/?api=1&query=' + findQ, 'Google Maps');
   } else {
-    if (!can.googleUrl && can.location) linksHtml += extLink('https://www.google.com/maps/search/?api=1&query=' + findQ, 'Google Maps');
+    if (!can.googleUrl) linksHtml += extLink('https://www.google.com/maps/search/?api=1&query=' + findQ, 'Google Maps');
   }
   linksHtml += extLink('https://www.google.com/search?q=' + findGq, 'Search Google');
+  // Context: what is this, where did it come from
+  let ctxHtml = '';
+  if (rec.queryId) {
+    const oq = AppState.userQueries.find(function(x) { return x.id === rec.queryId; });
+    if (oq) ctxHtml += '<div dir="auto" style="font-size:11.5px;color:#56695F;margin-bottom:8px;">Saved from your answer sheet for: <i>\u201c' + esc(oq.text) + '\u201d</i></div>';
+  }
+  if (rec.sourceLabel) ctxHtml += '<div dir="auto" style="font-size:11px;color:#5B3E9E;font-weight:700;margin-bottom:8px;">From ' + esc(rec.sourceLabel) + '</div>';
+  const isMine = AppState.userRecs.some(function(x) { return x.id === rec.id; });
+  const actionRow = (!AppState.isDemoMode && isMine)
+    ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">'
+      + '<button class="btn btn-primary btn-sm" data-action="open-modal" data-modal="share-rec" data-rec-id="' + esc(rec.id) + '">Send to a member</button>'
+      + '<button class="btn btn-secondary btn-sm" data-action="open-modal" data-modal="edit-rec" data-rec-id="' + esc(rec.id) + '">Edit</button>'
+      + '<button class="btn btn-danger btn-sm" data-action="delete-rec" data-rec-id="' + esc(rec.id) + '">Delete</button>'
+      + '</div>'
+    : '';
 
   return '<div style="max-width:640px;">'
     + '<button class="btn btn-ghost btn-sm" data-action="nav" data-view="library" style="margin-bottom:16px;">← Library</button>'
@@ -3540,7 +3753,9 @@ function renderRecDetail() {
     + '<div style="font-size:20px;font-weight:800;letter-spacing:-0.3px;margin-bottom:3px;">' + esc(can.name) + '</div>'
     + '<div style="font-size:13px;color:var(--slate-400);margin-bottom:10px;">' + esc(can.category || '') + (can.location ? ' · ' + esc(can.location) : '') + '</div>'
     + catChipHtml(can, rec)
+    + ctxHtml
     + (linksHtml ? '<div style="display:flex;gap:6px;flex-wrap:wrap;">' + linksHtml + '</div>' : '')
+    + actionRow
     + shareRowHtml(rec)
     + '</div>'
     + '</div>'
@@ -3728,6 +3943,10 @@ function openModal(name, params) {
   else if (name === 'collection-create') html = modalCollectionCreate();
   else if (name === 'collection-send') html = modalCollectionSend(params);
   else if (name === 'chat-import') html = modalChatImport();
+  else if (name === 'edit-rec') html = modalEditRec(params);
+  else if (name === 'share-rec') html = modalShareRec(params);
+  else if (name === 'edit-circle') html = modalEditCircle(params);
+  else if (name === 'edit-collection') html = modalEditCollection(params);
   else return;
 
   const root = document.getElementById('modal-root');
@@ -4959,6 +5178,24 @@ document.addEventListener('click', function(e) {
   else if (action === 'chat-import-save') {
     handleChatImportSave(target);
   }
+  else if (action === 'save-edit-rec') {
+    handleSaveEditRec(target);
+  }
+  else if (action === 'delete-rec') {
+    handleDeleteRec(target);
+  }
+  else if (action === 'save-edit-circle') {
+    handleSaveEditCircle(target);
+  }
+  else if (action === 'delete-circle') {
+    handleDeleteCircle(target);
+  }
+  else if (action === 'save-edit-collection') {
+    handleSaveEditCollection(target);
+  }
+  else if (action === 'delete-collection') {
+    handleDeleteCollection(target);
+  }
   else if (action === 'select-circle') {
     const cid = target.dataset.circleId;
     const hiddenInput = document.getElementById('q-circle');
@@ -5081,6 +5318,13 @@ document.addEventListener('click', function(e) {
 
 // Library search — update only the results, never re-render the whole view
 document.addEventListener('input', function(e) {
+  if (e.target && e.target.id === 'sr-search') {
+    const q = (e.target.value || '').trim().toLowerCase();
+    document.querySelectorAll('.sr-row').forEach(function(row) {
+      row.style.display = (!q || (row.dataset.name || '').indexOf(q) >= 0) ? 'flex' : 'none';
+    });
+    return;
+  }
   if (e.target && e.target.id === 'lib-search') {
     AppState.searchQuery = e.target.value;
     clearTimeout(window._searchDebounce);

@@ -66,7 +66,7 @@
     <label for="rec-note">Your note</label>
     <textarea id="rec-note" placeholder="What makes it great? Any tips?" maxlength="1000"></textarea>
     <button id="submit-btn">Send recommendation</button>
-    <div style="font-size:9px;color:#A8BDAF;text-align:center;margin-top:10px;">r2.2-lib</div>
+    <div style="font-size:9px;color:#A8BDAF;text-align:center;margin-top:10px;">r2.3-lib</div>
   </div>
 
   <!-- Rich thank-you + conversion -->
@@ -103,7 +103,7 @@ window.TRUSTNET_CONFIG = {
 const CFG = window.TRUSTNET_CONFIG || {};
 const SUPABASE_FUNCTIONS_URL = CFG.FUNCTIONS_URL || window.TRUSTNET_FUNCTIONS_URL || "https://YOUR_PROJECT.supabase.co/functions/v1";
 const APP_URL = CFG.APP_URL || "https://trustnetsocial.netlify.app";
-const RESPOND_VERSION = "r2.2-lib";
+const RESPOND_VERSION = "r2.3-lib";
 const LIB_DEBUG = new URLSearchParams(location.search).get("debug") === "1";
 function dbg(line) {
   if (!LIB_DEBUG) return;
@@ -218,12 +218,15 @@ function renderLibResults() {
     ? LIB.filter((it) => (it.name + " " + it.location + " " + it.cat + " " + it.note).toLowerCase().indexOf(q) >= 0)
     : LIB).slice(0, 6);
   $("lib-results").innerHTML = libMatches.map((it, i) =>
-    '<button type="button" class="lib-row" data-lib-i="' + i + '" dir="auto" style="display:block;width:100%;text-align:start;background:#fff;border:1px solid #DCE7E0;border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:pointer;font-size:13px;">'
-    + '<b>' + escR(it.name) + '</b>'
-    + (it.location ? ' <span style="color:#7A9086;font-size:11px;">· ' + escR(it.location) + '</span>' : '')
-    + (it.note ? '<br><span style="color:#56695F;font-size:11px;">' + escR(it.note.slice(0, 70)) + (it.note.length > 70 ? '…' : '') + '</span>' : '')
-    + '</button>').join('')
-    + (libMatches.length === 0 && q ? '<div style="font-size:11.5px;color:#7A9086;">Nothing matching in your library — fill the form below.</div>' : '');
+    '<div class="lib-row" data-lib-i="' + i + '" role="button" tabindex="0" style="background:#fff;border:1px solid #DCE7E0;border-radius:8px;padding:9px 12px;margin-bottom:6px;cursor:pointer;">'
+    + '<div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;">'
+    + '<span dir="auto" style="font-size:13.5px;font-weight:700;color:#1C2420;">' + escR(it.name) + '</span>'
+    + (it.location ? '<span dir="auto" style="font-size:11px;color:#7A9086;">' + escR(it.location) + '</span>' : '')
+    + (it.cat ? '<span style="font-size:9.5px;font-weight:700;color:#1A5235;background:#E9F6EE;border-radius:8px;padding:1px 7px;">' + escR(it.cat) + '</span>' : '')
+    + '</div>'
+    + (it.note ? '<div dir="auto" style="font-size:11.5px;color:#56695F;margin-top:3px;line-height:1.45;">' + escR(it.note.slice(0, 80)) + (it.note.length > 80 ? '\u2026' : '') + '</div>' : '')
+    + '</div>').join('')
+    + (libMatches.length === 0 && q ? '<div style="font-size:11.5px;color:#7A9086;">Nothing matching in your library \u2014 fill the form below.</div>' : '');
 }
 
 document.addEventListener("click", (e) => {

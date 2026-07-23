@@ -87,7 +87,7 @@ const clickSubmit = async (ctx) => {
   // ── Scenario 1: anonymous answerer — nothing changes ──
   let c = makeCtx({ localStorageData: {} });
   vm.runInContext(src, c, { filename: 'respond.js' }); await tick(); await tick();
-  ck('version marker r2.2-lib present', fs.readFileSync('/home/claude/respond/respond.html','utf8').indexOf('>r2.2-lib</div>') >= 0);
+  ck('version marker r2.3-lib present', fs.readFileSync('/home/claude/respond/respond.html','utf8').indexOf('>r2.3-lib</div>') >= 0);
   ck('anon: form shown, strip stays hidden', !c.__byId['form-view']._cls.hidden && c.__byId['lib-strip']._cls.hidden);
   ck('anon: no REST call made', !c.__fetches.some(f => f.url.indexOf('/rest/v1/') >= 0));
   ck('no debug param: panel stays hidden', c.__byId['lib-debug'].textContent === '');
@@ -109,6 +109,9 @@ const clickSubmit = async (ctx) => {
     && rest.init.headers.Authorization === 'Bearer ' + jwt);
   ck('session: strip revealed, 2 valid rows rendered (null canonical dropped)',
     !c.__byId['lib-strip']._cls.hidden && (c.__byId['lib-results'].innerHTML.match(/lib-row/g) || []).length === 2);
+  const rowsHtml = c.__byId['lib-results'].innerHTML;
+  ck('rows: divs (not buttons), explicit dark name color, per-span dir', rowsHtml.indexOf('<button') < 0
+    && rowsHtml.indexOf('color:#1C2420') >= 0 && rowsHtml.indexOf('dir="auto"') >= 0 && rowsHtml.indexOf('healthcare') >= 0);
   c.__byId['lib-search'].value = 'עור'; // matches nothing → empty-state line
   (c.__byId['lib-search']._handlers.input || []).forEach(fn => fn());
   ck('search: no-match message shown', c.__byId['lib-results'].innerHTML.indexOf('Nothing matching') >= 0);
