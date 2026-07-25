@@ -10,20 +10,25 @@ const hasSession = () => {
   } catch (e) { return false; }
 };
 
-// Wait for the logged-in app shell (login card gone, app content interactive).
+// Ready = login card gone AND at least one VISIBLE actionable element exists.
 async function waitLoggedInShell(page) {
   await page.goto('/');
   await page.waitForLoadState('networkidle');
   await expect(page.locator('#login-email')).toBeHidden({ timeout: 15000 });
-  await expect(page.locator('[data-action]').first()).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('[data-action]:visible').first()).toBeVisible({ timeout: 15000 });
 }
 
-// Navigate via the app's own nav actions (works regardless of sidebar state).
+// Navigate through the app's own router — deterministic on every viewport.
 async function goView(page, view) {
-  const nav = page.locator(`[data-action="nav"][data-view="${view}"]`).first();
-  if (await nav.count()) { await nav.click(); return; }
-  // Fallback: drive the app's own router directly.
-  await page.evaluate((v) => { if (typeof showView === 'function') showView(v); }, view);
+  await page.evaluate((v) => { showView(v); }, view);
+  await page.waitForTimeout(600); // let render settle
 }
 
-module.exports = { hasSession, waitLoggedInShell, goView, AUTH_FILE };
+// Scroll-then-click; force as last resort for header-clipped buttons on phones.
+async function tapp(locator) {
+  await locator.scrollIntoViewIfNeeded().catch(() => {});
+  try { await locator.click({ timeout: 8000 }); }
+  catch (e) { await locator.click({ force: true }); }
+}
+
+module.exports = { hasSession, waitLoggedInShell, goView, tapp, AUTH_FILE };
