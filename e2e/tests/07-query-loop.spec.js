@@ -52,7 +52,15 @@ test.describe('query loop — one session: circle → member → real send', () 
 
     // 3) Send — SAME page: member lives in AppState, no DB round-trip needed
     await goView(page, 'query');
-    await tapp(page.locator('[data-action="select-circle"]', { hasText: CIRCLE }).first());
+    const chip = page.locator('[data-action="select-circle"]', { hasText: CIRCLE }).first();
+    await expect(chip).toBeVisible({ timeout: 10000 });
+    const chipText = (await chip.innerText()).replace(/\s+/g, ' ');   // shows the member COUNT
+    const cid = await chip.getAttribute('data-circle-id');
+    await tapp(chip);
+    // PROVE the selection took; retry once if not.
+    let selected = await page.locator('#q-circle').inputValue();
+    if (selected !== cid) { await tapp(chip); selected = await page.locator('#q-circle').inputValue(); }
+    net.push('DIAG chip="' + chipText + '" cid=' + cid + ' selected=' + selected);
     await page.locator('#q-text').fill(QTEXT);
     await tapp(page.locator('[data-action="send-query"]').first());
     try {
