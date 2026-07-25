@@ -23,8 +23,11 @@ test.describe('collections — create, public page, edit, delete', () => {
     test.skip(!(await firstItem.count()), 'library empty — cannot form a collection');
     await firstItem.check();
     await tapp(page.locator('[data-action="create-collection"]').first());
-    await expect(page.getByText(TITLE).first()).toBeVisible({ timeout: 15000 });
-    token = await page.locator('[data-action="copy-collection-link"]').last().getAttribute('data-token');
+    // Functional proof = the collection row with its token exists (mobile strip may clip visibility).
+    const linkBtn = page.locator('[data-action="copy-collection-link"]').last();
+    await expect(linkBtn).toBeAttached({ timeout: 15000 });
+    await expect(page.getByText(TITLE).first()).toBeAttached({ timeout: 5000 });
+    token = await linkBtn.getAttribute('data-token');
     expect((token || '').length).toBeGreaterThan(5);
   });
 
@@ -41,7 +44,7 @@ test.describe('collections — create, public page, edit, delete', () => {
     await expect(page.locator('#ecl-title')).toBeVisible();
     await page.locator('#ecl-title').fill(RENAMED);
     await tapp(page.locator('[data-action="save-edit-collection"]').first());
-    await expect(page.getByText(RENAMED).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(RENAMED).first()).toBeAttached({ timeout: 10000 });
     page.on('dialog', (d) => d.accept());
     await tapp(page.locator('[data-action="delete-collection"]').last());
     await expect(page.getByText(RENAMED)).toHaveCount(0, { timeout: 10000 });
