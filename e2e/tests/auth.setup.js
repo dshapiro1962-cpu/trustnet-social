@@ -35,10 +35,21 @@ setup('authenticate', async ({ page, context }) => {
   await page.locator('#login-send').click();
   console.log('\n[auth] sign-in code emailed to ' + ACCOUNT.email);
 
-  const code = await ask('\n>>> Paste the 6-digit code from that inbox and press Enter: ');
-  await page.locator('#login-code').fill(code);
-  await page.locator('#login-verify').click();
-  await page.waitForTimeout(2500);
+  let loggedIn = false;
+  for (let attempt = 1; attempt <= 3 && !loggedIn; attempt++) {
+    const code = await ask('\n>>> Open the NEWEST email in that inbox (bottom of the Gmail thread!)\n>>> Paste its code and press Enter (attempt ' + attempt + '/3): ');
+    await page.locator('#login-code').fill(code);
+    await page.locator('#login-verify').click();
+    await page.waitForTimeout(3000);
+    loggedIn = !(await page.locator('#login-email').isVisible().catch(() => true))
+            || (await page.locator('#ob-start').isVisible().catch(() => false));
+    if (!loggedIn) {
+      const bodyText = (await page.locator('body').innerText().catch(() => '')).slice(0, 300);
+      console.log('[auth] verify failed. Page says: ' + bodyText.replace(/\s+/g, ' ').slice(0, 160));
+      console.log('[auth] a FRESH code may be needed — click nothing; just check the inbox again for the newest email.');
+    }
+  }
+  if (!loggedIn) throw new Error('[auth] 3 failed code attempts — aborting. Re-run and use the newest email only.');
 
   // Fresh accounts see onboarding — complete it.
   if (await page.locator('#ob-start').isVisible().catch(() => false)) {
