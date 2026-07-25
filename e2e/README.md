@@ -1,34 +1,33 @@
-# Trustnet E2E (Playwright)
+# Trustnet E2E (Playwright) — Option C design
 
-Real-browser tests that drive the **deployed** app, catching UI-level bugs the
-JS sims can't see (RTL rendering, unclickable buttons, session/lookup, colours).
+Real-browser tests against the DEPLOYED app. Authenticated flows use a dedicated
+test account (see test-account.json) with a paste-the-code login and a SAVED
+SESSION, so most runs skip login entirely.
 
-## Run locally
-```bash
-cd e2e
-npm install
-npx playwright install --with-deps chromium
-npx playwright test            # against https://trustnetsocial.netlify.app
-npx playwright test --headed   # watch it click
-npx playwright show-report     # open the last report
+## The full run (local, before releases)
+```powershell
+cd C:\dev\trustnet-repo\e2e
+npm install                                   # first time only
+npx playwright install --with-deps chromium   # first time only
+npx playwright test
 ```
+- First run (or after the session expires): it emails a code to the test
+  account, PAUSES, and asks you to paste the 6-digit code in the terminal.
+  It then logs in, saves .auth/session.json, and runs everything.
+- Subsequent runs: session is reused — no pause, fully automatic.
+- Watch it click: `npx playwright test --headed`
+- Open the last report: `npx playwright show-report`
 
-Point at a different build:
-```bash
-BASE_URL=https://deploy-preview-xyz.netlify.app npx playwright test
-```
-
-## What runs where
-- **Specs 01–06** use the app's built-in **demo mode** — no credentials, safe to
-  run anywhere and on every push. This is the bulk of the coverage.
-- **Spec 07 (live-login)** touches a real account and **self-skips** unless the
-  `TN_TEST_LOGIN_CODE` secret is present. Set it only in GitHub Actions secrets.
+## Test account
+- Email in test-account.json (dshapiro3012@gmail.com).
+- Onboard it ONCE by hand: log in normally, finish "Get started", create one
+  circle, save 1–2 items. The suite then has stable data to exercise.
+- The suite deletes what it creates (circle lifecycle ends in delete).
 
 ## CI
-`.github/workflows/e2e.yml` runs on every push to `main` that touches `web/**`,
-waits for Netlify, then runs the suite and uploads a report (with failure
-screenshots + video) as a build artifact.
+On every push, GitHub Actions runs ONLY the public specs (login screen +
+respond page) — there is no human in CI to paste a login code. The
+authenticated specs self-skip without a session. Full coverage = the local run.
 
-## Deliberately NOT automated
-Sending a **real outbound WhatsApp** is a manual test — automating it would fire
-real messages and burn Meta quota on every push.
+## Never automated
+Real outbound WhatsApp sends (would fire real messages + burn Meta quota).

@@ -1,0 +1,4 @@
+node_modules/
+.auth/session.json
+test-results/
+playwright-report/

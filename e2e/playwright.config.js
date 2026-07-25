@@ -1,27 +1,33 @@
 const { defineConfig, devices } = require('@playwright/test');
+const fs = require('fs');
+const path = require('path');
 
-// Target: the live deployed app by default; override with BASE_URL for a branch/preview.
 const BASE_URL = process.env.BASE_URL || 'https://trustnetsocial.netlify.app';
+const AUTH_FILE = path.join(__dirname, '.auth', 'session.json');
+// Authenticated specs read the saved session; if absent they self-skip.
+const storageState = fs.existsSync(AUTH_FILE) ? AUTH_FILE : undefined;
 
 module.exports = defineConfig({
   testDir: './tests',
+  globalSetup: require.resolve('./global-setup.js'),
   timeout: 45 * 1000,
   expect: { timeout: 12 * 1000 },
-  // Never let a stuck test hang CI forever; retry once to absorb network flakiness.
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 2 : 1,
+  retries: process.env.CI ? 1 : 0,
+  // ONE worker: the suite mutates a single shared account; parallel writers would race.
+  workers: 1,
+  fullyParallel: false,
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
   use: {
     baseURL: BASE_URL,
-    trace: 'on-first-retry',        // full trace saved only when a test retries
-    screenshot: 'only-on-failure',  // evidence, automatically
+    storageState,
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
     video: 'retain-on-failure',
-    locale: 'he-IL',                // exercise the app the way Israeli users get it
+    locale: 'he-IL',
     timezoneId: 'Asia/Jerusalem',
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    // Mobile matters — most beta users are on phones. Same specs, phone viewport.
     { name: 'mobile-chrome', use: { ...devices['Pixel 7'] } },
   ],
 });
