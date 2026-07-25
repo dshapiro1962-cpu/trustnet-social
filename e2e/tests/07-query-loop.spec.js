@@ -24,10 +24,8 @@ test.describe('query loop — circle, member, real send, delivery screen', () =>
     await tapp(page.locator('[data-modal="add-member"]').first());
     await expect(page.locator('#nm-name')).toBeVisible({ timeout: 10000 });
     await page.locator('#nm-name').fill(MEMBER);
-    await tapp(page.locator('[data-action="pick-segment"][data-picker-id="nm-method"][data-value="whatsapp"]').first());
-    // The contact field reveals only after the method pick.
-    await expect(page.locator('#nm-contact')).toBeVisible({ timeout: 8000 });
-    await page.locator('#nm-contact').fill('+972500000001');
+    // Default method ('app') = in-app member: real send-query round trip,
+    // zero external delivery attempts (no WA/email side effects).
     await tapp(page.locator('[data-action="save-member"]').first());
     await expect(page.getByText(MEMBER).first()).toBeVisible({ timeout: 10000 });
   });

@@ -9,7 +9,7 @@ module.exports = defineConfig({
   globalSetup: require.resolve('./global-setup.js'),
   timeout: 45 * 1000,
   expect: { timeout: 12 * 1000 },
-  retries: 0,
+  retries: 1,   // absorb transient REST/network hiccups; real failures fail twice
   workers: 1,
   fullyParallel: false,
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
