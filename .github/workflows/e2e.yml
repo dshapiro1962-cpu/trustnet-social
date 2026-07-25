@@ -20,7 +20,7 @@ jobs:
         run: sleep 60
       - name: Run PUBLIC specs against live site
         env: { BASE_URL: 'https://trustnetsocial.netlify.app', CI: 'true' }
-        run: npx playwright test tests/01-public.spec.js --project=chromium
+        run: npx playwright test --project=public
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v4

@@ -1,1 +1,1 @@
-session.json is generated here by global-setup; do not commit it
+session.json is generated here on first login; never committed (.gitignore)
