@@ -16,13 +16,15 @@ test.describe('query loop — circle, member, real send, delivery screen', () =>
     await tapp(page.locator('[data-modal="add-circle"]').first());
     await page.locator('#nc-name').fill(CIRCLE);
     await tapp(page.getByRole('button', { name: 'Create Circle' }));
+    // The app navigates INTO the new circle (showView('circle-detail')) — no extra click.
     await expect(page.getByText(CIRCLE).first()).toBeVisible({ timeout: 10000 });
 
-    await tapp(page.getByText(CIRCLE).first());
     await tapp(page.locator('[data-modal="add-member"]').first());
-    await expect(page.locator('#nm-name')).toBeVisible();
+    await expect(page.locator('#nm-name')).toBeVisible({ timeout: 10000 });
     await page.locator('#nm-name').fill(MEMBER);
     await tapp(page.locator('[data-action="pick-segment"][data-picker-id="nm-method"][data-value="email"]').first());
+    // The contact field reveals only after the method pick.
+    await expect(page.locator('#nm-contact')).toBeVisible({ timeout: 8000 });
     await page.locator('#nm-contact').fill('dshapiro3012@gmail.com');
     await tapp(page.locator('[data-action="save-member"]').first());
     await expect(page.getByText(MEMBER).first()).toBeVisible({ timeout: 10000 });

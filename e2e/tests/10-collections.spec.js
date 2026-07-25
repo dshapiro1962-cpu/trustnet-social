@@ -18,6 +18,10 @@ test.describe('collections — create, public page, edit, delete', () => {
     test.skip(!(await createBtn.count()), 'strip not present');
     await tapp(createBtn);
     await page.locator('#coll-title').fill(TITLE);
+    // The handler REQUIRES at least one item ticked ('Pick at least one item.').
+    const firstItem = page.locator('.coll-item-cb').first();
+    test.skip(!(await firstItem.count()), 'library empty — cannot form a collection');
+    await firstItem.check();
     await tapp(page.locator('[data-action="create-collection"]').first());
     await expect(page.getByText(TITLE).first()).toBeVisible({ timeout: 15000 });
     token = await page.locator('[data-action="copy-collection-link"]').last().getAttribute('data-token');
