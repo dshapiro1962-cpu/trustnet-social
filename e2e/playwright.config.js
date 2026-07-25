@@ -6,14 +6,17 @@ const AUTH_FILE = path.join(__dirname, '.auth', 'session.json');
 
 module.exports = defineConfig({
   testDir: './tests',
+  globalSetup: require.resolve('./global-setup.js'),
   timeout: 45 * 1000,
   expect: { timeout: 12 * 1000 },
   retries: 0,
-  workers: 1,            // one shared mutable account — never parallel writers
+  workers: 1,
   fullyParallel: false,
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
   use: {
     baseURL: BASE_URL,
+    // global-setup GUARANTEES this file exists (real session locally, empty state in CI)
+    storageState: AUTH_FILE,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -21,27 +24,20 @@ module.exports = defineConfig({
     timezoneId: 'Asia/Jerusalem',
   },
   projects: [
-    // 0) Public-only project: no login, no session file needed. CI uses this.
     {
       name: 'public',
       use: { ...devices['Desktop Chrome'], storageState: { cookies: [], origins: [] } },
       testMatch: /01-public\.spec\.js/,
     },
-    // 1) Login happens here, once, BEFORE everything else.
-    { name: 'setup', testMatch: /auth\.setup\.js/ },
-    // 2) Browser projects depend on setup, so the session file exists by the
-    //    time their contexts are created — and is loaded via storageState.
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'], storageState: AUTH_FILE },
-      dependencies: ['setup'],
-      testIgnore: [/auth\.setup\.js/, /01-public\.spec\.js/],
+      use: { ...devices['Desktop Chrome'] },
+      testIgnore: /01-public\.spec\.js/,
     },
     {
       name: 'mobile-chrome',
-      use: { ...devices['Pixel 7'], storageState: AUTH_FILE },
-      dependencies: ['setup'],
-      testIgnore: [/auth\.setup\.js/, /01-public\.spec\.js/],
+      use: { ...devices['Pixel 7'] },
+      testIgnore: /01-public\.spec\.js/,
     },
   ],
 });

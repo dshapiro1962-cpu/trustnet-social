@@ -3,7 +3,12 @@ const fs = require('fs');
 const path = require('path');
 
 const AUTH_FILE = path.join(__dirname, '..', '..', '.auth', 'session.json');
-const hasSession = () => fs.existsSync(AUTH_FILE);
+const hasSession = () => {
+  try {
+    const st = JSON.parse(fs.readFileSync(AUTH_FILE, 'utf8'));
+    return Array.isArray(st.origins) && st.origins.length > 0;
+  } catch (e) { return false; }
+};
 
 // Wait for the logged-in app shell (login card gone, app content interactive).
 async function waitLoggedInShell(page) {
