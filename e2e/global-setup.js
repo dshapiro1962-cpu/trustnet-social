@@ -40,12 +40,17 @@ module.exports = async () => {
       const p = await probe.newPage();
       await p.goto(BASE_URL, { waitUntil: 'networkidle' });
       const loggedOut = await p.locator('#login-email').isVisible().catch(() => true);
-      await probe.close();
       if (!loggedOut) {
-        console.log('[auth] saved session valid — reusing (no code needed).');
+        // CRITICAL: the app just refreshed the access token in-browser.
+        // Re-capture it, or raw-token consumers (respond REST, fnPost) go stale after 1h.
+        await p.waitForTimeout(1500);
+        await probe.storageState({ path: AUTH_FILE });
+        await probe.close();
+        console.log('[auth] saved session valid — refreshed token re-captured.');
         await browser.close();
         return;
       }
+      await probe.close();
       console.log('[auth] saved session expired — fresh login needed.');
     } catch (e) { console.log('[auth] session file unreadable — fresh login.'); }
   }
