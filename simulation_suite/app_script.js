@@ -402,7 +402,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.22.0 · live';
+const APP_VERSION = 'v0.22.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -513,9 +513,10 @@ function updateSidebarUser() {
   updateInboxBadge();
   updateMobileTabs();
 
-  // Demo user switcher
+  // Demo user switcher — retired for beta (v0.22.1): real users see no demo identities.
   const demoEl = document.getElementById('sb-demo-users');
-  if (demoEl) {
+  if (demoEl) demoEl.innerHTML = '';
+  if (false) {
     demoEl.innerHTML = AppState.synUsers.map(function(u) {
       const active = AppState.isDemoMode && AppState.demoUserId === u.id;
       return '<div class="nav-item' + (active ? ' active' : '') + '" data-action="switch-demo" data-user-id="' + esc(u.id) + '" style="font-size:12px;">'
