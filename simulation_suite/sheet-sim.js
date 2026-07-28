@@ -25,7 +25,7 @@ vm.runInContext('renderApp=function(){};showView=function(v){};toast=function(m,
  +'CURRENT_UID="me";fnPost=async function(n,b){return globalThis.__fnImpl(n,b);};',ctx);
 ctx.__toasts=[];ctx.__savedQueries=0;ctx.__u=0;
 const X=ctx.__x;
-ck('APP_VERSION is v0.23.0', X.APP_VERSION==='v0.23.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.24.0', X.APP_VERSION==='v0.24.0 · live', X.APP_VERSION);
 
 // ---- A. sheet failure surfaces the REAL error, not "network" ----
 X.AppState.isDemoMode=false;
@@ -54,5 +54,38 @@ const q=X.AppState.userQueries[0];
 ck('matching response marked savedToLibrary', q.responses[0].savedToLibrary===true);
 ck('non-matching response untouched', q.responses[1].savedToLibrary===false);
 ck('saved state persisted (saveQueries called)', ctx.__savedQueries===1);
+
+// ---- C. VERIFICATION sheet (the Avoriaz case) ----
+X.AppState.userRecs=[];X.AppState.userCanonicals=[];
+X.AppState._sheet={queryId:'q1',loading:false,data:{
+  engine:'sheet-v4', archetype:'verification', subject:'Avoriaz 1800', subject_resolved:true,
+  query_text:'is Avoriaz 1800 good for families?',
+  counts:{total:1,answers:2,from_circle:2,from_you:0,corroborated:0,hidden:0},
+  items:[{ name:'Avoriaz 1800', location:'Avoriaz, France', category:'travel', emoji:'x',
+    is_subject:true, resolved:true, from_you:false, recommenders:['Rina','Yossi'],
+    consensus:{yes:2,no:0,mixed:0,total:2},
+    verdicts:[{by:'Rina',verdict:'yes',note:'yes great facilities for children'},
+              {by:'Yossi',verdict:'yes',note:'yes its great good runs and no cars'}],
+    notes:[{by:'Rina',note:'yes great facilities for children'}],
+    rating:0, rec_id:null, member_id:null }]}};
+const vhtml = X.renderSheet();
+ck('verdict sheet: subject is the ENTITY, not a sentence', vhtml.indexOf('Avoriaz 1800')>=0 && vhtml.indexOf('yes its great good runs')>=0);
+ck('verdict sheet: consensus shown', /Yes/.test(vhtml) && vhtml.indexOf('2 yes')>=0 && vhtml.indexOf('2 answered')>=0);
+ck('verdict sheet: location + working links built from the ENTITY', vhtml.indexOf('Avoriaz, France')>=0 && /google\.com\/(search|maps)/.test(vhtml));
+ck('verdict sheet: attributed testimony from both answerers', vhtml.indexOf('Rina')>=0 && vhtml.indexOf('Yossi')>=0);
+ck('verdict sheet: offers ONE save for the subject', vhtml.indexOf('data-action="save-from-sheet" data-sheet-idx="0"')>=0);
+
+// saving it must create a canonical named for the SUBJECT
+await X.handleSaveFromSheet(0);
+ck('saved canonical is "Avoriaz 1800" (bug #4 fixed)', X.AppState.userCanonicals.length===1 && X.AppState.userCanonicals[0].name==='Avoriaz 1800' && X.AppState.userCanonicals[0].location==='Avoriaz, France');
+
+// ---- D. advice section for discovery/advice archetypes ----
+X.AppState._sheet={queryId:'q1',loading:false,data:{
+  engine:'sheet-v4', archetype:'advice', query_text:'what to do in Paris with kids?',
+  counts:{total:0,advice:1}, items:[],
+  advice:[{by:'Rina',note:'book the Eiffel Tower online, queues are brutal'}]}};
+const ah = X.renderSheet();
+ck('advice section renders prose answers instead of discarding them', ah.indexOf('ADVICE FROM YOUR CIRCLE')>=0 && ah.indexOf('queues are brutal')>=0);
+
 console.log('\nRESULT: '+pass+' passed, '+fail+' failed'); process.exit(fail?1:0);
 })();

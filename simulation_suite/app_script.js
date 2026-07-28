@@ -402,7 +402,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.23.0 · live';
+const APP_VERSION = 'v0.24.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -1385,6 +1385,46 @@ function renderSheet() {
     + '</div>'
     + (d.judge_error ? '<div style="font-size:11px;color:#C0392B;margin:-12px 0 16px;">⚠ Smart filtering unavailable this time (' + esc(d.judge_error) + ') — showing everything unfiltered.</div>' : '');
 
+  // ── VERIFICATION sheet: one subject, a consensus, and testimony ──
+  if (d.archetype === 'verification' && d.items && d.items.length && d.items[0].is_subject) {
+    const subj = d.items[0];
+    const con = subj.consensus || { yes: 0, no: 0, mixed: 0, total: 0 };
+    const verdictWord = con.total === 0 ? 'No answers yet'
+      : (con.no > con.yes ? 'Mostly no' : (con.mixed >= con.yes ? 'Mixed' : 'Yes'));
+    const verdictColor = con.total === 0 ? '#7A9086'
+      : (con.no > con.yes ? '#C0392B' : (con.mixed >= con.yes ? '#E8A020' : '#217A4B'));
+    let vh = '<div style="border:1px solid #DCE7E0;border-radius:14px;padding:18px 20px;margin-bottom:18px;">'
+      + '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:4px;">'
+      + '<span dir="auto" style="font-size:18px;font-weight:800;color:#1C2420;">' + esc(subj.name) + '</span>'
+      + (subj.location ? '<span dir="auto" style="font-size:12px;color:#7A9086;">' + esc(subj.location) + '</span>' : '')
+      + '</div>'
+      + '<div style="display:flex;align-items:center;gap:10px;margin:10px 0 14px;">'
+      + '<span style="font-size:15px;font-weight:800;color:' + verdictColor + ';">' + verdictWord + '</span>'
+      + (con.total ? '<span style="font-size:12px;color:#56695F;">' + con.yes + ' yes'
+          + (con.mixed ? ' \u00b7 ' + con.mixed + ' mixed' : '')
+          + (con.no ? ' \u00b7 ' + con.no + ' no' : '')
+          + ' \u00b7 ' + con.total + ' answered</span>' : '')
+      + '</div>'
+      + respFindLinks(subj.name, subj.location, q.circleId)
+      + (subj.verdicts && subj.verdicts.length
+          ? '<div style="margin-top:14px;">' + subj.verdicts.map(function(v) {
+              return '<div style="border-top:1px solid #F0F5F1;padding:9px 0;">'
+                + '<div style="font-size:11px;color:#7A9086;font-weight:700;">' + esc(v.by) + '</div>'
+                + '<div dir="auto" style="font-size:13px;color:#3D4F46;line-height:1.5;">' + esc(v.note) + '</div>'
+                + '</div>';
+            }).join('') + '</div>'
+          : '<div style="font-size:12px;color:#7A9086;margin-top:10px;">No answers yet \u2014 your circle hasn\'t replied.</div>')
+      + (con.total ? '<button class="btn btn-primary btn-sm" data-action="save-from-sheet" data-sheet-idx="0" style="margin-top:14px;">+ Save to Library</button>' : '')
+      + (subj.resolved === false ? '<div style="font-size:10.5px;color:#A8BDAF;margin-top:10px;">Couldn\'t match this to a place automatically \u2014 edit the name after saving if needed.</div>' : '')
+      + '</div>';
+    const rest = (d.items || []).slice(1);
+    if (rest.length) {
+      vh += '<div style="font-size:13px;font-weight:800;color:var(--slate-700);margin:18px 0 10px;">ALSO IN YOUR LIBRARY</div>'
+        + rest.map(function(it, i) { return sheetItemHtml(it, i + 1); }).join('');
+    }
+    return sheetShellHtml(q, summary + vh);
+  }
+
   const groups = {};
   (d.items || []).forEach(function(it, idx) {
     const cat = SHEET_CAT_ORDER.indexOf(it.category) >= 0 ? it.category : 'other';
@@ -1402,6 +1442,17 @@ function renderSheet() {
       + groups[cat].map(function(g) { return sheetItemHtml(g.it, g.idx); }).join('')
       + '</div>';
   });
+  if (d.advice && d.advice.length) {
+    sections += '<div style="margin-bottom:22px;">'
+      + '<div style="font-size:13px;font-weight:800;color:var(--slate-700);margin-bottom:10px;">ADVICE FROM YOUR CIRCLE</div>'
+      + d.advice.map(function(a) {
+          return '<div style="border:1px solid #E5EDE8;border-radius:10px;padding:10px 12px;margin-bottom:8px;">'
+            + '<div style="font-size:11px;color:#7A9086;font-weight:700;">' + esc(a.by) + '</div>'
+            + '<div dir="auto" style="font-size:13px;color:#3D4F46;line-height:1.5;">' + esc(a.note) + '</div>'
+            + '</div>';
+        }).join('')
+      + '</div>';
+  }
   if (!sections) {
     sections = '<div class="empty-state" style="padding:50px 20px;"><div class="empty-icon">🕰</div>'
       + '<div class="empty-title">Nothing yet</div>'
