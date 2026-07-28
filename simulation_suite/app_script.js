@@ -402,7 +402,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.22.1 · live';
+const APP_VERSION = 'v0.23.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -1354,8 +1354,11 @@ function renderSheet() {
       if (r && !r.error) AppState._sheet = { queryId: queryId, loading: false, data: r };
       else AppState._sheet = { queryId: queryId, loading: false, error: (r && r.error) || 'unknown' };
       if (AppState.currentView === 'sheet') renderApp();
-    }).catch(function() {
-      AppState._sheet = { queryId: queryId, loading: false, error: 'network' };
+    }).catch(function(e) {
+      // Observability doctrine: surface the actual failure verbatim.
+      var detail = e ? ((e.name || 'Error') + ': ' + (e.message || String(e))) : 'unknown';
+      console.error('build-sheet failed:', e);
+      AppState._sheet = { queryId: queryId, loading: false, error: detail };
       if (AppState.currentView === 'sheet') renderApp();
     });
     return sheetShellHtml(q, '<div style="padding:60px 20px;text-align:center;color:#7A9086;font-size:13px;">🧩 Building your answer sheet — gathering responses, searching your own library, filing everything…</div>');
@@ -1477,6 +1480,19 @@ async function handleSaveFromSheet(idx) {
   }
   it.from_you = true;
   renderApp();
+  // Mark the responses this item came from as saved, so query history stops
+  // offering "Save to library" for something already in the library.
+  if (q && q.responses && q.responses.length) {
+    var normName = function(x) { return (x || '').trim().toLowerCase().replace(/\s+/g, ' '); };
+    var target = normName(it.name);
+    var touched = false;
+    q.responses.forEach(function(resp) {
+      if (!resp.savedToLibrary && normName(resp.recName) === target) {
+        resp.savedToLibrary = true; touched = true;
+      }
+    });
+    if (touched) { try { await saveQueries(); } catch (e) { /* local state already correct */ } }
+  }
   toast('"' + it.name + '" saved to your library.');
 }
 

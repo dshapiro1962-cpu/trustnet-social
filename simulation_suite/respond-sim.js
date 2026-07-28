@@ -43,6 +43,7 @@ function makeCtx(opts) {
     },
     document: {
       getElementById: (id) => byId[id] || null,
+      querySelector: (sel) => (ctx.__qs && ctx.__qs[sel]) ? ctx.__qs[sel] : null,
       addEventListener(ev, fn) { (docHandlers[ev] = docHandlers[ev] || []).push(fn); }
     },
     fetch: async (url, init2) => {
@@ -59,7 +60,7 @@ function makeCtx(opts) {
       }
       return { ok: false, status: 400, text: async () => 'stub', json: async () => ({}) };
     },
-    __fetches: [], __alerts: [], __byId: byId, __docHandlers: docHandlers
+    __fetches: [], __alerts: [], __byId: byId, __docHandlers: docHandlers, __qs: { '.convert': { innerHTML: 'Get your own Trustnet' } }
   };
   ctx.window = ctx; ctx.globalThis = ctx;
   vm.createContext(ctx);
@@ -87,7 +88,7 @@ const clickSubmit = async (ctx) => {
   // ── Scenario 1: anonymous answerer — nothing changes ──
   let c = makeCtx({ localStorageData: {} });
   vm.runInContext(src, c, { filename: 'respond.js' }); await tick(); await tick();
-  ck('version marker r2.3-lib present', fs.readFileSync('/home/claude/respond/respond.html','utf8').indexOf('>r2.3-lib</div>') >= 0);
+  ck('version marker r2.4-lib present', fs.readFileSync('/home/claude/respond/respond.html','utf8').indexOf('>r2.4-lib</div>') >= 0);
   ck('anon: form shown, strip stays hidden', !c.__byId['form-view']._cls.hidden && c.__byId['lib-strip']._cls.hidden);
   ck('anon: no REST call made', !c.__fetches.some(f => f.url.indexOf('/rest/v1/') >= 0));
   ck('no debug param: panel stays hidden', c.__byId['lib-debug'].textContent === '');
@@ -107,11 +108,12 @@ const clickSubmit = async (ctx) => {
     && rest.url.indexOf('owner_id=eq.uid-77') >= 0
     && rest.init.headers.apikey === 'sb_publishable_8MAMd56FzHTyNZtnO2XK4A_cp2lFGEm'
     && rest.init.headers.Authorization === 'Bearer ' + jwt);
-  ck('session: strip revealed, 2 valid rows rendered (null canonical dropped)',
-    !c.__byId['lib-strip']._cls.hidden && (c.__byId['lib-results'].innerHTML.match(/lib-row/g) || []).length === 2);
-  const rowsHtml = c.__byId['lib-results'].innerHTML;
-  ck('rows: divs (not buttons), explicit dark name color, per-span dir', rowsHtml.indexOf('<button') < 0
-    && rowsHtml.indexOf('color:#1C2420') >= 0 && rowsHtml.indexOf('dir="auto"') >= 0 && rowsHtml.indexOf('healthcare') >= 0);
+  ck('session: strip revealed', !c.__byId['lib-strip']._cls.hidden);
+  ck('empty search: hint, NO arbitrary list', c.__byId['lib-results'].innerHTML.indexOf('Type to search') >= 0
+    && (c.__byId['lib-results'].innerHTML.match(/lib-row/g) || []).length === 0);
+  c.__byId['lib-search'].value = 'a';
+  (c.__byId['lib-search']._handlers.input || []).forEach(fn => fn());
+  ck('typed search: rows appear (null canonical dropped)', (c.__byId['lib-results'].innerHTML.match(/lib-row/g) || []).length === 2);
   c.__byId['lib-search'].value = 'עור'; // matches nothing → empty-state line
   (c.__byId['lib-search']._handlers.input || []).forEach(fn => fn());
   ck('search: no-match message shown', c.__byId['lib-results'].innerHTML.indexOf('Nothing matching') >= 0);
@@ -130,7 +132,7 @@ const clickSubmit = async (ctx) => {
     && c.__submitBody.rec_name === 'ד"ר ליאורה פלדמן'
     && c.__submitBody.rec_note === 'מאבחנת מעולה — תגידי שדן שלח אותך'
     && !c.__byId['thanks-view']._cls.hidden);
-  ck('thanks: convert button flips for signed-in member', c.__byId['convert-btn'].textContent === 'Open your Trustnet →');
+  ck('thanks: conversion PITCH replaced for signed-in member', c.__qs['.convert'] && c.__qs['.convert'].innerHTML.indexOf('Back to Trustnet') >= 0 && c.__qs['.convert'].innerHTML.indexOf('Get your own') < 0);
   const dbgTxt = c.__byId['lib-debug'].textContent;
   ck('debug=1: full trace printed', dbgTxt.indexOf('uid=uid-77') >= 0 && dbgTxt.indexOf('REST status: 200') >= 0 && dbgTxt.indexOf('rows returned: 3') >= 0 && dbgTxt.indexOf('strip: SHOWN') >= 0 && c.__byId['lib-debug'].style.display === 'block');
 
