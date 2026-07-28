@@ -25,7 +25,7 @@ vm.runInContext('renderApp=function(){};showView=function(v){};toast=function(m,
  +'CURRENT_UID="me";fnPost=async function(n,b){return globalThis.__fnImpl(n,b);};',ctx);
 ctx.__toasts=[];ctx.__savedQueries=0;ctx.__u=0;
 const X=ctx.__x;
-ck('APP_VERSION is v0.24.0', X.APP_VERSION==='v0.24.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.24.1', X.APP_VERSION==='v0.24.1 · live', X.APP_VERSION);
 
 // ---- A. sheet failure surfaces the REAL error, not "network" ----
 X.AppState.isDemoMode=false;
@@ -86,6 +86,24 @@ X.AppState._sheet={queryId:'q1',loading:false,data:{
   advice:[{by:'Rina',note:'book the Eiffel Tower online, queues are brutal'}]}};
 const ah = X.renderSheet();
 ck('advice section renders prose answers instead of discarding them', ah.indexOf('ADVICE FROM YOUR CIRCLE')>=0 && ah.indexOf('queues are brutal')>=0);
+
+
+// ---- E. DISCOVERY sheet with real items — the path that was crashing ----
+// (regression guard for `cat is not defined`: sheetItemHtml must render)
+X.AppState._sheet={queryId:'q1',loading:false,data:{
+  engine:'sheet-v4', archetype:'discovery', query_text:'who is a good electrician?',
+  counts:{total:2,from_circle:1,from_you:1,corroborated:0,hidden:0},
+  items:[
+    { name:'שושן שמוליק', location:'גאולה', category:'home', emoji:'x', from_you:false,
+      recommenders:['Rina'], notes:[{by:'Rina',note:'מעולה ואמין'}], rating:0, rec_id:null, member_id:'m1' },
+    { name:'Opa Restaurant', location:'Tel Aviv', category:'dining', emoji:'x', from_you:true,
+      recommenders:[], notes:[{by:'You',note:'best shakshouka'}], rating:5, rec_id:'r9', member_id:null }
+  ]}};
+let dh='', threw=null;
+try { dh = X.renderSheet(); } catch(e) { threw = e; }
+ck('discovery sheet renders WITHOUT throwing (cat-bug regression)', threw===null, threw && threw.message);
+ck('discovery sheet: both items drawn with names', dh.indexOf('שושן שמוליק')>=0 && dh.indexOf('Opa Restaurant')>=0);
+ck('discovery sheet: category sections + save buttons present', dh.indexOf('save-from-sheet')>=0 && /HOME|DINING/i.test(dh));
 
 console.log('\nRESULT: '+pass+' passed, '+fail+' failed'); process.exit(fail?1:0);
 })();

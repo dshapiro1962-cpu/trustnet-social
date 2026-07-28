@@ -402,7 +402,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.24.0 · live';
+const APP_VERSION = 'v0.24.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -1490,7 +1490,7 @@ function sheetItemHtml(it, idx) {
   const links = domFindLinks(it.name || '', it.location || '', it.category || '', it.primary_category || '', it.ai_tags || it.tags || []);
   return '<div style="background:#fff;border:1px solid #E5EDE8;border-radius:12px;padding:14px 16px;margin-bottom:8px;">'
     + '<div style="display:flex;gap:12px;align-items:flex-start;">'
-    + tnTile(it.name, cat, null, 40)
+    + tnTile(it.name, it.category || 'other', null, 40)
     + '<div style="flex:1;min-width:0;">'
     + '<div dir="auto" style="font-size:14px;font-weight:700;color:#1C2420;">' + esc(it.name)
     + (it.location ? ' <span style="font-weight:400;font-size:11px;color:#7A9086;">· ' + esc(it.location) + '</span>' : '') + stars + '</div>'
