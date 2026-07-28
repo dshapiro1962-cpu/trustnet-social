@@ -402,7 +402,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.24.1 · live';
+const APP_VERSION = 'v0.25.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -1733,6 +1733,19 @@ function libFilterRecs() {
     }
     return true;
   });
+  // When the librarian reranked, its ORDER is the answer — respect it.
+  const semState = (search && AppState._semantic && AppState._semantic.q === search) ? AppState._semantic : null;
+  if (semState && semState.ids && semState.ids.length) {
+    const rank = {};
+    semState.ids.forEach(function(id, i) { rank[id] = i; });
+    filtered.sort(function(a, b) {
+      const ra = rank[a.id], rb = rank[b.id];
+      if (ra === undefined && rb === undefined) return 0;
+      if (ra === undefined) return 1;
+      if (rb === undefined) return -1;
+      return ra - rb;
+    });
+  }
   return { filtered: filtered, semOnly: semOnly };
 }
 
@@ -4523,14 +4536,19 @@ document.addEventListener('input', function(e) {
       clearTimeout(window._semDebounce);
       window._semDebounce = setTimeout(function() {
         const q = sq.toLowerCase();
-        fnPost('search-library', { q: sq }).then(function(r) {
+        fnPost('search-library', { query: sq, limit: 12 }).then(function(r) {
           if ((AppState.searchQuery || '').trim().toLowerCase() === q) {
             AppState._semPending = false;
-            if (r && r.ids) AppState._semantic = { q: q, ids: r.ids };
+            if (r && r.ids) {
+              var why = {};
+              (r.items || []).forEach(function(it) { if (it.why) why[it.rec_id] = it.why; });
+              AppState._semantic = { q: q, ids: r.ids, why: why, reranked: !!r.reranked };
+            }
             libUpdateResultsInPlace();
           }
-        }).catch(function() {
+        }).catch(function(e) {
           AppState._semPending = false;
+          console.error('search-library failed:', e);
           libUpdateResultsInPlace();
         });
       }, 600);

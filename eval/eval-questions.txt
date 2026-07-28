@@ -1,0 +1,9 @@
+# Trustnet retrieval eval — one pair per line:   question | expected item
+# Lines starting with # are ignored. Write the questions the way you'd
+# really type them, in Hebrew or English. The expected item can be partial
+# ("Opa" matches "Opa Restaurant").
+#
+# Dan: replace the examples below with real ones from YOUR library.
+
+good ski resort for children | Avoriaz 1800
+somewhere for shakshouka in tel aviv | Opa
