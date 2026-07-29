@@ -25,7 +25,7 @@ vm.runInContext('renderApp=function(){};showView=function(v){};toast=function(m,
  +'CURRENT_UID="me";fnPost=async function(n,b){return globalThis.__fnImpl(n,b);};',ctx);
 ctx.__toasts=[];ctx.__savedQueries=0;ctx.__u=0;
 const X=ctx.__x;
-ck('APP_VERSION is v0.26.3', X.APP_VERSION==='v0.26.3 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.27.0', X.APP_VERSION==='v0.27.0 · live', X.APP_VERSION);
 
 // ---- A. sheet failure surfaces the REAL error, not "network" ----
 X.AppState.isDemoMode=false;
@@ -45,13 +45,16 @@ X.AppState._sheet=st;
 ck('sheet error view shows that detail to the user', X.renderSheet().indexOf('Failed to fetch')>=0);
 
 // ---- B. save-from-sheet marks the source responses as saved ----
+X.AppState.userMembers=[{id:'m1',name:'Rina',circleId:'c1'}];
+X.AppState.userQueries[0].responses[0].contactId='m1';
 X.AppState._sheet={queryId:'q1',loading:false,data:{items:[
-  {name:'yes great facilities for children',location:'',category:'travel',emoji:'x',notes:[{by:'Rina',note:'great'}],rating:5,member_id:null}
+  {name:'Avoriaz 1800',location:'',category:'travel',emoji:'x',
+   notes:[{by:'Rina',note:'yes great facilities for children'}],rating:5,member_id:null}
 ]}};
 await X.handleSaveFromSheet(0);
 ck('library item created', X.AppState.userRecs.length===1 && X.AppState.userCanonicals.length===1);
 const q=X.AppState.userQueries[0];
-ck('matching response marked savedToLibrary', q.responses[0].savedToLibrary===true);
+ck('response marked saved by its COMMENT/author (not by name match)', q.responses[0].savedToLibrary===true);
 ck('non-matching response untouched', q.responses[1].savedToLibrary===false);
 ck('saved state persisted (saveQueries called)', ctx.__savedQueries===1);
 
@@ -75,9 +78,16 @@ ck('verdict sheet: location + working links built from the ENTITY', vhtml.indexO
 ck('verdict sheet: attributed testimony from both answerers', vhtml.indexOf('Rina')>=0 && vhtml.indexOf('Yossi')>=0);
 ck('verdict sheet: offers ONE save for the subject', vhtml.indexOf('data-action="save-from-sheet" data-sheet-idx="0"')>=0);
 
-// saving it must create a canonical named for the SUBJECT
+// saving it must create a canonical named for the SUBJECT, with ALL comments
+X.AppState.userQueries=[{id:'q1',circleId:'c1',text:'is Avoriaz 1800 good for families?',responses:[
+  {id:'r1',contactId:'m1',recName:'yes great facilities for children',recNote:'',savedToLibrary:false},
+  {id:'r2',contactId:'m2',recName:'yes its great good runs and no cars',recNote:'',savedToLibrary:false}]}];
+X.AppState.userMembers=[{id:'m1',name:'Rina',circleId:'c1'},{id:'m2',name:'Yossi',circleId:'c1'}];
 await X.handleSaveFromSheet(0);
-ck('saved canonical is "Avoriaz 1800" (bug #4 fixed)', X.AppState.userCanonicals.length===1 && X.AppState.userCanonicals[0].name==='Avoriaz 1800' && X.AppState.userCanonicals[0].location==='Avoriaz, France');
+ck('saved canonical is "Avoriaz 1800"', X.AppState.userCanonicals.length===1 && X.AppState.userCanonicals[0].name==='Avoriaz 1800' && X.AppState.userCanonicals[0].location==='Avoriaz, France');
+const savedRec = X.AppState.userRecs[X.AppState.userRecs.length-1];
+ck('note keeps EVERY comment, attributed', savedRec.note.indexOf('Rina: yes great facilities for children')>=0 && savedRec.note.indexOf('Yossi: yes its great good runs and no cars')>=0);
+ck('both source responses marked saved (rename no longer breaks matching)', X.AppState.userQueries[0].responses.every(function(r){return r.savedToLibrary===true;}));
 
 // ---- D. advice section for discovery/advice archetypes ----
 X.AppState._sheet={queryId:'q1',loading:false,data:{

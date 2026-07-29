@@ -412,7 +412,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.26.3 · live';
+const APP_VERSION = 'v0.27.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -1520,41 +1520,77 @@ async function handleSaveFromSheet(idx) {
   if (!s || !s.data || !s.data.items || !s.data.items[idx]) return;
   const it = s.data.items[idx];
   const q = AppState.userQueries.find(function(x) { return x.id === s.queryId; });
+
+  // EVERY comment counts. A subject item carries all its verdicts; taking only
+  // notes[0] threw away two thirds of the testimony. (Bug found 28 Jul.)
+  const voices = [];
+  (it.verdicts || []).forEach(function(v) { if (v && v.note) voices.push({ by: v.by, note: v.note }); });
+  (it.notes || []).forEach(function(nt) {
+    if (nt && nt.note && !voices.some(function(v) { return v.note === nt.note; })) {
+      voices.push({ by: nt.by, note: nt.note });
+    }
+  });
+  const fullNote = voices.map(function(v) {
+    return (v.by && v.by !== 'You') ? (v.by + ': ' + v.note) : v.note;
+  }).join('\n\u2022 ');
+
   const existingCan = findExistingCanonical(it.name, it.location);
   const canId = existingCan ? existingCan.id : uid();
   if (!existingCan) {
-    AppState.userCanonicals.push({ id: canId, type: 'place', name: it.name, category: '',
-      location: it.location || '', imageEmoji: it.emoji || '📌', externalLinks: {} });
+    AppState.userCanonicals.push({ id: canId, type: 'place', name: it.name,
+      category: it.category || '', location: it.location || '',
+      imageEmoji: it.emoji || '\ud83d\udccc', externalLinks: {} });
   }
-  if (!existingRecFor(canId)) {
-    const firstNote = (it.notes && it.notes.length) ? it.notes[0].note : '';
+  const already = existingRecFor(canId);
+  if (already) {
+    // merge any comment we don't already hold
+    voices.forEach(function(v) {
+      const line = (v.by && v.by !== 'You') ? (v.by + ': ' + v.note) : v.note;
+      if ((already.note || '').indexOf(v.note) < 0) {
+        already.note = already.note ? (already.note + '\n\u2022 ' + line) : line;
+      }
+    });
+    await saveRecs();
+  } else {
     const viaMember = it.member_id && AppState.userMembers.some(function(m) { return m.id === it.member_id; })
       ? it.member_id : (AppState.userProfile ? AppState.userProfile.id : null);
     AppState.userRecs.push({ id: uid(), canonicalId: canId,
       circleId: q ? q.circleId : '', queryId: s.queryId || null, recommendedBy: viaMember,
-      note: firstNote, rating: it.rating || 0, tags: [],
+      note: fullNote, rating: it.rating || 0, tags: [],
       status: 'saved', isAnonymous: false, degree: 1, sharedToNetwork: shareDefault(),
       date: new Date().toISOString().slice(0, 10) });
     await saveCanonicals();
     await saveRecs();
-    requestClassify(canId, firstNote, q ? q.text : '');
+    // Persist the catalogue entry so the item is findable by search.
+    if (!AppState.isDemoMode) {
+      const circ = q ? AppState.circleById(q.circleId) : null;
+      fnPost('librarian', {
+        mode: 'commit', canonical_id: canId,
+        name: it.name, note: fullNote, location: it.location || '',
+        query_text: q ? q.text : '', circle_name: circ ? circ.name : '',
+      }).catch(function(e) { console.error('librarian commit failed:', e); });
+    }
   }
   it.from_you = true;
   renderApp();
-  // Mark the responses this item came from as saved, so query history stops
-  // offering "Save to library" for something already in the library.
+
+  // Mark the responses this item was BUILT FROM as saved. Matching on the item
+  // name fails now that the Librarian renames entities, so match the voices.
   if (q && q.responses && q.responses.length) {
-    var normName = function(x) { return (x || '').trim().toLowerCase().replace(/\s+/g, ' '); };
-    var target = normName(it.name);
-    var touched = false;
+    const said = {};
+    voices.forEach(function(v) { said[(v.note || '').trim()] = true; });
+    const byWho = {};
+    voices.forEach(function(v) { if (v.by) byWho[v.by] = true; });
+    let touched = false;
     q.responses.forEach(function(resp) {
-      if (!resp.savedToLibrary && normName(resp.recName) === target) {
-        resp.savedToLibrary = true; touched = true;
-      }
+      if (resp.savedToLibrary) return;
+      const who = (AppState.memberById(resp.contactId) || {}).name;
+      const text = (resp.recNote || resp.recName || '').trim();
+      if ((text && said[text]) || (who && byWho[who])) { resp.savedToLibrary = true; touched = true; }
     });
-    if (touched) { try { await saveQueries(); } catch (e) { /* local state already correct */ } }
+    if (touched) { try { await saveQueries(); } catch (e) { /* local state is correct */ } }
   }
-  toast('"' + it.name + '" saved to your library.');
+  toast('\u201c' + it.name + '\u201d saved with ' + voices.length + ' comment' + (voices.length === 1 ? '' : 's') + '.');
 }
 
 /* ═══════════════════════════════════════════════
