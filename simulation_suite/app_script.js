@@ -412,7 +412,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.26.2 · live';
+const APP_VERSION = 'v0.26.3 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3851,6 +3851,20 @@ async function handleSaveToLibrary(respId) {
   const member = resp.contactId ? AppState.memberById(resp.contactId) : null;
   const recommenderName = member ? member.name : 'Anonymous';
 
+  // The answerer's words can live in recNote, recName, or (verification
+  // questions) only in the sheet's verdicts. Find them wherever they are —
+  // testimony must never be silently dropped. (Bug found 28 Jul.)
+  let srcText = (resp.recNote || '').trim();
+  if (!srcText) srcText = (resp.recName || '').trim();
+  if (!srcText) {
+    const sh = AppState._sheet && AppState._sheet.data;
+    const subj = sh && sh.items && sh.items[0];
+    if (subj && subj.verdicts) {
+      const who = (AppState.memberById(resp.contactId) || {}).name;
+      const v = subj.verdicts.find(function(x) { return who && x.by === who; }) || subj.verdicts[0];
+      if (v) srcText = v.note || '';
+    }
+  }
   const starsHtml = [1,2,3,4,5].map(function(n) {
     return '<button class="save-lib-star" data-star="' + n + '" style="font-size:22px;cursor:pointer;opacity:' + (n <= resp.recRating ? '1' : '0.25') + ';background:none;border:none;padding:0 2px;" data-action="set-star" data-n="' + n + '">★</button>';
   }).join('');
@@ -3871,7 +3885,7 @@ async function handleSaveToLibrary(respId) {
     + '<div class="field-label">WHAT</div>'
     + '<div style="display:flex;align-items:center;gap:8px;">'
     + '<span style="font-size:20px;">' + emoji + '</span>'
-    + '<input class="field-input" id="sl-name" value="' + esc(resp.recName || '') + '" placeholder="Name" style="flex:1;">'
+    + '<input class="field-input" id="sl-name" value="' + esc(resp.recName || srcText) + '" placeholder="Name" style="flex:1;">'
     + '</div>'
     + '</div>'
 
@@ -3884,7 +3898,7 @@ async function handleSaveToLibrary(respId) {
     // Note
     + '<div class="field">'
     + '<div class="field-label">NOTE <span style="font-weight:400;color:#A8BDAF;">(edit or keep)</span></div>'
-    + '<textarea class="field-input field-textarea" id="sl-note" style="min-height:80px;">' + esc(resp.recNote || '') + '</textarea>'
+    + '<textarea class="field-input field-textarea" id="sl-note" style="min-height:80px;">' + esc(resp.recNote || srcText) + '</textarea>'
     + '</div>'
 
     // Rating
