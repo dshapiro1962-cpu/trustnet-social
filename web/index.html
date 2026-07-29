@@ -825,7 +825,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.26.1 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.26.2 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1115,7 +1115,8 @@ async function loadUserData() {
   AppState.userCanonicals = canRows.map(function(c){ return { id:c.id, type:c.type, name:c.name, category:c.category||'',
     location:c.location||'', description:c.description||'', imageEmoji:c.image_emoji||'📌', googleUrl:c.google_url,
     websiteUrl:c.website_url, linkedinUrl:c.linkedin_url,
-    primaryCategory:c.primary_category||'', aiTags:c.ai_tags||[], imageUrl:c.image_url||'' }; });
+    primaryCategory:c.primary_category||'', aiTags:c.ai_tags||[], imageUrl:c.image_url||'',
+    createdBy:c.created_by||null }; });
 
   // queries + responses
   const qs = await sb.from('queries').select('*, query_responses!query_id(*)').eq('sent_by', CURRENT_UID).order('sent_at');
@@ -1165,13 +1166,22 @@ async function saveMembers() {
 }
 async function saveCanonicals() {
   if (!CURRENT_UID) return;
-  const rows = AppState.userCanonicals.filter(function(c){ return !c._noSync; }).map(function(c){ return { id:c.id, type:c.type||'place', name:c.name,
+  // RLS: canonicals_update_creator requires created_by = auth.uid(). Rows made
+  // by server functions belong to someone else — including them in the upsert
+  // makes the WHOLE batch 403 and silently loses every save. (Bug found 28 Jul.)
+  const rows = AppState.userCanonicals.filter(function(c){
+    return !c._noSync && (!c.createdBy || c.createdBy === CURRENT_UID);
+  }).map(function(c){ return { id:c.id, type:c.type||'place', name:c.name,
     category:c.category||null, location:c.location||null, description:c.description||null,
     website_url:c.websiteUrl||null,
     image_emoji:c.imageEmoji||'📌', image_url:c.imageUrl||null, created_by:CURRENT_UID }; });
   if (rows.length) {
     const r = await sb.from('canonicals').upsert(rows, { ignoreDuplicates: false });
-    if (r.error) { console.error('saveCanonicals', r.error); }
+    if (r.error) {
+      console.error('saveCanonicals', r.error);
+      toast('Could not save: ' + (r.error.message || 'database refused the write'), 'error');
+      throw new Error('saveCanonicals failed: ' + (r.error.message || r.error.code));
+    }
   }
 }
 async function saveRecs() {
@@ -1285,7 +1295,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.26.1 · live';
+const APP_VERSION = 'v0.26.2 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
