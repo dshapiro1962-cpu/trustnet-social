@@ -402,7 +402,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.26.0 · live';
+const APP_VERSION = 'v0.26.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3976,7 +3976,20 @@ async function handleConfirmSaveToLibrary(respId) {
   AppState.userRecs.push(newRec);
   await saveCanonicals();
   await saveRecs();
-  requestClassify(canId, note, AppState.queryState ? AppState.queryState.text : '');
+  // PERSIST the catalogue entry: enrich only RETURNS the entity — commit writes
+  // the search document + embedding, without which the item is invisible to
+  // search even though it looks perfect on screen. (Bug found 28 Jul.)
+  if (!AppState.isDemoMode) {
+    const qCircle2 = AppState.circleById(AppState.queryState.circleId);
+    fnPost('librarian', {
+      mode: 'commit', canonical_id: canId,
+      name: finalName, note: note, location: finalLoc,
+      query_text: AppState.queryState.text || '',
+      circle_name: qCircle2 ? qCircle2.name : '',
+    }).catch(function(e) { console.error('librarian commit failed:', e); });
+  } else {
+    requestClassify(canId, note, AppState.queryState ? AppState.queryState.text : '');
+  }
 
   // Mark response as saved so button changes to ✓ — and PERSIST it,
   // or the 60s heartbeat re-fetch resurrects the button (bug fixed v0.16.1)
