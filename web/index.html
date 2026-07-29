@@ -825,7 +825,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.25.0 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.26.0 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1285,7 +1285,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.25.0 · live';
+const APP_VERSION = 'v0.26.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -4797,33 +4797,60 @@ async function handleConfirmSaveToLibrary(respId) {
 
   if (!name) { toast('Please enter a name.', 'warn'); return; }
 
+  // The Librarian resolves the ENTITY from the answer PLUS the question that
+  // produced it — so "yes great facilities for children" becomes "Avoriaz 1800".
+  let ent = null;
+  if (!AppState.isDemoMode) {
+    const qCircle = AppState.circleById(AppState.queryState.circleId);
+    try {
+      const lr = await fnPost('librarian', {
+        mode: 'enrich', name: name, note: note, location: loc,
+        query_text: AppState.queryState.text || '',
+        circle_name: qCircle ? qCircle.name : '',
+      });
+      if (lr && lr.entity && lr.entity.name) ent = lr.entity;
+    } catch (e) { console.error('librarian enrich failed:', e); }
+  }
+  const finalName = ent ? ent.name : name;
+  const finalLoc  = (ent && ent.location) ? ent.location : loc;
+  const finalCat  = (ent && ent.kind) ? ent.kind : cat;
+  const finalTags = (ent && ent.tags && ent.tags.length) ? ent.tags : (resp.recTags || []);
+
   const emojiMap = { restaurant:'🍽️', book:'📖', film:'🎬', hotel:'🏨', doctor:'👩‍⚕️', wine:'🍷', bar:'🍷', place:'📍', museum:'🏛️', physiotherapist:'🦴', cardiologist:'❤️', dermatologist:'👩‍⚕️', plumber:'🔧', cinema:'🎬' };
   const catLow = (cat || '').toLowerCase();
   const emojiKey = Object.keys(emojiMap).find(function(k){ return catLow.includes(k); });
   const emoji = resp.recEmoji || emojiMap[emojiKey] || '📌';
 
-  const existingCan2 = findExistingCanonical(name, loc);
+  const existingCan2 = findExistingCanonical(finalName, finalLoc);
   const canId = existingCan2 ? existingCan2.id : uid();
   const recId = uid();
   const dupRec2 = existingRecFor(canId);
   if (dupRec2) {
-    if (note) dupRec2.note = note;
+    // Several people can recommend the SAME place — keep every comment.
+    if (note && (dupRec2.note || '').indexOf(note) < 0) {
+      dupRec2.note = dupRec2.note ? (dupRec2.note + '\n\u2022 ' + note) : note;
+    }
     dupRec2.rating = Math.min(5, Math.max(1, rating));
+    if (finalTags.length) {
+      const merged = (dupRec2.tags || []).slice();
+      finalTags.forEach(function(t) { if (merged.indexOf(t) < 0) merged.push(t); });
+      dupRec2.tags = merged;
+    }
     await saveRecs();
     resp.savedToLibrary = true;
     await saveQueries();
     closeModal();
-    toast('"' + name + '" was already in your library — updated it.');
+    toast('Added your circle\'s comment to \u201c' + finalName + '\u201d.');
     renderApp();
     return;
   }
-  const newCan = existingCan2 ? null : { id: canId, type: 'place', name: name, category: cat, location: loc, imageEmoji: emoji, externalLinks: {} };
+  const newCan = existingCan2 ? null : { id: canId, type: 'place', name: finalName, category: finalCat, location: finalLoc, imageEmoji: emoji, externalLinks: {} };
   const newRec = {
     id: recId, canonicalId: canId, circleId: AppState.queryState.circleId,
     queryId: (AppState.queryState && (AppState.queryState.queryId || AppState.queryState._historyQueryId)) || null,
     recommendedBy: resp.contactId || 'user', note: note,
     rating: Math.min(5, Math.max(1, rating)),
-    tags: resp.recTags || [], date: new Date().toISOString().split('T')[0],
+    tags: finalTags, date: new Date().toISOString().split('T')[0],
     status: 'saved', degree: resp.isAnonymous ? 2 : 1, isAnonymous: resp.isAnonymous || false,
     sharedToNetwork: shareDefault()
   };
