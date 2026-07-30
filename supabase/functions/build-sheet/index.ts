@@ -36,30 +36,41 @@ function looksLikeSentence(s: string): boolean {
 }
 
 async function classifyQuery(key: string, text: string): Promise<{
-  archetype: "discovery" | "verification" | "advice";
-  subject: string; subject_hint: string;
+  archetype: "discovery" | "verification" | "comparison" | "advice";
+  subjects: { name: string; hint: string }[];
+  reference: string;
 }> {
-  const fallback = { archetype: "discovery" as const, subject: "", subject_hint: "" };
+  const fallback = { archetype: "discovery" as const, subjects: [], reference: "" };
   try {
     const r = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gpt-4o-mini", temperature: 0, response_format: { type: "json_object" },
+        model: Deno.env.get("LIBRARIAN_MODEL") ?? "gpt-4o",
+        temperature: 0, response_format: { type: "json_object" },
         messages: [{
           role: "system",
           content:
-            "Classify a question someone asked their trusted circle. Return JSON only: " +
-            '{"archetype":"discovery"|"verification"|"advice","subject":"...","subject_hint":"..."}. ' +
-            "discovery = asks WHO/WHAT to choose, answers will name new places/people " +
-            '(e.g. "who is a good electrician?", "best pizza in Tel Aviv?"). ' +
+            "Classify a question someone asked their trusted circle. JSON only: " +
+            '{"archetype":"discovery"|"verification"|"comparison"|"advice",' +
+            '"subjects":[{"name":"...","hint":"..."}],"reference":"..."}. ' +
+            "discovery = asks WHAT/WHO to choose; the answers will name new things " +
+            '("recommend a good freeride ski", "museum in NYC"). subjects=[] . ' +
             "verification = asks about ONE named thing already in the question " +
-            '(e.g. "is Avoriaz 1800 good for families?", "is Dr Cohen any good?"). ' +
-            "advice = asks for guidance/tips rather than a single choice " +
-            '(e.g. "what should we do in Paris with kids?"). ' +
-            'For verification, "subject" = the exact named thing (e.g. "Avoriaz 1800") and ' +
-            '"subject_hint" = a few words describing what it is for a maps/web lookup ' +
-            '(e.g. "ski resort France"). For other archetypes both may be "". ' +
+            '("is Les Arcs good for beginners") -> subjects = that one thing. ' +
+            "comparison = asks which of TWO OR MORE named things is better " +
+            '("which is better, the Weber Spirit E-325 or the Napoleon Rogue 425") ' +
+            "-> subjects = every named thing, in the order asked. " +
+            "advice = asks for guidance with no thing to choose " +
+            '("which season is good for visiting Israel"). subjects=[] . ' +
+            'IMPORTANT "reference": when the question names something only as a ' +
+            "COMPARISON POINT or a thing to move AWAY from, put it in reference and " +
+            "leave subjects empty — the named thing must NOT be saved as the answer. " +
+            'Examples: "I have been to La Grave, something similar in the US?" -> ' +
+            'discovery, reference="La Grave". "disappointed with Santorini, alternative?" ' +
+            '-> discovery, reference="Santorini". "loved Harry Potter, other books by the ' +
+            'author?" -> discovery, reference="Harry Potter". ' +
+            '"hint" = a few words for a maps/web lookup ("ski resort France", "gas grill"). ' +
             "Questions may be Hebrew or English.",
         }, { role: "user", content: String(text).slice(0, 300) }],
       }),
@@ -67,11 +78,16 @@ async function classifyQuery(key: string, text: string): Promise<{
     if (!r.ok) return fallback;
     const c = await r.json();
     const p = JSON.parse(c.choices?.[0]?.message?.content ?? "{}");
-    const arch = ["discovery", "verification", "advice"].includes(p.archetype) ? p.archetype : "discovery";
+    const arch = ["discovery","verification","comparison","advice"].includes(p.archetype) ? p.archetype : "discovery";
+    const subs = Array.isArray(p.subjects)
+      ? p.subjects.filter((x: any) => x && typeof x.name === "string" && x.name.trim())
+          .slice(0, 4)
+          .map((x: any) => ({ name: String(x.name).slice(0, 80).trim(), hint: String(x.hint || "").slice(0, 60) }))
+      : [];
     return {
       archetype: arch,
-      subject: typeof p.subject === "string" ? p.subject.slice(0, 80).trim() : "",
-      subject_hint: typeof p.subject_hint === "string" ? p.subject_hint.slice(0, 60).trim() : "",
+      subjects: subs,
+      reference: typeof p.reference === "string" ? p.reference.slice(0, 80).trim() : "",
     };
   } catch (_) { return fallback; }
 }
@@ -141,23 +157,32 @@ Deno.serve(async (req: Request) => {
     r.is_anonymous ? "Someone (anonymous)" : (memberNames[r.member_id as string] || "Someone");
 
   // ── archetype + subject (the v4 heart) ──────────────────────────────────
-  const cls = key ? await classifyQuery(key, q.text) : { archetype: "discovery" as const, subject: "", subject_hint: "" };
-  let subjectItem: Record<string, unknown> | null = null;
-  if (cls.archetype === "verification" && cls.subject) {
-    const place = await resolvePlace(cls.subject, cls.subject_hint);
-    subjectItem = {
-      name: place?.name || cls.subject,
-      location: place?.location || "",
-      category: place?.category || "other",
-      emoji: "📌",
-      from_you: false,
-      recommenders: [] as string[],
-      notes: [] as { by: string; note: string }[],
-      verdicts: [] as { by: string; verdict: string; note: string }[],
-      rating: 0, rec_id: null, member_id: null,
-      is_subject: true,
-      resolved: !!place,
-    };
+  const cls = key
+    ? await classifyQuery(key, q.text)
+    : { archetype: "discovery" as const, subjects: [] as { name: string; hint: string }[], reference: "" };
+
+  // Verification (1 subject) and comparison (2+) share one shape: named things
+  // from the QUESTION, with the answers attached to them as verdicts.
+  type Subject = Record<string, unknown>;
+  const subjects: Subject[] = [];
+  if (cls.subjects.length) {
+    for (const sub of cls.subjects) {
+      const place = await resolvePlace(sub.name, sub.hint);
+      subjects.push({
+        name: place?.name || sub.name,
+        raw_name: sub.name,
+        location: place?.location || "",
+        category: place?.category || "other",
+        emoji: "\ud83d\udccc",
+        from_you: false,
+        recommenders: [] as string[],
+        notes: [] as { by: string; note: string }[],
+        verdicts: [] as { by: string; verdict: string; note: string }[],
+        rating: 0, rec_id: null, member_id: null,
+        is_subject: true,
+        resolved: !!place,
+      });
+    }
   }
 
   // ── own-library semantic matches (unchanged recall path) ────────────────
@@ -215,40 +240,60 @@ Deno.serve(async (req: Request) => {
   }
 
   // ── VERIFICATION: answers are testimony about ONE subject ───────────────
-  if (subjectItem) {
-    let yes = 0, no = 0, mixed = 0;
+  if (subjects.length) {
+    // Assign each answer to the subject it actually talks about. With two
+    // subjects ("Weber or Napoleon?") an answer usually names one; answers that
+    // name neither are general commentary and go to the advice section.
+    const generalAdvice: { by: string; note: string }[] = [];
     for (const r of responses) {
       const who = whoOf(r);
-      const raw = [r.rec_name, r.rec_note].filter(Boolean).join(" — ").trim();
+      const raw = [r.rec_name, r.rec_note].filter(Boolean).join(" \u2014 ").trim();
       if (!raw) continue;
       const low = raw.toLowerCase();
+      let target: Subject | null = null;
+      for (const sj of subjects) {
+        const n1 = String(sj.name).toLowerCase();
+        const n2 = String(sj.raw_name).toLowerCase();
+        // match on the whole name or on a distinctive word of it
+        const words = n2.split(/\s+/).filter((w) => w.length >= 4);
+        if (low.includes(n1) || low.includes(n2) || words.some((w) => low.includes(w))) { target = sj; break; }
+      }
+      if (!target && subjects.length === 1) target = subjects[0];
+      if (!target) { generalAdvice.push({ by: who, note: raw }); continue; }
+
       const verdict =
-        /^(no|not|nope|לא|ממש לא)\b/.test(low) ? "no"
-        : /\b(but|however|though|אבל|למרות)\b/.test(low) ? "mixed"
+        /^(no|not|nope|\u05dc\u05d0|\u05de\u05de\u05e9 \u05dc\u05d0)\b/.test(low) ? "no"
+        : /\b(but|however|though|expensive|\u05d0\u05d1\u05dc|\u05d9\u05e7\u05e8)\b/.test(low) ? "mixed"
         : "yes";
-      if (verdict === "yes") yes++; else if (verdict === "no") no++; else mixed++;
-      (subjectItem.verdicts as { by: string; verdict: string; note: string }[])
-        .push({ by: who, verdict, note: raw });
-      (subjectItem.notes as { by: string; note: string }[]).push({ by: who, note: raw });
-      const recs = subjectItem.recommenders as string[];
+      (target.verdicts as { by: string; verdict: string; note: string }[]).push({ by: who, verdict, note: raw });
+      (target.notes as { by: string; note: string }[]).push({ by: who, note: raw });
+      const recs = target.recommenders as string[];
       if (!recs.includes(who)) recs.push(who);
     }
-    subjectItem.consensus = { yes, no, mixed, total: yes + no + mixed };
 
-    // A library item the user already has for this subject? merge it in.
-    const subjNorm = norm(subjectItem.name as string);
-    const owned = library.find((l) => norm(l.name) === subjNorm);
-    if (owned) {
-      subjectItem.from_you = true;
-      subjectItem.rec_id = owned.rec_id;
-      subjectItem.rating = owned.rating;
-      if (owned.note) (subjectItem.notes as { by: string; note: string }[]).unshift({ by: "You", note: owned.note });
-      if (!subjectItem.location) subjectItem.location = owned.location;
-      if (owned.category) subjectItem.category = owned.category;
+    // consensus per subject + merge anything already in the library
+    for (const sj of subjects) {
+      const vs = sj.verdicts as { verdict: string }[];
+      sj.consensus = {
+        yes: vs.filter((v) => v.verdict === "yes").length,
+        no: vs.filter((v) => v.verdict === "no").length,
+        mixed: vs.filter((v) => v.verdict === "mixed").length,
+        total: vs.length,
+      };
+      const owned = library.find((l) => norm(l.name) === norm(String(sj.name)));
+      if (owned) {
+        sj.from_you = true;
+        sj.rec_id = owned.rec_id;
+        sj.rating = owned.rating;
+        if (owned.note) (sj.notes as { by: string; note: string }[]).unshift({ by: "You", note: owned.note });
+        if (!sj.location) sj.location = owned.location;
+        if (owned.category) sj.category = owned.category;
+      }
     }
-    // Related library items (excluding the subject itself) stay as context.
+
+    const subjNames = subjects.map((sj) => norm(String(sj.name)));
     const related = library
-      .filter((l) => norm(l.name) !== subjNorm)
+      .filter((l) => !subjNames.includes(norm(l.name)))
       .map((l) => ({
         name: l.name, location: l.location, category: l.category || "other", emoji: l.emoji,
         from_you: true, recommenders: [] as string[],
@@ -257,16 +302,21 @@ Deno.serve(async (req: Request) => {
       }));
 
     return json({
-      engine: ENGINE, archetype: "verification",
-      subject: subjectItem.name, subject_resolved: subjectItem.resolved,
+      engine: ENGINE,
+      archetype: subjects.length > 1 ? "comparison" : "verification",
+      subject: subjects[0].name,
+      subject_count: subjects.length,
+      subject_resolved: subjects.every((sj) => sj.resolved),
       query_text: q.text, judge_error: null,
+      advice: generalAdvice,
       counts: {
-        total: 1 + related.length,
-        answers: (subjectItem.verdicts as unknown[]).length,
-        from_circle: (subjectItem.recommenders as string[]).length,
+        total: subjects.length + related.length,
+        answers: subjects.reduce((n, sj) => n + (sj.verdicts as unknown[]).length, 0),
+        from_circle: subjects.reduce((n, sj) => n + (sj.recommenders as string[]).length, 0),
         from_you: related.length, corroborated: 0, hidden: 0,
+        advice: generalAdvice.length,
       },
-      items: [subjectItem, ...related],
+      items: [...subjects, ...related],
     });
   }
 
@@ -356,6 +406,14 @@ Deno.serve(async (req: Request) => {
   const hiddenCount = library.filter((_, i) => libRelevant[i] === false).length;
   library = library.filter((_, i) => libRelevant[i] !== false);
 
+  // A REFERENCE is the thing the asker is moving away from or comparing to
+  // ("something like La Grave", "alternative to Santorini", "books by the Harry
+  // Potter author"). It must never be offered back as the answer.
+  const refNorm = norm(cls.reference || "");
+  if (refNorm) {
+    library = library.filter((l) => norm(l.name) !== refNorm && !norm(l.name).includes(refNorm));
+  }
+
   type SheetItem = {
     name: string; location: string; category: string; emoji: string;
     from_you: boolean; recommenders: string[];
@@ -374,6 +432,7 @@ Deno.serve(async (req: Request) => {
   for (const { r, i } of entityResponses as { r: any; i: number }[]) {
     const keyName = norm(r.rec_name as string);
     if (!keyName) continue;
+    if (refNorm && (keyName === refNorm || keyName.includes(refNorm))) continue; // the reference is not an answer
     const who = whoOf(r);
     const existing = byName[keyName];
     if (existing) {
@@ -394,6 +453,7 @@ Deno.serve(async (req: Request) => {
   const items = Object.values(byName);
   return json({
     engine: ENGINE, archetype: cls.archetype, subject: "", subject_resolved: false,
+    reference: cls.reference || "",
     judge_error: judgeError, query_text: q.text,
     advice,
     counts: {

@@ -412,7 +412,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.27.0 · live';
+const APP_VERSION = 'v0.28.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -1396,7 +1396,48 @@ function renderSheet() {
     + (d.judge_error ? '<div style="font-size:11px;color:#C0392B;margin:-12px 0 16px;">⚠ Smart filtering unavailable this time (' + esc(d.judge_error) + ') — showing everything unfiltered.</div>' : '');
 
   // ── VERIFICATION sheet: one subject, a consensus, and testimony ──
-  if (d.archetype === 'verification' && d.items && d.items.length && d.items[0].is_subject) {
+  if ((d.archetype === 'verification' || d.archetype === 'comparison')
+      && d.items && d.items.length && d.items[0].is_subject) {
+    // COMPARISON: every named thing gets its own verdict card, side by side.
+    if (d.archetype === 'comparison') {
+      const subs = (d.items || []).filter(function(x) { return x.is_subject; });
+      let ch = '';
+      subs.forEach(function(sj, si) {
+        const con = sj.consensus || { yes: 0, no: 0, mixed: 0, total: 0 };
+        const word = con.total === 0 ? 'No comments yet'
+          : (con.no > con.yes ? 'Against' : (con.mixed >= con.yes ? 'Mixed' : 'In favour'));
+        const col = con.total === 0 ? '#7A9086'
+          : (con.no > con.yes ? '#C0392B' : (con.mixed >= con.yes ? '#E8A020' : '#217A4B'));
+        ch += '<div style="border:1px solid #DCE7E0;border-radius:14px;padding:16px 18px;margin-bottom:12px;">'
+          + '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">'
+          + '<span dir="auto" style="font-size:16.5px;font-weight:800;color:#1C2420;">' + esc(sj.name) + '</span>'
+          + (sj.location ? '<span dir="auto" style="font-size:11px;color:#7A9086;">' + esc(sj.location) + '</span>' : '')
+          + '</div>'
+          + '<div style="margin:8px 0 12px;"><span style="font-size:14px;font-weight:800;color:' + col + ';">' + word + '</span>'
+          + (con.total ? '<span style="font-size:11.5px;color:#56695F;"> \u00b7 ' + con.total + ' comment' + (con.total === 1 ? '' : 's') + '</span>' : '')
+          + '</div>'
+          + respFindLinks(sj.name, sj.location, q.circleId)
+          + (sj.verdicts && sj.verdicts.length
+              ? sj.verdicts.map(function(v) {
+                  return '<div style="border-top:1px solid #F0F5F1;padding:8px 0;">'
+                    + '<div style="font-size:11px;color:#7A9086;font-weight:700;">' + esc(v.by) + '</div>'
+                    + '<div dir="auto" style="font-size:13px;color:#3D4F46;line-height:1.5;">' + esc(v.note) + '</div>'
+                    + '</div>';
+                }).join('')
+              : '<div style="font-size:12px;color:#7A9086;">Nobody commented on this one.</div>')
+          + (con.total ? '<button class="btn btn-primary btn-sm" data-action="save-from-sheet" data-sheet-idx="' + si + '" style="margin-top:12px;">+ Save to Library</button>' : '')
+          + '</div>';
+      });
+      if (d.advice && d.advice.length) {
+        ch += '<div style="font-size:13px;font-weight:800;color:var(--slate-700);margin:16px 0 8px;">GENERAL COMMENTS</div>'
+          + d.advice.map(function(a) {
+              return '<div style="border:1px solid #E5EDE8;border-radius:10px;padding:9px 12px;margin-bottom:6px;">'
+                + '<div style="font-size:11px;color:#7A9086;font-weight:700;">' + esc(a.by) + '</div>'
+                + '<div dir="auto" style="font-size:13px;color:#3D4F46;">' + esc(a.note) + '</div></div>';
+            }).join('');
+      }
+      return sheetShellHtml(q, summary + ch);
+    }
     const subj = d.items[0];
     const con = subj.consensus || { yes: 0, no: 0, mixed: 0, total: 0 };
     const verdictWord = con.total === 0 ? 'No answers yet'

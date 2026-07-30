@@ -1,9 +1,43 @@
-# Trustnet retrieval eval — one pair per line:   question | expected item
-# Lines starting with # are ignored. Write the questions the way you'd
-# really type them, in Hebrew or English. The expected item can be partial
-# ("Opa" matches "Opa Restaurant").
-#
-# Dan: replace the examples below with real ones from YOUR library.
+# Trustnet retrieval eval — derived from dan's 20-question corpus (28 Jul 2026).
+# Format:  future search question | expected item
+# These are searches a person would REALISTICALLY type months later, testing
+# whether the library remembers what the circle said. Lines starting with # skipped.
 
-good ski resort for children | Avoriaz 1800
-somewhere for shakshouka in tel aviv | Opa
+# --- ski gear & resorts (the domain that exposed the whole memory-layer bug) ---
+wide ski touring boot for wide feet | Tecnica Mach1
+freeride ski recommendation | K2 Mindbender
+good freeride skis | Rossignol Sender
+ski resort for beginners | Les Arcs
+steep skiing in the US like la grave | Silverton Mountain
+off piste resort america | Crested Butte
+
+# --- eating & drinking ---
+restaurant in tel aviv | Habasta
+best hummus tel aviv | Abu Hasan
+seaside restaurant tel aviv | House of Dallal
+quiet bar tel aviv | האחים
+oysters in paris | Huitrerie Régis
+מקום לאויסטרים בפריז | Clamato
+בשר איכותי קצביה | אומצה
+
+# --- home, services, professionals ---
+gas stove technician | נאור פיקס
+טכנאי תנורים | נאור פיקס
+dermatologist | דר לביא
+רופא עור מכבי | דר לביא
+picture framing | עמנואל אומנות ומסגור
+מסגרת לתמונה רמת גן | עמנואל אומנות ומסגור
+בגדי עבודה זול | הגרעין
+
+# --- travel & islands ---
+quiet greek island | Leros
+alternative to santorini | Paphos
+which season to visit israel | סתיו
+
+# --- culture & products ---
+museum in new york | Metropolitan
+modern art museum nyc | MoMA
+gas grill recommendation | Weber Spirit
+electric car alternative to tesla | Rivian
+book by the harry potter author | Christmas Pig
+yellow curry recipe | לימור לניאדו תירוש
