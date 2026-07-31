@@ -24,13 +24,26 @@ const path = require('path');
 
 const SUPABASE_URL = 'https://kgsdtfrcyjrxeyqqxoic.supabase.co';
 const ANON = 'sb_publishable_8MAMd56FzHTyNZtnO2XK4A_cp2lFGEm';
+// Which library to measure. By default the E2E TEST account's session — which
+// holds test junk, not your real library. Point it at YOUR account with:
+//     node eval/eval-retrieval.js --token <access-token>
+// or  set TN_EVAL_TOKEN=<access-token>   (get it from the app: F12 > Console)
 const AUTH_FILE = path.join(__dirname, '..', 'e2e', '.auth', 'session.json');
+const ARG_TOKEN = (() => {
+  const i = process.argv.indexOf('--token');
+  return i > 0 ? process.argv[i + 1] : (process.env.TN_EVAL_TOKEN || '');
+})();
 const QUESTIONS = path.join(__dirname, 'eval-questions.txt');
 const TOP_N = 5; // "found" means: in the top N results
 
 function norm(s) { return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
 
 function readToken() {
+  if (ARG_TOKEN && ARG_TOKEN.length > 100) {
+    console.log('(measuring the account for the token you supplied)\n');
+    return ARG_TOKEN.trim();
+  }
+  console.log('(measuring the E2E TEST account — pass --token to measure your own library)\n');
   const st = JSON.parse(fs.readFileSync(AUTH_FILE, 'utf8'));
   for (const o of st.origins || []) {
     for (const item of o.localStorage || []) {
