@@ -236,14 +236,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
             body: JSON.stringify({ note: hit.note ? hit.note + '\n• ' + line : line }),
           });
         }
-        try {
-          await fn('librarian', {
-            mode: 'commit', canonical_id: hit.canonical_id, name: name,
-            note: (hit.note ? hit.note + '\n' : '') + ans.t, location: ent ? ent.location : '',
-            query_text: entry.q, circle_name: CIRCLES[entry.c].name.replace(' [corpus]', ''),
-          });
-        } catch (e) { /* best effort */ }
-        console.log('   ~ merged comment into ' + name + ' (entry refreshed)');
+        console.log('   ~ merged comment into ' + name);
         continue;
       }
 

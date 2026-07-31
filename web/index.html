@@ -825,7 +825,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.28.1 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.29.0 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1302,7 +1302,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.28.1 · live';
+const APP_VERSION = 'v0.29.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -2482,6 +2482,15 @@ async function handleSaveFromSheet(idx) {
       }
     });
     await saveRecs();
+    // Merged comments carry new context — refresh the catalogue entry.
+    if (!AppState.isDemoMode) {
+      const circ2 = q ? AppState.circleById(q.circleId) : null;
+      fnPost('librarian', {
+        mode: 'commit', canonical_id: canId,
+        name: it.name, note: already.note || fullNote, location: it.location || '',
+        query_text: q ? q.text : '', circle_name: circ2 ? circ2.name : '',
+      }).catch(function(e) { console.error('librarian re-commit failed:', e); });
+    }
   } else {
     const viaMember = it.member_id && AppState.userMembers.some(function(m) { return m.id === it.member_id; })
       ? it.member_id : (AppState.userProfile ? AppState.userProfile.id : null);
@@ -4945,6 +4954,18 @@ async function handleConfirmSaveToLibrary(respId) {
       dupRec2.tags = merged;
     }
     await saveRecs();
+    // A merged comment brings NEW context (another question, more words).
+    // Re-commit so the catalogue entry grows with it — otherwise the item stays
+    // findable only by its original wording. (Found by the eval, 31 Jul.)
+    if (!AppState.isDemoMode) {
+      const qc = AppState.circleById(AppState.queryState.circleId);
+      fnPost('librarian', {
+        mode: 'commit', canonical_id: dupRec2.canonicalId,
+        name: finalName, note: dupRec2.note || note, location: finalLoc,
+        query_text: AppState.queryState.text || '',
+        circle_name: qc ? qc.name : '',
+      }).catch(function(e) { console.error('librarian re-commit failed:', e); });
+    }
     resp.savedToLibrary = true;
     await saveQueries();
     closeModal();
