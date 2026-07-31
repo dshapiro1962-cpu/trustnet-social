@@ -77,6 +77,12 @@ Deno.serve(async (req: Request) => {
             "ONLY entries that genuinely answer the search, best first, at most " + limit + ". " +
             "Judge intent, not word overlap: \"resort for children\" needs family suitability, " +
             "not merely the word children; a dermatologist does not answer a plumber search. " +
+            "IMPORTANT: an entry that was SAVED IN ANSWER TO a question mentioning the search " +
+            "term IS relevant, even though it is not that term itself. Entries note the question " +
+            "they answered (\"asked: ...\"). Searching \"la grave\" must therefore return the " +
+            "resorts a circle recommended as similar to La Grave; searching \"santorini\" must " +
+            "return the alternatives suggested. The library remembers the CONVERSATION, not just " +
+            "the thing. " +
             "If NOTHING fits, return {\"results\":[]} — an empty answer beats a wrong one. " +
             "Entries may be Hebrew or English." },
           { role: "user", content: JSON.stringify(candidates.map((c, i) => ({
@@ -102,13 +108,26 @@ Deno.serve(async (req: Request) => {
     rerankError = "rerank_exception: " + String(e).slice(0, 120);
   }
 
-  const pick = order
+  let pick = order
     ? order.map((o) => ({ c: candidates[o.i], why: o.why }))
     : candidates.slice(0, limit).map((c) => ({ c, why: "" })); // graceful: blended order
 
+  // NEVER hand back a blank screen when the library clearly holds something
+  // matching the words. A model silently deleting every result is unacceptable
+  // in a product whose promise is that your library remembers.
+  let fellBack = false;
+  if (!pick.length) {
+    const strong = candidates.filter((c) => Number(c.kw_sim) >= 0.4 || Number(c.vec_sim) >= 0.45);
+    if (strong.length) {
+      fellBack = true;
+      pick = strong.slice(0, limit).map((c) => ({ c, why: "closest match in your library" }));
+    }
+  }
+
   return json({
     engine: ENGINE,
-    reranked: !!order,
+    reranked: !!order && !fellBack,
+    fell_back: fellBack,
     rerank_error: rerankError,
     // `ids` keeps the legacy contract alive AND carries the ranked order.
     ids: pick.map(({ c }) => c.rec_id),

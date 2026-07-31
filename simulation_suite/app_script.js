@@ -325,7 +325,14 @@ async function saveQueries() {
   for (const q of arr) {
     for (const resp of (q.responses || [])) {
       if (resp.savedToLibrary && resp.id) {
-        await sb.from('query_responses').update({ saved_to_library: true }).eq('id', resp.id);
+        // Observability doctrine: a refused write must never pass silently.
+        // (Saved-state kept reverting after reload because this was unchecked.)
+        const r = await sb.from('query_responses').update({ saved_to_library: true }).eq('id', resp.id);
+        if (r && r.error) {
+          console.error('saveQueries: could not mark response saved', resp.id, r.error);
+          toast('Saved to library, but the "already saved" mark did not stick: '
+            + (r.error.message || r.error.code || 'refused'), 'warn');
+        }
       }
     }
   }
@@ -412,7 +419,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.28.0 · live';
+const APP_VERSION = 'v0.28.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {

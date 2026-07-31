@@ -20,7 +20,7 @@ let pass=0,fail=0; const ck=(n,c,x)=>{ if(c){pass++;console.log('  ✓',n);}else
 vm.runInContext(src,ctx,{filename:'app.js'});
 vm.runInContext('renderApp=function(){};showView=function(){};toast=function(){};CURRENT_UID="me";',ctx);
 const X=ctx.__x;
-ck('APP_VERSION is v0.28.0', X.APP_VERSION==='v0.28.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.28.1', X.APP_VERSION==='v0.28.1 · live', X.APP_VERSION);
 
 X.AppState.isDemoMode=false;
 X.AppState.userCircles=[{id:'c1',name:'Ski',color:'#111',memberIds:[]}];
@@ -67,5 +67,14 @@ X.AppState.activeCatFilter='all'; X.AppState.searchQuery='chamonix';
 X.AppState._semantic={q:'something else', ids:['r1'], why:{}, reranked:true};
 f=X.libFilterRecs();
 ck('stale semantic state ignored', f.filtered.length===1 && f.filtered[0].id==='r2');
+// ---- reference-search + never-empty contract (search-v2 source checks) ----
+const ssrc=require('fs').readFileSync('/home/claude/functions/search-library/index.ts','utf8');
+ck('rerank knows an entry ANSWERING a question about X is relevant to X',
+   ssrc.indexOf('SAVED IN ANSWER TO a question mentioning the search')>0);
+ck('la grave / santorini reference searches named in the prompt',
+   ssrc.indexOf('la grave')>0 && ssrc.indexOf('santorini')>0);
+ck('never returns a blank when keyword/vector evidence is strong',
+   ssrc.indexOf('NEVER hand back a blank screen')>0 && ssrc.indexOf('kw_sim) >= 0.4')>0);
+ck('fallback is flagged honestly to the client', ssrc.indexOf('fell_back: fellBack')>0);
 console.log('\nRESULT: '+pass+' passed, '+fail+' failed'); process.exit(fail?1:0);
 })();
