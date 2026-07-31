@@ -191,17 +191,23 @@ Deno.serve(async (req: Request) => {
   // ── BACKFILL: repair everything already in the caller's library ──────────
   if (mode === "backfill") {
     const limit = Math.min(Number(body.limit) || 25, 50);
+    const offset = Math.max(0, Number(body.offset) || 0);
     const { data: recs } = await admin
       .from("recommendations")
       .select("id, note, query_id, circle_id, canonical_id, canonicals(id, name, location, primary_category, ai_tags, search_doc)")
       .eq("owner_id", userId)
       .limit(200);
 
-    const todo = (recs || []).filter((r: any) => r.canonicals && !r.canonicals.search_doc).slice(0, limit);
+    // force:true refreshes entries that ALREADY have a document — needed whenever
+    // the enrichment improves, or when a merged comment added new context.
+    const force = body.force === true;
+    const todo = (recs || [])
+      .filter((r: any) => r.canonicals && (force || !r.canonicals.search_doc))
+      .slice(offset, offset + limit);
     if (!todo.length) {
       const total = (recs || []).length;
       const done = (recs || []).filter((r: any) => r.canonicals?.search_doc).length;
-      return json({ engine: ENGINE, mode, repaired: 0, remaining: 0, total, done });
+      return json({ engine: ENGINE, mode, force, repaired: 0, remaining: 0, total, done });
     }
 
     // context lookups
@@ -241,8 +247,10 @@ Deno.serve(async (req: Request) => {
         console.error("backfill_update_failed", cn.id, error.message);
       }
     }
-    const remaining = (recs || []).filter((r: any) => r.canonicals && !r.canonicals.search_doc).length - repaired;
-    return json({ engine: ENGINE, mode, repaired, remaining: Math.max(0, remaining), samples });
+    const remaining = force
+      ? Math.max(0, (recs || []).length - offset - repaired)
+      : Math.max(0, (recs || []).filter((r: any) => r.canonicals && !r.canonicals.search_doc).length - repaired);
+    return json({ engine: ENGINE, mode, force, repaired, remaining, samples });
   }
 
   // ── ENRICH / COMMIT ──────────────────────────────────────────────────────
