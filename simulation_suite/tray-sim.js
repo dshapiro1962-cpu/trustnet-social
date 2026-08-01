@@ -57,7 +57,7 @@ const check = (n, c, x) => { if (c) { pass++; console.log('  ✓', n); } else { 
   ctx.__toasts = toasts;
   const X = ctx.__x;
 
-  check('APP_VERSION is v0.29.0', X.APP_VERSION === 'v0.29.0 · live', X.APP_VERSION);
+  check('APP_VERSION is v0.30.0', X.APP_VERSION === 'v0.30.0 · live', X.APP_VERSION);
 
   // fixtures
   X.AppState.isDemoMode = false;
@@ -98,7 +98,11 @@ const check = (n, c, x) => { if (c) { pass++; console.log('  ✓', n); } else { 
   const sug = X.suggestedCircleFor({ primaryCategory: 'travel' });
   check('suggestedCircleFor matches circle domain', sug && sug.id === 'c-trv');
 
-  check('library embeds tray', X.renderLibrary().includes('triage-tray'));
+  X.AppState.libTrayOpen = false;
+  check('library HIDES the tray by default; a Needs-filing toggle offers it', X.renderLibrary().indexOf('triage-assign') < 0 && X.renderLibrary().indexOf('toggle-lib-tray') >= 0);
+  X.AppState.libTrayOpen = true;
+  check('the toggle opens the tray', X.renderLibrary().indexOf('triage-assign') >= 0);
+  X.AppState.libTrayOpen = false;
 
   const card = X.recCardHtml({ id: 'r3', canonicalId: 'k1', circleId: 'c-din', tags: [], status: 'saved' }, false);
   check('rec card uses image thumbnail', card.includes('background-image') && card.includes('img.example/h.jpg'));

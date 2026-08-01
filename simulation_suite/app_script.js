@@ -419,7 +419,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.29.0 · live';
+const APP_VERSION = 'v0.30.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -2572,12 +2572,30 @@ function renderLibrary() {
 
   const cardsHtml = libResultsHtml(f);
 
-  return '<div style="max-width:720px;">'
-    + renderCollectionsStrip()
-    + renderTriageTray()
-    + filterBar
-    + catBar
+  // Phone-first library (v0.30.0): the header is SEARCH, a Needs-Filing toggle,
+  // and the circles. Everything else — collections, the triage tray, category
+  // tabs — is available but folded away, because a wall of controls above the
+  // content is the wrong first impression on a 380px screen.
+  const unfiledCount = AppState.isDemoMode ? 0
+    : AppState.userRecs.filter(function(r) { return !r.circleId; }).length;
+  const trayOpen = !!AppState.libTrayOpen;
+  const trayToggle = unfiledCount
+    ? '<button class="filter-chip' + (trayOpen ? ' active' : '') + '" data-action="toggle-lib-tray" '
+      + 'style="white-space:nowrap;' + (trayOpen ? '' : 'border-left:3px solid #E8A020;') + '">'
+      + 'Needs filing <span style="font-size:10px;opacity:0.75;">(' + unfiledCount + ')</span></button>'
+    : '';
+  const moreOpen = !!AppState.libMoreOpen;
+  const moreToggle = (catsPresent.length || (AppState.userCollections || []).length)
+    ? '<button class="filter-chip" data-action="toggle-lib-more" style="white-space:nowrap;">'
+      + (moreOpen ? 'Fewer options' : 'More') + '</button>'
+    : '';
+
+  return '<div class="lib-wrap">'
     + searchBar
+    + '<div class="filter-bar" style="margin-bottom:12px;">' + trayToggle + moreToggle + '</div>'
+    + (trayOpen ? renderTriageTray() : '')
+    + filterBar
+    + (moreOpen ? (catBar + renderCollectionsStrip()) : '')
     + '<div id="lib-count" style="font-size:12px;color:#7A9086;margin-bottom:16px;">' + filtered.length + ' recommendation' + (filtered.length !== 1 ? 's' : '') + '</div>'
     + '<div id="lib-results">' + cardsHtml + '</div>'
     + '</div>';
@@ -4638,6 +4656,14 @@ document.addEventListener('click', function(e) {
       chip.classList.toggle('active', chip.dataset.filter === AppState.activeFilter);
     });
     libUpdateResultsInPlace();
+  }
+  else if (action === 'toggle-lib-tray') {
+    AppState.libTrayOpen = !AppState.libTrayOpen;
+    renderApp();
+  }
+  else if (action === 'toggle-lib-more') {
+    AppState.libMoreOpen = !AppState.libMoreOpen;
+    renderApp();
   }
   else if (action === 'set-cat-filter') {
     AppState.activeCatFilter = target.dataset.cat;

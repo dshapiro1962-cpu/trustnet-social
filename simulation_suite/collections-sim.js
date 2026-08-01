@@ -38,7 +38,7 @@ vm.runInContext('renderApp=function(){};toast=function(m,t){globalThis.__toasts.
  +'CURRENT_UID="me";loadUserData=async function(){globalThis.__reloaded=true;};',ctx);
 ctx.__toasts=[];ctx.__fn=[];ctx.__fnImpl=async()=>({});
 const X=ctx.__x;
-ck('APP_VERSION is v0.29.0', X.APP_VERSION==='v0.29.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.30.0', X.APP_VERSION==='v0.30.0 · live', X.APP_VERSION);
 X.AppState.isDemoMode=false;
 X.AppState.userProfile={id:'me',name:'dan'};
 X.AppState.userCollections=[{id:'cl1',token:'tok123',title:'My Tel Aviv doctors',description:'',recIds:['r1','r2']}];
@@ -51,7 +51,11 @@ X.AppState.activeFilter='all';X.AppState.activeCatFilter='all';X.AppState.search
 const strip=X.renderCollectionsStrip();
 ck('strip: shows collection with count + actions', strip.includes('My Tel Aviv doctors') && strip.includes('2 items') && strip.includes('copy-collection-link') && strip.includes('+ New collection'));
 ck('strip: share URL points at collection.html', strip.includes('/collection.html?t=tok123'));
-ck('library embeds collections strip', X.renderLibrary().includes('collections-strip'));
+  X.AppState.libMoreOpen = false;
+  ck('library HIDES the collections strip by default (phone-first)', X.renderLibrary().indexOf('collection-create') < 0);
+  X.AppState.libMoreOpen = true;
+  ck('"More" reveals the collections strip', X.renderLibrary().indexOf('collection-create') >= 0);
+  X.AppState.libMoreOpen = false;
 // modal
 const modal=X.modalCollectionCreate();
 ck('modal: items listed as checkboxes', (modal.match(/coll-item-cb/g)||[]).length>=2 && modal.includes('Dr. Levi'));

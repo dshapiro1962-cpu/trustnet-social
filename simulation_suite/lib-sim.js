@@ -17,7 +17,7 @@ let pass=0, fail=0; const check=(n,c,x)=>{ if(c){pass++;console.log('  ✓',n);}
 vm.runInContext(src, ctx, {filename:'app.js'});
 vm.runInContext('renderApp=function(){};toast=function(){};', ctx);
 const X = ctx.__x;
-check('APP_VERSION is v0.29.0', X.APP_VERSION === 'v0.29.0 · live', X.APP_VERSION);
+check('APP_VERSION is v0.30.0', X.APP_VERSION === 'v0.30.0 · live', X.APP_VERSION);
 // fixtures
 X.AppState.isDemoMode = false;
 X.AppState.userCircles = [{ id:'c1', name:'Dining', domain:'dining', color:'#217A4B' }];
@@ -35,9 +35,12 @@ X.AppState.allRecs = ()=>X.AppState.userRecs;
 X.AppState.synCircles = []; X.AppState.activeFilter='all'; X.AppState.activeCatFilter='all';
 X.AppState.searchQuery=''; X.AppState.memberById=()=>null; X.AppState.userProfile={id:'me',name:'dan'};
 
+X.AppState.libMoreOpen = true;
+
 const lib = X.renderLibrary();
 check('category tabs render for present categories', lib.includes('All types') && lib.includes('>Dining<') && lib.includes('>Healthcare<'));
 check('tabs carry set-cat-filter action', (lib.match(/data-action="set-cat-filter"/g)||[]).length === 3);
+  X.AppState.libMoreOpen = false;
 check('cards carry category chips with hues', lib.includes('cat-chip') && lib.includes(X.CAT_HUES.dining.fg) && lib.includes(X.CAT_HUES.healthcare.fg));
 X.AppState.activeCatFilter = 'healthcare';
 const f1 = X.libFilterRecs();
