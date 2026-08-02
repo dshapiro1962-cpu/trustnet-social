@@ -1,7 +1,7 @@
 // invite-sim.js — the four reported faults (14 checks)
 const vm=require('vm'); const fs=require('fs');
 let src=fs.readFileSync('/home/claude/sim/app_script.js','utf8');
-src += ';globalThis.__x={modalInvite,handleSendInvite,inboxItems,memberRowHtml,AppState,APP_VERSION};';
+src += ';globalThis.__x={modalInvite,handleInviteMember,handleInviteCopyLink,inboxItems,memberRowHtml,AppState,APP_VERSION};';
 const el=(o)=>Object.assign({value:'',textContent:'',style:{},dataset:{},innerHTML:'',disabled:false,addEventListener(){},querySelectorAll(){return[];},querySelector(){return null;},closest(){return null;},classList:{add(){},remove(){}},focus(){}},o||{});
 const byId={};
 const ctx={console:{log(){},error(){},warn(){}},setTimeout:()=>0,clearTimeout(){},setInterval:()=>1,clearInterval(){},
@@ -21,29 +21,45 @@ vm.runInContext(src,ctx,{filename:'app.js'});
 vm.runInContext('renderApp=function(){};showView=function(){};toast=function(m,t){globalThis.__toasts.push([m,t||"ok"]);};closeModal=function(){globalThis.__closed=true;};CURRENT_UID="me";',ctx);
 ctx.__toasts=[]; ctx.__rpc=async()=>({data:'tok-abc'});
 const X=ctx.__x;
-ck('APP_VERSION is v0.31.1', X.APP_VERSION==='v0.31.1 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.33.0', X.APP_VERSION==='v0.33.0 · live', X.APP_VERSION);
 
 // ── 1. invite modal is REAL, not a mock
 X.AppState.userProfile={id:'me',name:'Dan Shapiro',avatar:'DS',avatarColor:'#217A4B'};
 const im = X.modalInvite({circleId:'c1', circleName:'ski'});
-ck('invite: send action is real (no simulator)', im.indexOf('data-action="send-invite"')>=0 && im.indexOf('send-invite-sim')<0);
-ck('invite: contact input has an id so it can be read', im.indexOf('id="inv-contact"')>=0);
-ck('invite: channel picker is a real segmented control', im.indexOf('inv-method')>=0);
-ck('invite: offers a copy-link option too', im.indexOf('Copy link')>=0);
-ck('invite: designer commentary REMOVED', im.indexOf('Notice the framing')<0);
-ck('invite: message explains no install is needed', im.indexOf('without installing anything')>=0);
+ck('invite: no simulator anywhere', im.indexOf('send-invite-sim')<0);
 
-// ── 2. sending really opens WhatsApp with the link
-byId['inv-method']=el({value:'whatsapp'});
-byId['inv-contact']=el({value:'+972501234567'});
-byId['inv-err']=el();
-const btn=el({dataset:{circleId:'c1'}});
-btn.closest=()=>({querySelector:()=>el({dataset:{circleId:'c1',circleName:'ski'}})});
-await X.handleSendInvite(btn);
-ck('invite: opens wa.me with the join link', ctx.__opened.length===1 && /wa\.me\/972501234567/.test(ctx.__opened[0]) && /join%3Dtok-abc|join=tok-abc/.test(decodeURIComponent(ctx.__opened[0])));
-ck('invite: a bad number is refused before sending', (function(){ byId['inv-contact'].value='abc'; ctx.__opened=[]; return true; })());
-await X.handleSendInvite(el({dataset:{circleId:'c1'},closest:()=>({querySelector:()=>el({dataset:{circleId:'c1',circleName:'ski'}})})}));
-ck('invite: invalid contact produces an error, sends nothing', ctx.__opened.length===0 && byId['inv-err'].textContent.length>0);
+
+
+ck('invite: designer commentary REMOVED', im.indexOf('Notice the framing')<0);
+
+
+// ── 2. invite is built from the MEMBER LIST, not a blank form
+X.AppState.userMembers=[
+  {id:'m1',circleId:'c1',name:'Rina',avatar:'R',avatarColor:'#111',contactMethod:'whatsapp',contactValue:'+972501234567',linkedUserId:null,isExternalSource:false},
+  {id:'m2',circleId:'c1',name:'Yossi',avatar:'Y',avatarColor:'#222',contactMethod:'email',contactValue:'y@x.com',linkedUserId:'u9',isExternalSource:false},
+  {id:'m3',circleId:'c1',name:'Noa',avatar:'N',avatarColor:'#333',contactMethod:'app',contactValue:'',linkedUserId:null,isExternalSource:false}];
+const im2 = X.modalInvite({circleId:'c1', circleName:'ski'});
+ck('invite lists the circle\'s own members', im2.indexOf('Rina')>=0 && im2.indexOf('Yossi')>=0 && im2.indexOf('Noa')>=0);
+ck('members already on Trustnet are shown as such, with nothing to send',
+   im2.indexOf('ALREADY ON TRUSTNET')>=0 && im2.indexOf('Gets your questions in the app')>=0 && im2.indexOf('Nothing to send')>=0);
+ck('only NOT-yet members get an invite button',
+   im2.indexOf('data-action="invite-member" data-member-id="m1"')>=0 &&
+   im2.indexOf('data-member-id="m2"')<0);
+ck('button names the right channel per member', im2.indexOf('WhatsApp invite')>=0);
+ck('members with no contact details are offered a fix, not an invite',
+   im2.indexOf('NO CONTACT DETAILS')>=0 && im2.indexOf('Add a number')>=0);
+ck('a shareable circle link is always offered', im2.indexOf('invite-copy-link')>=0);
+ck('no blank contact form anymore', im2.indexOf('id="inv-contact"')<0);
+ck('invite explains no install is needed', im2.indexOf('without installing anything')>=0);
+
+// inviting a member uses THEIR stored contact — no typing
+ctx.__opened=[]; byId['inv-err']=el();
+await X.handleInviteMember(el({dataset:{memberId:'m1',circleId:'c1',circleName:'ski'}, disabled:false, textContent:''}));
+ck('member invite opens wa.me with their number + join link',
+   ctx.__opened.length===1 && /wa\.me\/972501234567/.test(ctx.__opened[0]) && decodeURIComponent(ctx.__opened[0]).indexOf('join=tok-abc')>=0);
+ctx.__opened=[];
+await X.handleInviteMember(el({dataset:{memberId:'m2',circleId:'c1',circleName:'ski'}, disabled:false, textContent:''}));
+ck('inviting someone already on Trustnet is refused', ctx.__opened.length===0 && ctx.__toasts.some(t=>String(t[0]).indexOf('already on Trustnet')>=0));
 
 // ── 3. shared-list notification: link fetched + no bogus button
 const appSrc = fs.readFileSync('/home/claude/app/index.html','utf8');
@@ -63,26 +79,18 @@ ck('member shows an "On Trustnet" badge when linked', String(row).indexOf('On Tr
 ck('link-on-add asks the server and tells the user', appSrc.indexOf('link_member_to_existing_user')>=0 && appSrc.indexOf('is already on Trustnet')>=0);
 // ---- the three faults reported after v0.31.0 ----
 const appSrc2 = fs.readFileSync('/home/claude/app/index.html','utf8');
-ck('open-invite passes circleId (was: "No circle selected")',
-   appSrc2.indexOf("openModal('invite', { circleId: target.dataset.circleId") >= 0);
-ck('channel switch uses the right variable (was a ReferenceError)',
-   appSrc2.indexOf("if (val === 'link')") >= 0 && appSrc2.indexOf("value === 'email' ? 'EMAIL ADDRESS'") < 0);
-ck('email mode relabels AND re-placeholders the field',
-   appSrc2.indexOf("val === 'email' ? 'EMAIL ADDRESS' : 'PHONE NUMBER'") >= 0 &&
-   appSrc2.indexOf("val === 'email' ? 'name@example.com'") >= 0);
+
+
+
 ck('duplicate member is refused with a clear message',
    appSrc2.indexOf('is already in this circle.') >= 0);
 
-// end-to-end: email invite now succeeds
-byId['inv-method']=el({value:'email'});
-byId['inv-contact']=el({value:'friend@example.com'});
-byId['inv-err']=el();
-ctx.__opened=[]; ctx.__closed=false;
-const b2=el({dataset:{circleId:'c1'}});
-b2.closest=()=>({querySelector:()=>el({dataset:{circleId:'c1',circleName:'ski'}})});
-await X.handleSendInvite(b2);
-ck('email invite opens mailto with the join link',
-   ctx.__opened.length===1 && ctx.__opened[0].indexOf('mailto:friend%40example.com')>=0 && decodeURIComponent(ctx.__opened[0]).indexOf('join=tok-abc')>=0);
-ck('no error shown on a valid email send', byId['inv-err'].textContent === '');
+// email member: opens mailto with their stored address
+ctx.__opened=[];
+X.AppState.userMembers=[
+  {id:'m2',circleId:'c1',name:'Yossi',avatar:'Y',avatarColor:'#222',contactMethod:'email',contactValue:'y@x.com',linkedUserId:null,isExternalSource:false}];
+await X.handleInviteMember(el({dataset:{memberId:'m2',circleId:'c1',circleName:'ski'}, disabled:false, textContent:''}));
+ck('email member invite opens mailto with the join link',
+   ctx.__opened.length===1 && ctx.__opened[0].indexOf('mailto:y%40x.com')>=0 && decodeURIComponent(ctx.__opened[0]).indexOf('join=tok-abc')>=0);
 console.log('\nRESULT: '+pass+' passed, '+fail+' failed'); process.exit(fail?1:0);
 })();

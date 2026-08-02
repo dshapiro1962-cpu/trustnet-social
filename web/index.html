@@ -854,7 +854,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.31.1 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.33.0 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1331,7 +1331,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.31.1 · live';
+const APP_VERSION = 'v0.33.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -4475,104 +4475,186 @@ function modalInvite(params) {
   var circleId = (params && params.circleId) ? params.circleId : '';
   var user = AppState.userProfile;
   var inviterName = user ? user.name.split(' ')[0] : 'You';
-  var msg = inviterName + ' added you to their ' + circleName + ' circle on Trustnet \u2014 '
-    + 'the place they keep recommendations from people they trust. '
-    + 'You can answer their questions without installing anything.';
 
-  return '<div class="modal" style="max-width:440px;">'
+  // The app already knows who is in this circle and who is on Trustnet.
+  // Asking the user to retype a contact for someone sitting in the member list
+  // was the whole problem: invite from the LIST, not from a blank form.
+  var members = AppState.userMembers.filter(function(m) {
+    return m.circleId === circleId && !m.isExternalSource;
+  });
+  var onTrustnet = members.filter(function(m) { return m.linkedUserId; });
+  var notYet = members.filter(function(m) { return !m.linkedUserId && m.contactValue; });
+  var noContact = members.filter(function(m) { return !m.linkedUserId && !m.contactValue; });
+
+  function memberLine(m, right) {
+    return '<div style="display:flex;align-items:center;gap:9px;padding:8px 4px;border-bottom:1px solid #F0F5F1;flex-wrap:wrap;">'
+      + avatarEl(m, 'sm')
+      + '<span style="flex:1 1 45%;min-width:110px;font-size:13px;font-weight:600;" dir="auto">' + esc(m.name) + '</span>'
+      + right + '</div>';
+  }
+
+  var body = '';
+
+  if (onTrustnet.length) {
+    body += '<div style="font-size:11px;font-weight:700;color:#1A5235;letter-spacing:0.4px;margin:4px 0 6px;">ALREADY ON TRUSTNET</div>'
+      + onTrustnet.map(function(m) {
+          return memberLine(m, '<span class="chip" style="font-size:10px;background:#E9F6EE;color:#1A5235;'
+            + 'border:1px solid #C6EDD9;font-weight:700;">Gets your questions in the app</span>');
+        }).join('')
+      + '<div style="font-size:11px;color:#7A9086;margin:6px 0 16px;line-height:1.5;">'
+      + 'Nothing to send \u2014 they already have Trustnet.</div>';
+  }
+
+  if (notYet.length) {
+    body += '<div style="font-size:11px;font-weight:700;color:#56695F;letter-spacing:0.4px;margin:4px 0 6px;">NOT ON TRUSTNET YET</div>'
+      + notYet.map(function(m) {
+          var isWa = m.contactMethod === 'whatsapp';
+          return memberLine(m,
+            '<button class="btn btn-primary btn-sm" data-action="invite-member" data-member-id="' + esc(m.id) + '" '
+            + 'data-circle-id="' + esc(circleId) + '" data-circle-name="' + esc(circleName) + '" style="white-space:nowrap;">'
+            + (isWa ? 'WhatsApp' : 'Email') + ' invite</button>');
+        }).join('')
+      + '<div style="font-size:11px;color:#7A9086;margin:6px 0 16px;line-height:1.5;">'
+      + 'They can answer your questions from the link without installing anything.</div>';
+  }
+
+  if (noContact.length) {
+    body += '<div style="font-size:11px;font-weight:700;color:#7A9086;letter-spacing:0.4px;margin:4px 0 6px;">NO CONTACT DETAILS</div>'
+      + noContact.map(function(m) {
+          return memberLine(m, '<button class="btn btn-secondary btn-sm" data-action="edit-member" '
+            + 'data-member-id="' + esc(m.id) + '" style="white-space:nowrap;">Add a number</button>');
+        }).join('')
+      + '<div style="height:12px;"></div>';
+  }
+
+  if (!members.length) {
+    body += '<div style="font-size:12.5px;color:#7A9086;line-height:1.6;padding:8px 0 14px;">'
+      + 'No members in this circle yet. Add someone first, then invite them from here.</div>';
+  }
+
+  // (#2) Members added before linking existed are unlinked even if they HAVE
+  // accounts. Offer one check rather than mislabelling them as strangers.
+  if (notYet.length) {
+    body += '<div style="border-top:1px solid #EEF4F0;padding-top:12px;margin-bottom:14px;">'
+      + '<button class="btn btn-secondary btn-sm" data-action="recheck-trustnet" data-circle-id="' + esc(circleId) + '">'
+      + 'Check who\'s already on Trustnet</button>'
+      + '<div style="font-size:11px;color:#7A9086;margin-top:6px;line-height:1.5;">'
+      + 'People you added a while ago may have joined since.</div>'
+      + '</div>';
+  }
+
+  // Always available: one link anyone can use to join the circle.
+  body += '<div style="border-top:1px solid #EEF4F0;padding-top:14px;">'
+    + '<div style="font-size:11px;font-weight:700;color:#56695F;letter-spacing:0.4px;margin-bottom:6px;">OR SHARE ONE LINK</div>'
+    + '<div style="font-size:12px;color:#56695F;line-height:1.6;margin-bottom:10px;">'
+    + 'Post it in a group chat \u2014 whoever taps it joins ' + esc(circleName) + '.</div>'
+    + '<button class="btn btn-secondary btn-sm" data-action="invite-copy-link" data-circle-id="' + esc(circleId) + '" '
+    + 'data-circle-name="' + esc(circleName) + '">Copy invite link</button>'
+    + '</div>'
+    + '<div id="inv-err" style="display:none;font-size:12px;color:#C0392B;margin-top:12px;"></div>';
+
+  return '<div class="modal" style="max-width:460px;">'
     + '<div class="modal-header">'
     + '<div><div class="modal-title">Invite to ' + esc(circleName) + '</div>'
-    + '<div style="font-size:11px;color:#7A9086;margin-top:2px;">Send them a link \u2014 they don\'t need the app to answer</div>'
-    + '</div>'
+    + '<div style="font-size:11px;color:#7A9086;margin-top:2px;">' + inviterName
+    + ', these are the people in this circle</div></div>'
     + '<button class="btn btn-ghost btn-icon" data-action="close-modal">\u00d7</button>'
     + '</div>'
-    + '<div class="modal-body" data-circle-id="' + esc(circleId) + '" data-circle-name="' + esc(circleName) + '">'
-    + '<div class="field">'
-    + '<div class="field-label">HOW TO SEND IT</div>'
-    + '<div id="inv-method-picker" style="display:flex;gap:6px;flex-wrap:wrap;" data-selected="whatsapp">'
-    + [{ v: 'whatsapp', l: 'WhatsApp' }, { v: 'email', l: 'Email' }, { v: 'link', l: 'Copy link' }]
-        .map(function(o) {
-          const sel = o.v === 'whatsapp';
-          return '<button type="button" data-action="pick-segment" data-picker-id="inv-method" data-value="' + o.v + '" style="'
-            + 'padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;'
-            + 'border:1.5px solid ' + (sel ? '#217A4B' : '#CDD9D1') + ';'
-            + 'background:' + (sel ? '#EBF7F1' : '#fff') + ';'
-            + 'color:' + (sel ? '#1A5235' : '#56695F') + ';">' + o.l + '</button>';
-        }).join('')
-    + '</div>'
-    + '<input type="hidden" id="inv-method" value="whatsapp">'
-    + '</div>'
-    + '<div class="field" id="inv-contact-field">'
-    + '<div class="field-label" id="inv-contact-label">PHONE NUMBER</div>'
-    + '<input class="field-input" id="inv-contact" dir="ltr" placeholder="+972 50 123 4567">'
-    + '</div>'
-    + '<div style="font-size:11px;font-weight:700;color:#7A9086;letter-spacing:0.5px;margin:16px 0 8px;">THEY\'LL RECEIVE</div>'
-    + '<div style="background:#E8F5E9;border-radius:12px 12px 12px 4px;padding:14px 16px;">'
-    + '<div dir="auto" style="font-size:13px;color:#1C2420;line-height:1.6;">' + esc(msg) + '</div>'
-    + '</div>'
-    + '<div id="inv-err" style="display:none;font-size:12px;color:#C0392B;margin-top:10px;"></div>'
-    + '</div>'
-    + '<div class="modal-footer">'
-    + '<button class="btn btn-secondary" data-action="close-modal">Cancel</button>'
-    + '<button class="btn btn-primary" data-action="send-invite" data-circle-id="' + esc(circleId) + '">Send invite</button>'
-    + '</div>'
+    + '<div class="modal-body">' + body + '</div>'
     + '</div>';
 }
 
 // Real delivery: WhatsApp and email open the user's OWN app with the message and
 // the circle's invite link pre-filled; "Copy link" puts it on the clipboard.
 // (Replaces a mock whose only action was "this is simulated".)
-async function handleSendInvite(btn) {
-  const modalEl = btn.closest('.modal');
-  const body = modalEl ? modalEl.querySelector('.modal-body') : null;
-  const circleId = btn.dataset.circleId || (body && body.dataset.circleId) || '';
-  const circleName = (body && body.dataset.circleName) || 'your';
-  const method = (document.getElementById('inv-method') || {}).value || 'whatsapp';
-  const contact = ((document.getElementById('inv-contact') || {}).value || '').trim();
-  const errEl = document.getElementById('inv-err');
-  const fail = function(m) { if (errEl) { errEl.textContent = m; errEl.style.display = 'block'; } };
-  if (errEl) errEl.style.display = 'none';
-
-  if (!circleId) { fail('No circle selected.'); return; }
-  if (method === 'whatsapp' && !normalizeIlPhone(contact)) { fail('Enter a valid phone number.'); return; }
-  if (method === 'email' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contact)) { fail('Enter a valid email address.'); return; }
-
-  btn.disabled = true; btn.textContent = 'Preparing\u2026';
-  let url = '';
+async function circleInviteLink(circleId) {
   try {
     const r = await sb.rpc('get_or_create_circle_link', { p_circle_id: circleId });
-    if (r && r.data) url = location.origin + '/?join=' + r.data;
-  } catch (e) { /* fall through to any link already open */ }
-  if (!url && AppState._circleLink && AppState._circleLink.url) url = AppState._circleLink.url;
+    if (r && r.data) return location.origin + '/?join=' + r.data;
+  } catch (e) { console.error('circle link failed:', e); }
+  if (AppState._circleLink && AppState._circleLink.circleId === circleId) return AppState._circleLink.url;
+  return '';
+}
+
+function inviteMessageFor(circleName, url) {
+  const who = AppState.userProfile ? AppState.userProfile.name.split(' ')[0] : 'A friend';
+  return who + ' added you to their ' + circleName + ' circle on Trustnet \u2014 '
+    + 'where they keep recommendations from people they trust. '
+    + 'You can answer their questions straight from this link, no app needed: ' + url;
+}
+
+// Invite ONE member, using the contact details already on their record.
+async function handleInviteMember(btn) {
+  const m = AppState.userMembers.find(function(x) { return x.id === btn.dataset.memberId; });
+  const circleId = btn.dataset.circleId || '';
+  const circleName = btn.dataset.circleName || 'your';
+  const errEl = document.getElementById('inv-err');
+  const fail = function(t) { if (errEl) { errEl.textContent = t; errEl.style.display = 'block'; } };
+  if (errEl) errEl.style.display = 'none';
+  if (!m) { fail('Member not found.'); return; }
+  if (m.linkedUserId) { toast(m.name + ' is already on Trustnet.', 'warn'); return; }
+  if (!m.contactValue) { fail('No contact details for ' + m.name + ' \u2014 add a number or email first.'); return; }
+
+  btn.disabled = true; btn.textContent = 'Preparing\u2026';
+  const url = await circleInviteLink(circleId);
+  if (!url) { btn.disabled = false; btn.textContent = 'Invite'; fail('Could not create an invite link.'); return; }
+  const text = inviteMessageFor(circleName, url);
+
+  if (m.contactMethod === 'whatsapp') {
+    const ph = String(m.contactValue).replace(/[^0-9]/g, '');
+    window.open('https://wa.me/' + ph + '?text=' + encodeURIComponent(text), 'tn_ext');
+    toast('WhatsApp opened for ' + m.name + ' \u2014 press send there.');
+  } else if (m.contactMethod === 'email') {
+    window.open('mailto:' + encodeURIComponent(m.contactValue)
+      + '?subject=' + encodeURIComponent(inviteMessageFor(circleName, '').split(' \u2014 ')[0])
+      + '&body=' + encodeURIComponent(text), 'tn_ext');
+    toast('Email opened for ' + m.name + ' \u2014 press send there.');
+  } else {
+    try { await navigator.clipboard.writeText(url); toast('Invite link copied \u2014 send it to ' + m.name + '.'); }
+    catch (e) { fail('Copy failed. The link is: ' + url); }
+  }
+  btn.disabled = false; btn.textContent = 'Invited \u2713';
+}
+
+// Ask the server about every unlinked member that has contact details.
+// Members added before linking existed would otherwise be treated as strangers
+// forever, even after they joined Trustnet.
+async function handleRecheckTrustnet(btn) {
+  const circleId = btn.dataset.circleId || '';
+  const targets = AppState.userMembers.filter(function(m) {
+    return m.circleId === circleId && !m.isExternalSource && m.contactValue && !m.linkedUserId;
+  });
+  if (!targets.length) { toast('Everyone here is already checked.'); return; }
+  btn.disabled = true; btn.textContent = 'Checking\u2026';
+  let found = 0;
+  for (const m of targets) {
+    try {
+      const r = await sb.rpc('link_member_to_existing_user', { p_member_id: m.id });
+      if (r && r.data === true) { m.linkedUserId = 'linked'; found++; }
+    } catch (e) { console.error('recheck failed for', m.name, e); }
+  }
+  btn.disabled = false; btn.textContent = 'Check who\'s already on Trustnet';
+  toast(found
+    ? found + ' of them ' + (found === 1 ? 'is' : 'are') + ' already on Trustnet.'
+    : 'None of them have Trustnet accounts yet.');
+  closeModal();
+  openModal('invite', { circleId: circleId, circleName: (AppState.circleById(circleId) || {}).name || 'your' });
+}
+
+async function handleInviteCopyLink(btn) {
+  const errEl = document.getElementById('inv-err');
+  if (errEl) errEl.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Preparing\u2026';
+  const url = await circleInviteLink(btn.dataset.circleId || '');
+  btn.disabled = false; btn.textContent = 'Copy invite link';
   if (!url) {
-    btn.disabled = false; btn.textContent = 'Send invite';
-    fail('Could not create an invite link. Use "Invite link" on the circle instead.');
+    if (errEl) { errEl.textContent = 'Could not create an invite link.'; errEl.style.display = 'block'; }
     return;
   }
-
-  const who = AppState.userProfile ? AppState.userProfile.name.split(' ')[0] : 'A friend';
-  const text = who + ' added you to their ' + circleName + ' circle on Trustnet \u2014 '
-    + 'the place they keep recommendations from people they trust. '
-    + 'You can answer their questions without installing anything: ' + url;
-
-  if (method === 'whatsapp') {
-    const ph = normalizeIlPhone(contact).replace(/[^0-9]/g, '');
-    window.open('https://wa.me/' + ph + '?text=' + encodeURIComponent(text), 'tn_ext');
-    toast('WhatsApp opened \u2014 press send there.');
-  } else if (method === 'email') {
-    window.open('mailto:' + encodeURIComponent(contact)
-      + '?subject=' + encodeURIComponent(who + ' added you to their ' + circleName + ' circle')
-      + '&body=' + encodeURIComponent(text), 'tn_ext');
-    toast('Email opened \u2014 press send there.');
-  } else {
-    try { await navigator.clipboard.writeText(url); toast('Invite link copied.'); }
-    catch (e) {
-      fail('Copy failed. The link is: ' + url);
-      btn.disabled = false; btn.textContent = 'Send invite';
-      return;
-    }
+  try { await navigator.clipboard.writeText(url); toast('Invite link copied.'); }
+  catch (e) {
+    if (errEl) { errEl.textContent = 'Copy failed. The link is: ' + url; errEl.style.display = 'block'; }
   }
-  closeModal();
 }
 
 function modalFabMenu() {
@@ -4819,22 +4901,56 @@ async function handleSaveMember() {
     }
     if (method === 'whatsapp') {
       contact = contact.replace(/[\s()-]/g, '');
+      // Accept the way Israelis actually type numbers (0501234567) and
+      // normalise, instead of rejecting it — otherwise the duplicate check
+      // never even runs on a number the user entered in local format.
+      const norm2 = normalizeIlPhone(contact);
+      if (norm2) contact = norm2;
       if (!contact || contact.charAt(0) !== '+' || contact.length < 8) {
         toast('Please enter their WhatsApp number with country code, e.g. +972501234567.', 'warn'); return;
       }
     }
 
-    // Already in this circle? Say so instead of quietly creating a duplicate.
+    // The full matrix: already here / elsewhere / is you / already linked.
+    const norm = function(v) { return String(v || '').replace(/[\s()+-]/g, '').toLowerCase(); };
+    const tail = function(v) { const d = String(v || '').replace(/\D/g, ''); return d.slice(-9); };
+    let reuseLinked = null;
     if (!editId) {
-      const norm = function(v) { return String(v || '').replace(/[\s()-]/g, '').toLowerCase(); };
+      // (#8) you are not your own member — by phone as well as by email
+      if (method === 'whatsapp' && contact) {
+        const myPhones = [];
+        if (AppState._authPhone) myPhones.push(tail(AppState._authPhone));
+        if (AppState.userProfile && AppState.userProfile.phone) myPhones.push(tail(AppState.userProfile.phone));
+        if (myPhones.filter(Boolean).indexOf(tail(contact)) >= 0) {
+          toast("That's your own number \u2014 you own this circle, so you don't add yourself as a member.", 'warn');
+          return;
+        }
+      }
+      // (#5) already in THIS circle
       const dup = AppState.userMembers.find(function(x) {
         if (x.circleId !== circleId) return false;
         if (contact && x.contactValue && norm(x.contactValue) === norm(contact)) return true;
+        if (contact && x.contactValue && method === 'whatsapp' && x.contactMethod === 'whatsapp'
+            && tail(x.contactValue) && tail(x.contactValue) === tail(contact)) return true;
         return norm(x.name) === norm(name);
       });
       if (dup) {
         toast(dup.name + ' is already in this circle.', 'warn');
         return;
+      }
+      // (#6) known from ANOTHER of your circles — reuse what we already know
+      const elsewhere = AppState.userMembers.find(function(x) {
+        if (x.circleId === circleId || x.isExternalSource) return false;
+        if (contact && x.contactValue && norm(x.contactValue) === norm(contact)) return true;
+        if (contact && x.contactValue && method === 'whatsapp' && x.contactMethod === 'whatsapp'
+            && tail(x.contactValue) && tail(x.contactValue) === tail(contact)) return true;
+        return false;
+      });
+      if (elsewhere) {
+        reuseLinked = elsewhere.linkedUserId || null;
+        const c2 = AppState.circleById(elsewhere.circleId);
+        toast(elsewhere.name + ' is also in ' + (c2 ? c2.name : 'another circle')
+          + (reuseLinked ? ' \u2014 already on Trustnet.' : '.'));
       }
     }
     newMember = {
@@ -4844,6 +4960,7 @@ async function handleSaveMember() {
       trustBasis: trust, contactMethod: method, contactValue: contact || null, responseRate: rate,
       circleId: circleId, addedAt: new Date().toISOString()
     };
+    if (reuseLinked) newMember.linkedUserId = reuseLinked;
     if (!editId) toast(name + ' added to circle.');
   }
 
@@ -4870,7 +4987,10 @@ async function handleSaveMember() {
   // Is this person already on Trustnet? Linking used to happen ONLY at signup,
   // so adding an EXISTING user left them unlinked — no in-app doorway for them,
   // no indication for you. Ask the server; it answers only yes/no.
-  if (!editId && !newMember.isExternalSource && newMember.contactValue && !AppState.isDemoMode) {
+  const contactChanged = !!(editId && newMember.contactValue
+    && (!AppState._editMemberPrevContact || AppState._editMemberPrevContact !== newMember.contactValue));
+  if ((!editId || contactChanged) && !newMember.isExternalSource && newMember.contactValue
+      && !newMember.linkedUserId && !AppState.isDemoMode) {
     try {
       const lr = await sb.rpc('link_member_to_existing_user', { p_member_id: newMember.id });
       if (lr && lr.data === true) {
@@ -5445,7 +5565,7 @@ document.addEventListener('click', function(e) {
   }
   else if (action === 'edit-member') {
     const em2 = AppState.userMembers.find(function(x) { return x.id === target.dataset.memberId; });
-    if (em2) openModal('add-member', { circleId: em2.circleId, editMemberId: em2.id });
+    if (em2) { AppState._editMemberPrevContact = em2.contactValue || ''; openModal('add-member', { circleId: em2.circleId, editMemberId: em2.id }); }
   }
   else if (action === 'remove-member') {
     const rm = AppState.userMembers.find(function(x) { return x.id === target.dataset.memberId; });
@@ -5729,8 +5849,14 @@ document.addEventListener('click', function(e) {
   else if (action === 'copy-share-link') {
     toast('Link copied to clipboard.');
   }
-  else if (action === 'send-invite') {
-    handleSendInvite(target);
+  else if (action === 'invite-member') {
+    handleInviteMember(target);
+  }
+  else if (action === 'invite-copy-link') {
+    handleInviteCopyLink(target);
+  }
+  else if (action === 'recheck-trustnet') {
+    handleRecheckTrustnet(target);
   }
   else if (action === 'clear-data') {
     handleClearData();
