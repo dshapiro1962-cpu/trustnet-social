@@ -17,7 +17,7 @@ let pass=0,fail=0; const ck=(n,c,x)=>{ if(c){pass++;console.log('  ✓',n);}else
 vm.runInContext(src,ctx,{filename:'app.js'});
 vm.runInContext('renderApp=function(){};showView=function(){};toast=function(){};CURRENT_UID="me";',ctx);
 const X=ctx.__x;
-ck('APP_VERSION is v0.30.0', X.APP_VERSION==='v0.30.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.30.1', X.APP_VERSION==='v0.30.1 · live', X.APP_VERSION);
 X.AppState.isDemoMode=false;
 X.AppState.userCircles=[{id:'c1',name:'Ski',color:'#111',memberIds:[]},{id:'c2',name:'Food',color:'#222',memberIds:[]}];
 X.AppState.userCanonicals=[{id:'k1',name:'Avoriaz 1800',primaryCategory:'travel',aiTags:[]},{id:'k2',name:'Habasta',primaryCategory:'dining',aiTags:[]}];
@@ -42,4 +42,36 @@ ck('More reveals category tabs + collections', h2.indexOf('set-cat-filter')>=0 &
 const css=fs.readFileSync('/home/claude/app/index.html','utf8');
 ck('overflow guards in CSS (no horizontal swipe)',
    css.indexOf('html, body { max-width: 100%; overflow-x: hidden; }')>=0 && css.indexOf('.lib-wrap')>=0);
+// ---- narrow-screen squeeze guards (v0.30.1) ----
+X.AppState.libMoreOpen = true;
+X.AppState.userCollections=[{id:'col1',token:'tok1',title:'המומלצים של השכונה',description:'',recIds:['r1']}];
+const strip = X.renderLibrary();
+ck('collections header sits on its OWN line (no split word)',
+   strip.indexOf('flex:1 0 100%;">MY COLLECTIONS')>=0);
+ck('header buttons never break mid-word', (strip.match(/white-space:nowrap/g)||[]).length>=3);
+ck('collection row wraps instead of squeezing', strip.indexOf('border-top:1px solid #EEF4F0;flex-wrap:wrap;')>=0);
+ck('Hebrew title has room + wraps by word, not per character',
+   strip.indexOf('flex:1 1 60%;min-width:150px;')>=0 && strip.indexOf('overflow-wrap:anywhere;')>=0 && strip.indexOf('המומלצים של השכונה')>=0);
+ck('row action buttons form their own wrapping group',
+   strip.indexOf('display:flex;gap:6px;flex-wrap:wrap;flex:1 1 100%;')>=0);
+X.AppState.libMoreOpen = false;
+
+// circle-detail members header (same defect class, 5 buttons)
+X.AppState.viewParams={circleId:'c1'};
+X.AppState.userMembers=[{id:'m1',circleId:'c1',name:'Rina',avatar:'R',avatarColor:'#111',contactMethod:'app',contactValue:''}];
+const cd = typeof renderCircleDetail==='function' ? renderCircleDetail() : '';
+const appSrc = fs.readFileSync('/home/claude/app/index.html','utf8');
+ck('MEMBERS header row wraps its 5 buttons',
+   appSrc.indexOf('justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;')>=0);
+ck('no unwrapped multi-button flex rows remain in the app',
+   (function(){
+     const lines = appSrc.split('\n');
+     for (let i=0;i<lines.length;i++){
+       if (lines[i].indexOf('display:flex')>=0 && lines[i].indexOf('flex-wrap')<0){
+         const chunk = lines.slice(i,i+12).join('\n');
+         if ((chunk.match(/<button/g)||[]).length>=3 && chunk.indexOf('esc(')>=0 && chunk.indexOf('<svg')<0) return false;
+       }
+     }
+     return true;
+   })());
 console.log('\nRESULT: '+pass+' passed, '+fail+' failed'); process.exit(fail?1:0);

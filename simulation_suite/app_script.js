@@ -419,7 +419,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.30.0 · live';
+const APP_VERSION = 'v0.30.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -793,9 +793,9 @@ function renderCircleDetail() {
     + '</div>'
     + '</div>'
 
-    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
-    + '<h2 style="font-size:13px;font-weight:700;color:var(--slate-600);">MEMBERS (' + members.length + ')</h2>'
-    + (!isDemo ? '<div style="display:flex;gap:6px;">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">'
+    + '<h2 style="font-size:13px;font-weight:700;color:var(--slate-600);white-space:nowrap;">MEMBERS (' + members.length + ')</h2>'
+    + (!isDemo ? '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
         + '<button class="btn btn-ghost btn-sm" data-action="open-circle-link" data-circle-id="' + esc(cid) + '" data-circle-name="' + esc(circle.name) + '">Invite link</button>'
         + '<button class="btn btn-ghost btn-sm" data-action="open-invite" data-circle-name="' + esc(circle.name) + '">✉️ Invite</button>'
         + '<button class="btn btn-ghost btn-sm" data-action="open-modal" data-modal="add-member" data-circle-id="' + esc(cid) + '">+ Add member</button>'
@@ -2291,24 +2291,26 @@ function renderCollectionsStrip() {
   if (AppState.isDemoMode) return '';
   const cols = AppState.userCollections || [];
   const rows = cols.map(function(c) {
-    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #EEF4F0;">'
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #EEF4F0;flex-wrap:wrap;">'
       + '<span style="color:#56695F;display:flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></span>'
-      + '<div style="flex:1;min-width:0;">'
-      + '<div style="font-size:13px;font-weight:700;color:#1C2420;" dir="auto">' + esc(c.title) + '</div>'
+      + '<div style="flex:1 1 60%;min-width:150px;">'
+      + '<div style="font-size:13px;font-weight:700;color:#1C2420;overflow-wrap:anywhere;" dir="auto">' + esc(c.title) + '</div>'
       + '<div style="font-size:11px;color:#7A9086;">' + c.recIds.length + ' item' + (c.recIds.length !== 1 ? 's' : '') + '</div>'
       + '</div>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;flex:1 1 100%;">'
       + '<button class="btn btn-primary btn-sm" data-action="open-modal" data-modal="collection-send" data-token="' + esc(c.token) + '" data-title="' + esc(c.title) + '">Send to circle</button>'
       + '<button class="btn btn-secondary btn-sm" data-action="copy-collection-link" data-token="' + esc(c.token) + '">Copy link</button>'
       + '<button class="btn btn-ghost btn-sm" data-action="open-modal" data-modal="edit-collection" data-coll-id="' + esc(c.id) + '">Edit</button>'
       + '<button class="btn btn-ghost btn-sm" data-action="delete-collection" data-coll-id="' + esc(c.id) + '" style="color:#C0392B;">Delete</button>'
       + '<a class="btn btn-ghost btn-sm" href="' + esc(collectionUrl(c.token)) + '" target="tn_ext" rel="noopener">View</a>'
+      + '</div>'
       + '</div>';
   }).join('');
   return '<div id="collections-strip" style="border-radius:12px;border:1px solid #E5EDE8;background:#fff;margin-bottom:20px;overflow:hidden;">'
-    + '<div style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:#F6FAF7;">'
-    + '<span style="font-size:11px;font-weight:700;color:#56695F;letter-spacing:0.5px;">MY COLLECTIONS</span>'
-    + '<button class="btn btn-primary btn-sm" data-action="open-modal" data-modal="collection-create" style="margin-left:auto;">+ New collection</button>'
-    + '<button class="btn btn-secondary btn-sm" data-action="open-modal" data-modal="chat-import">Import WhatsApp chat</button>'
+    + '<div style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:#F6FAF7;flex-wrap:wrap;">'
+    + '<span style="font-size:11px;font-weight:700;color:#56695F;letter-spacing:0.5px;white-space:nowrap;flex:1 0 100%;">MY COLLECTIONS</span>'
+    + '<button class="btn btn-primary btn-sm" data-action="open-modal" data-modal="collection-create" style="white-space:nowrap;">+ New collection</button>'
+    + '<button class="btn btn-secondary btn-sm" data-action="open-modal" data-modal="chat-import" style="white-space:nowrap;">Import WhatsApp chat</button>'
     + '</div>'
     + (rows || '<div style="padding:12px;font-size:12px;color:#7A9086;">Curated lists you can share with one link \u2014 your best-of, ready to send instead of retyping.</div>')
     + '</div>';
