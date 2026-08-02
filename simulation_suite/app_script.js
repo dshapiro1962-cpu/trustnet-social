@@ -419,7 +419,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.33.1 · live';
+const APP_VERSION = 'v0.33.2 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3583,6 +3583,34 @@ function modalInvite(params) {
 
   var body = '';
 
+  // Invite someone who ISN'T a member yet — the common case, and the reason a
+  // contact form still belongs here alongside the member list.
+  body += '<div style="border-top:1px solid #EEF4F0;padding-top:14px;margin-bottom:16px;">'
+    + '<div style="font-size:11px;font-weight:700;color:#56695F;letter-spacing:0.4px;margin-bottom:8px;">INVITE SOMEONE NEW</div>'
+    + '<div id="inv-method-picker" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;" data-selected="whatsapp">'
+    + [{ v: 'whatsapp', l: 'WhatsApp' }, { v: 'email', l: 'Email' }]
+        .map(function(o) {
+          const sel = o.v === 'whatsapp';
+          return '<button type="button" data-action="pick-segment" data-picker-id="inv-method" data-value="' + o.v + '" style="'
+            + 'padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;'
+            + 'border:1.5px solid ' + (sel ? '#217A4B' : '#CDD9D1') + ';'
+            + 'background:' + (sel ? '#EBF7F1' : '#fff') + ';'
+            + 'color:' + (sel ? '#1A5235' : '#56695F') + ';">' + o.l + '</button>';
+        }).join('')
+    + '</div>'
+    + '<input type="hidden" id="inv-method" value="whatsapp">'
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+    + '<input class="field-input" id="inv-contact" dir="ltr" placeholder="+972 50 123 4567" '
+    + 'style="flex:1 1 200px;min-width:0;">'
+    + '<button class="btn btn-primary btn-sm" data-action="invite-new" data-circle-id="' + esc(circleId) + '" '
+    + 'data-circle-name="' + esc(circleName) + '" style="white-space:nowrap;">Send invite</button>'
+    + '</div>'
+    + '<div style="font-size:11px;color:#7A9086;margin-top:6px;line-height:1.5;">'
+    + 'Opens your own WhatsApp or mail app with the invite ready to send.</div>'
+    + '</div>';
+
+
+
   if (onTrustnet.length) {
     body += '<div style="font-size:11px;font-weight:700;color:#1A5235;letter-spacing:0.4px;margin:4px 0 6px;">ALREADY ON TRUSTNET</div>'
       + onTrustnet.map(function(m) {
@@ -3630,32 +3658,6 @@ function modalInvite(params) {
       + 'People you added a while ago may have joined since.</div>'
       + '</div>';
   }
-
-  // Invite someone who ISN'T a member yet — the common case, and the reason a
-  // contact form still belongs here alongside the member list.
-  body += '<div style="border-top:1px solid #EEF4F0;padding-top:14px;margin-bottom:16px;">'
-    + '<div style="font-size:11px;font-weight:700;color:#56695F;letter-spacing:0.4px;margin-bottom:8px;">INVITE SOMEONE NEW</div>'
-    + '<div id="inv-method-picker" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;" data-selected="whatsapp">'
-    + [{ v: 'whatsapp', l: 'WhatsApp' }, { v: 'email', l: 'Email' }]
-        .map(function(o) {
-          const sel = o.v === 'whatsapp';
-          return '<button type="button" data-action="pick-segment" data-picker-id="inv-method" data-value="' + o.v + '" style="'
-            + 'padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;'
-            + 'border:1.5px solid ' + (sel ? '#217A4B' : '#CDD9D1') + ';'
-            + 'background:' + (sel ? '#EBF7F1' : '#fff') + ';'
-            + 'color:' + (sel ? '#1A5235' : '#56695F') + ';">' + o.l + '</button>';
-        }).join('')
-    + '</div>'
-    + '<input type="hidden" id="inv-method" value="whatsapp">'
-    + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
-    + '<input class="field-input" id="inv-contact" dir="ltr" placeholder="+972 50 123 4567" '
-    + 'style="flex:1 1 200px;min-width:0;">'
-    + '<button class="btn btn-primary btn-sm" data-action="invite-new" data-circle-id="' + esc(circleId) + '" '
-    + 'data-circle-name="' + esc(circleName) + '" style="white-space:nowrap;">Send invite</button>'
-    + '</div>'
-    + '<div style="font-size:11px;color:#7A9086;margin-top:6px;line-height:1.5;">'
-    + 'Opens your own WhatsApp or mail app with the invite ready to send.</div>'
-    + '</div>';
 
   // Always available: one link anyone can use to join the circle.
   body += '<div style="border-top:1px solid #EEF4F0;padding-top:14px;">'
