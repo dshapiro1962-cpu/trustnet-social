@@ -20,7 +20,7 @@ vm.runInContext(src,ctx,{filename:'app.js'});
 vm.runInContext('renderApp=function(){};showView=function(){};toast=function(m,t){globalThis.__toasts.push([m,t]);};CURRENT_UID="me";',ctx);
 ctx.__toasts=[];
 const X=ctx.__x;
-ck('APP_VERSION is v0.30.1', X.APP_VERSION==='v0.30.1 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.31.0', X.APP_VERSION==='v0.31.0 · live', X.APP_VERSION);
 X.AppState.userCanonicals=[
   {id:'a',name:'Mine',createdBy:'me'},
   {id:'b',name:'From a server function',createdBy:'service-uid'},

@@ -419,7 +419,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.30.1 · live';
+const APP_VERSION = 'v0.31.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -797,7 +797,7 @@ function renderCircleDetail() {
     + '<h2 style="font-size:13px;font-weight:700;color:var(--slate-600);white-space:nowrap;">MEMBERS (' + members.length + ')</h2>'
     + (!isDemo ? '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
         + '<button class="btn btn-ghost btn-sm" data-action="open-circle-link" data-circle-id="' + esc(cid) + '" data-circle-name="' + esc(circle.name) + '">Invite link</button>'
-        + '<button class="btn btn-ghost btn-sm" data-action="open-invite" data-circle-name="' + esc(circle.name) + '">✉️ Invite</button>'
+        + '<button class="btn btn-ghost btn-sm" data-action="open-invite" data-circle-id="' + esc(cid) + '" data-circle-name="' + esc(circle.name) + '">✉️ Invite</button>'
         + '<button class="btn btn-ghost btn-sm" data-action="open-modal" data-modal="add-member" data-circle-id="' + esc(cid) + '">+ Add member</button>'
         + '<button class="btn btn-ghost btn-sm" data-action="open-modal" data-modal="edit-circle" data-circle-id="' + esc(cid) + '">Edit</button>'
         + '<button class="btn btn-ghost btn-sm" data-action="delete-circle" data-circle-id="' + esc(cid) + '" style="color:#C0392B;">Delete</button>'
@@ -832,6 +832,10 @@ function memberRowHtml(m) {
     + '<div class="member-sub">' + esc(m.trustBasis || '') + (isSource && m.sourceUrl ? ' · <a href="' + esc(m.sourceUrl) + '" target="_blank" style="color:#1A6FA8;">link ↗</a>' : '') + '</div>'
     + '</div>'
     + '<div class="member-badges">'
+    + (m.linkedUserId
+      ? '<span class="chip" style="font-size:10px;background:#E9F6EE;color:#1A5235;border:1px solid #C6EDD9;font-weight:700;" '
+        + 'title="Already on Trustnet \u2014 your questions reach them in the app">On Trustnet</span>'
+      : '')
     + (isSource
       ? '<span class="chip" style="font-size:10px;">📰 External</span>'
       : '<span class="chip" style="font-size:10px;">' + channelIcon(m.contactMethod) + ' ' + esc(channelLabel(m.contactMethod)) + '</span>')
@@ -1328,10 +1332,19 @@ function renderInbox() {
       } else if (it.type === 'collection_shared' && it.linkUrl && /^https:\/\//.test(it.linkUrl)) {
         actions = '<a class="btn btn-primary btn-sm" style="text-decoration:none;" '
           + 'href="' + esc(it.linkUrl) + '" target="tn_ext" rel="noopener">View list</a>';
-      } else {
-        actions = it.circleId
-          ? '<button class="btn btn-ghost btn-sm" data-action="nav" data-view="circles">View circles</button>'
+      } else if (it.type === 'collection_shared') {
+        // The link is the whole point of this notification; without it there is
+        // nothing useful to offer. (A "View circles" button told the recipient
+        // nothing about the list they were sent.)
+        actions = '';
+      } else if (it.circleId && (it.type === 'invite_accepted' || it.type === 'member_joined')) {
+        const c = AppState.circleById(it.circleId);
+        actions = c
+          ? '<button class="btn btn-ghost btn-sm" data-action="nav" data-view="circle-detail" data-circle-id="'
+            + esc(it.circleId) + '">Open ' + esc(c.name) + '</button>'
           : '';
+      } else {
+        actions = '';
       }
     }
     return '<div class="card" style="margin-bottom:9px;' + (unread ? 'border-left:3px solid #2D9460;' : 'opacity:.78;') + '"><div class="card-body">'
@@ -2856,7 +2869,7 @@ async function refreshLive() {
     const qs = await sb.from('queries').select('*, query_responses!query_id(*)')
       .eq('sent_by', CURRENT_UID).order('sent_at');
     const ns = await sb.from('notifications')
-      .select('id,type,title,body,circle_id,actor_name,created_at,response_token,query_id')
+      .select('id,type,title,body,circle_id,actor_name,created_at,response_token,query_id,link_url')
       .eq('user_id', CURRENT_UID).order('created_at', { ascending: false }).limit(40);
     mergeLiveData(qs.data || null, ns.data || null);
   } catch (e) { /* next beat */ }
@@ -2912,7 +2925,7 @@ function ensureNotificationsFetched() {
   if (AppState.isDemoMode || AppState._notifFetched || !CURRENT_UID) return;
   AppState._notifFetched = true;
   sb.from('notifications')
-    .select('id,type,title,body,circle_id,actor_name,created_at,response_token,query_id')
+    .select('id,type,title,body,circle_id,actor_name,created_at,response_token,query_id,link_url')
     .eq('user_id', CURRENT_UID)
     .order('created_at', { ascending: false })
     .limit(40)
@@ -3547,48 +3560,107 @@ function modalShareList() {
 // SIMULATED: Direct Invite — shows the flattering "you're trusted" message preview
 function modalInvite(params) {
   var circleName = (params && params.circleName) ? params.circleName : 'your';
+  var circleId = (params && params.circleId) ? params.circleId : '';
   var user = AppState.userProfile;
   var inviterName = user ? user.name.split(' ')[0] : 'You';
+  var msg = inviterName + ' added you to their ' + circleName + ' circle on Trustnet \u2014 '
+    + 'the place they keep recommendations from people they trust. '
+    + 'You can answer their questions without installing anything.';
 
   return '<div class="modal" style="max-width:440px;">'
     + '<div class="modal-header">'
-    + '<div><div class="modal-title">Invite to Trustnet</div>'
-    + '<div style="font-size:11px;color:#7A9086;margin-top:2px;">Invite someone who isn\'t on Trustnet yet</div>'
+    + '<div><div class="modal-title">Invite to ' + esc(circleName) + '</div>'
+    + '<div style="font-size:11px;color:#7A9086;margin-top:2px;">Send them a link \u2014 they don\'t need the app to answer</div>'
     + '</div>'
-    + '<button class="btn btn-ghost btn-icon" data-action="close-modal">✕</button>'
+    + '<button class="btn btn-ghost btn-icon" data-action="close-modal">\u00d7</button>'
     + '</div>'
-    + '<div class="modal-body">'
+    + '<div class="modal-body" data-circle-id="' + esc(circleId) + '" data-circle-name="' + esc(circleName) + '">'
     + '<div class="field">'
-    + '<div class="field-label">HOW TO REACH THEM</div>'
-    + '<div class="segmented" style="display:flex;gap:6px;">'
-    + '<button type="button" class="btn btn-secondary btn-sm" style="flex:1;">WhatsApp</button>'
-    + '<button type="button" class="btn btn-ghost btn-sm" style="flex:1;">Email</button>'
+    + '<div class="field-label">HOW TO SEND IT</div>'
+    + '<div id="inv-method-picker" style="display:flex;gap:6px;flex-wrap:wrap;" data-selected="whatsapp">'
+    + [{ v: 'whatsapp', l: 'WhatsApp' }, { v: 'email', l: 'Email' }, { v: 'link', l: 'Copy link' }]
+        .map(function(o) {
+          const sel = o.v === 'whatsapp';
+          return '<button type="button" data-action="pick-segment" data-picker-id="inv-method" data-value="' + o.v + '" style="'
+            + 'padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;'
+            + 'border:1.5px solid ' + (sel ? '#217A4B' : '#CDD9D1') + ';'
+            + 'background:' + (sel ? '#EBF7F1' : '#fff') + ';'
+            + 'color:' + (sel ? '#1A5235' : '#56695F') + ';">' + o.l + '</button>';
+        }).join('')
     + '</div>'
+    + '<input type="hidden" id="inv-method" value="whatsapp">'
     + '</div>'
-    + '<div class="field">'
-    + '<div class="field-label">PHONE NUMBER</div>'
-    + '<input class="field-input" placeholder="+972 50 123 4567">'
+    + '<div class="field" id="inv-contact-field">'
+    + '<div class="field-label" id="inv-contact-label">PHONE NUMBER</div>'
+    + '<input class="field-input" id="inv-contact" dir="ltr" placeholder="+972 50 123 4567">'
     + '</div>'
-    // Message preview — the flattering framing
     + '<div style="font-size:11px;font-weight:700;color:#7A9086;letter-spacing:0.5px;margin:16px 0 8px;">THEY\'LL RECEIVE</div>'
-    + '<div style="background:#E8F5E9;border-radius:12px 12px 12px 4px;padding:14px 16px;max-width:88%;">'
-    + '<div style="font-size:13px;color:#1C2420;line-height:1.6;">'
-    + '<strong>' + esc(inviterName) + '</strong> trusts your taste — they added you to their <strong>' + esc(circleName) + '</strong> circle on Trustnet.'
-    + '<br><br>'
-    + 'When ' + esc(inviterName) + ' needs a recommendation, you\'re one of the few people they ask.'
-    + '<br><br>'
-    + '<span style="color:#217A4B;font-weight:600;">See what this means →</span>'
+    + '<div style="background:#E8F5E9;border-radius:12px 12px 12px 4px;padding:14px 16px;">'
+    + '<div dir="auto" style="font-size:13px;color:#1C2420;line-height:1.6;">' + esc(msg) + '</div>'
     + '</div>'
-    + '</div>'
-    + '<div style="padding:10px 12px;background:#EBF7F1;border-radius:8px;border:1px solid #C6EDD9;margin-top:16px;">'
-    + '<div style="font-size:11px;color:#1A5235;line-height:1.6;">Notice the framing: it\'s about them being valued, not about installing an app. That\'s what makes trust-based invites convert.</div>'
-    + '</div>'
+    + '<div id="inv-err" style="display:none;font-size:12px;color:#C0392B;margin-top:10px;"></div>'
     + '</div>'
     + '<div class="modal-footer">'
     + '<button class="btn btn-secondary" data-action="close-modal">Cancel</button>'
-    + '<button class="btn btn-primary" data-action="send-invite-sim">Send invite</button>'
+    + '<button class="btn btn-primary" data-action="send-invite" data-circle-id="' + esc(circleId) + '">Send invite</button>'
     + '</div>'
     + '</div>';
+}
+
+// Real delivery: WhatsApp and email open the user's OWN app with the message and
+// the circle's invite link pre-filled; "Copy link" puts it on the clipboard.
+// (Replaces a mock whose only action was "this is simulated".)
+async function handleSendInvite(btn) {
+  const modalEl = btn.closest('.modal');
+  const body = modalEl ? modalEl.querySelector('.modal-body') : null;
+  const circleId = btn.dataset.circleId || (body && body.dataset.circleId) || '';
+  const circleName = (body && body.dataset.circleName) || 'your';
+  const method = (document.getElementById('inv-method') || {}).value || 'whatsapp';
+  const contact = ((document.getElementById('inv-contact') || {}).value || '').trim();
+  const errEl = document.getElementById('inv-err');
+  const fail = function(m) { if (errEl) { errEl.textContent = m; errEl.style.display = 'block'; } };
+  if (errEl) errEl.style.display = 'none';
+
+  if (!circleId) { fail('No circle selected.'); return; }
+  if (method === 'whatsapp' && !normalizeIlPhone(contact)) { fail('Enter a valid phone number.'); return; }
+  if (method === 'email' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contact)) { fail('Enter a valid email address.'); return; }
+
+  btn.disabled = true; btn.textContent = 'Preparing\u2026';
+  let url = '';
+  try {
+    const r = await sb.rpc('get_or_create_circle_link', { p_circle_id: circleId });
+    if (r && r.data) url = location.origin + '/?join=' + r.data;
+  } catch (e) { /* fall through to any link already open */ }
+  if (!url && AppState._circleLink && AppState._circleLink.url) url = AppState._circleLink.url;
+  if (!url) {
+    btn.disabled = false; btn.textContent = 'Send invite';
+    fail('Could not create an invite link. Use "Invite link" on the circle instead.');
+    return;
+  }
+
+  const who = AppState.userProfile ? AppState.userProfile.name.split(' ')[0] : 'A friend';
+  const text = who + ' added you to their ' + circleName + ' circle on Trustnet \u2014 '
+    + 'the place they keep recommendations from people they trust. '
+    + 'You can answer their questions without installing anything: ' + url;
+
+  if (method === 'whatsapp') {
+    const ph = normalizeIlPhone(contact).replace(/[^0-9]/g, '');
+    window.open('https://wa.me/' + ph + '?text=' + encodeURIComponent(text), 'tn_ext');
+    toast('WhatsApp opened \u2014 press send there.');
+  } else if (method === 'email') {
+    window.open('mailto:' + encodeURIComponent(contact)
+      + '?subject=' + encodeURIComponent(who + ' added you to their ' + circleName + ' circle')
+      + '&body=' + encodeURIComponent(text), 'tn_ext');
+    toast('Email opened \u2014 press send there.');
+  } else {
+    try { await navigator.clipboard.writeText(url); toast('Invite link copied.'); }
+    catch (e) {
+      fail('Copy failed. The link is: ' + url);
+      btn.disabled = false; btn.textContent = 'Send invite';
+      return;
+    }
+  }
+  closeModal();
 }
 
 function modalFabMenu() {
@@ -3870,6 +3942,20 @@ async function handleSaveMember() {
     }
   }
   await saveMembers();
+  // Is this person already on Trustnet? Linking used to happen ONLY at signup,
+  // so adding an EXISTING user left them unlinked — no in-app doorway for them,
+  // no indication for you. Ask the server; it answers only yes/no.
+  if (!editId && !newMember.isExternalSource && newMember.contactValue && !AppState.isDemoMode) {
+    try {
+      const lr = await sb.rpc('link_member_to_existing_user', { p_member_id: newMember.id });
+      if (lr && lr.data === true) {
+        const m2 = AppState.userMembers.find(function(x) { return x.id === newMember.id; });
+        if (m2) m2.linkedUserId = 'linked';
+        toast(newMember.name + ' is already on Trustnet \u2014 your questions reach them in the app.');
+      }
+    } catch (e) { console.error('link_member_to_existing_user failed:', e); }
+  }
+
   closeModal();
   renderApp();
 }
@@ -4467,6 +4553,21 @@ document.addEventListener('click', function(e) {
     if (hiddenEl) hiddenEl.value = val;
 
     // Add-member modal: show/relabel the contact field per channel
+    if (pickerId === 'inv-method') {
+      const lab = document.getElementById('inv-contact-label');
+      const inp = document.getElementById('inv-contact');
+      const fld = document.getElementById('inv-contact-field');
+      if (value === 'link') {
+        if (fld) fld.style.display = 'none';
+      } else {
+        if (fld) fld.style.display = '';
+        if (lab) lab.textContent = value === 'email' ? 'EMAIL ADDRESS' : 'PHONE NUMBER';
+        if (inp) {
+          inp.placeholder = value === 'email' ? 'name@example.com' : '+972 50 123 4567';
+          inp.value = '';
+        }
+      }
+    }
     if (pickerId === 'nm-method') {
       const wrap = document.getElementById('nm-contact-wrap');
       const label = document.getElementById('nm-contact-label');
@@ -4702,9 +4803,8 @@ document.addEventListener('click', function(e) {
   else if (action === 'copy-share-link') {
     toast('Link copied to clipboard.');
   }
-  else if (action === 'send-invite-sim') {
-    closeModal();
-    toast('Invite sent (simulated).');
+  else if (action === 'send-invite') {
+    handleSendInvite(target);
   }
   else if (action === 'clear-data') {
     handleClearData();

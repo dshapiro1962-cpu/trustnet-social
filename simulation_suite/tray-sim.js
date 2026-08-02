@@ -57,7 +57,7 @@ const check = (n, c, x) => { if (c) { pass++; console.log('  ✓', n); } else { 
   ctx.__toasts = toasts;
   const X = ctx.__x;
 
-  check('APP_VERSION is v0.30.1', X.APP_VERSION === 'v0.30.1 · live', X.APP_VERSION);
+  check('APP_VERSION is v0.31.0', X.APP_VERSION === 'v0.31.0 · live', X.APP_VERSION);
 
   // fixtures
   X.AppState.isDemoMode = false;
