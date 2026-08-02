@@ -21,7 +21,7 @@ vm.runInContext(src,ctx,{filename:'app.js'});
 vm.runInContext('renderApp=function(){};showView=function(){};toast=function(m,t){globalThis.__toasts.push([m,t||"ok"]);};closeModal=function(){globalThis.__closed=true;};CURRENT_UID="me";',ctx);
 ctx.__toasts=[]; ctx.__rpc=async()=>({data:'tok-abc'});
 const X=ctx.__x;
-ck('APP_VERSION is v0.31.0', X.APP_VERSION==='v0.31.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.31.1', X.APP_VERSION==='v0.31.1 · live', X.APP_VERSION);
 
 // ── 1. invite modal is REAL, not a mock
 X.AppState.userProfile={id:'me',name:'Dan Shapiro',avatar:'DS',avatarColor:'#217A4B'};
@@ -61,5 +61,28 @@ X.AppState.userMembers=[{id:'m1',circleId:'c1',name:'Rina',avatar:'R',avatarColo
 const row = typeof X.memberRowHtml==='function' ? X.memberRowHtml(X.AppState.userMembers[0]) : appSrc;
 ck('member shows an "On Trustnet" badge when linked', String(row).indexOf('On Trustnet')>=0);
 ck('link-on-add asks the server and tells the user', appSrc.indexOf('link_member_to_existing_user')>=0 && appSrc.indexOf('is already on Trustnet')>=0);
+// ---- the three faults reported after v0.31.0 ----
+const appSrc2 = fs.readFileSync('/home/claude/app/index.html','utf8');
+ck('open-invite passes circleId (was: "No circle selected")',
+   appSrc2.indexOf("openModal('invite', { circleId: target.dataset.circleId") >= 0);
+ck('channel switch uses the right variable (was a ReferenceError)',
+   appSrc2.indexOf("if (val === 'link')") >= 0 && appSrc2.indexOf("value === 'email' ? 'EMAIL ADDRESS'") < 0);
+ck('email mode relabels AND re-placeholders the field',
+   appSrc2.indexOf("val === 'email' ? 'EMAIL ADDRESS' : 'PHONE NUMBER'") >= 0 &&
+   appSrc2.indexOf("val === 'email' ? 'name@example.com'") >= 0);
+ck('duplicate member is refused with a clear message',
+   appSrc2.indexOf('is already in this circle.') >= 0);
+
+// end-to-end: email invite now succeeds
+byId['inv-method']=el({value:'email'});
+byId['inv-contact']=el({value:'friend@example.com'});
+byId['inv-err']=el();
+ctx.__opened=[]; ctx.__closed=false;
+const b2=el({dataset:{circleId:'c1'}});
+b2.closest=()=>({querySelector:()=>el({dataset:{circleId:'c1',circleName:'ski'}})});
+await X.handleSendInvite(b2);
+ck('email invite opens mailto with the join link',
+   ctx.__opened.length===1 && ctx.__opened[0].indexOf('mailto:friend%40example.com')>=0 && decodeURIComponent(ctx.__opened[0]).indexOf('join=tok-abc')>=0);
+ck('no error shown on a valid email send', byId['inv-err'].textContent === '');
 console.log('\nRESULT: '+pass+' passed, '+fail+' failed'); process.exit(fail?1:0);
 })();

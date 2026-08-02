@@ -419,7 +419,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.31.0 · live';
+const APP_VERSION = 'v0.31.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3912,6 +3912,19 @@ async function handleSaveMember() {
       }
     }
 
+    // Already in this circle? Say so instead of quietly creating a duplicate.
+    if (!editId) {
+      const norm = function(v) { return String(v || '').replace(/[\s()-]/g, '').toLowerCase(); };
+      const dup = AppState.userMembers.find(function(x) {
+        if (x.circleId !== circleId) return false;
+        if (contact && x.contactValue && norm(x.contactValue) === norm(contact)) return true;
+        return norm(x.name) === norm(name);
+      });
+      if (dup) {
+        toast(dup.name + ' is already in this circle.', 'warn');
+        return;
+      }
+    }
     newMember = {
       id: uid(), name: name,
       avatar: initials(name), avatarColor: color,
@@ -4557,13 +4570,14 @@ document.addEventListener('click', function(e) {
       const lab = document.getElementById('inv-contact-label');
       const inp = document.getElementById('inv-contact');
       const fld = document.getElementById('inv-contact-field');
-      if (value === 'link') {
+      if (val === 'link') {
         if (fld) fld.style.display = 'none';
       } else {
         if (fld) fld.style.display = '';
-        if (lab) lab.textContent = value === 'email' ? 'EMAIL ADDRESS' : 'PHONE NUMBER';
+        if (lab) lab.textContent = val === 'email' ? 'EMAIL ADDRESS' : 'PHONE NUMBER';
         if (inp) {
-          inp.placeholder = value === 'email' ? 'name@example.com' : '+972 50 123 4567';
+          inp.placeholder = val === 'email' ? 'name@example.com' : '+972 50 123 4567';
+          inp.dir = val === 'email' ? 'ltr' : 'ltr';
           inp.value = '';
         }
       }
@@ -4798,7 +4812,7 @@ document.addEventListener('click', function(e) {
     openModal('share-list');
   }
   else if (action === 'open-invite') {
-    openModal('invite', { circleName: target.dataset.circleName });
+    openModal('invite', { circleId: target.dataset.circleId, circleName: target.dataset.circleName });
   }
   else if (action === 'copy-share-link') {
     toast('Link copied to clipboard.');
