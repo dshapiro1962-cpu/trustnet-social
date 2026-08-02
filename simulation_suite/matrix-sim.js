@@ -2,7 +2,7 @@
 // Dimensions: in-this-circle? · in-another-circle? · has account (linked/unlinked/none)?
 const vm=require('vm'); const fs=require('fs');
 let src=fs.readFileSync('/home/claude/sim/app_script.js','utf8');
-src += ';globalThis.__x={modalInvite,handleSaveMember,handleInviteMember,handleRecheckTrustnet,AppState,APP_VERSION};';
+src += ';globalThis.__x={modalInvite,handleSaveMember,handleInviteMember,handleRecheckTrustnet,handleInviteNew,AppState,APP_VERSION};';
 const el=(o)=>Object.assign({value:'',textContent:'',style:{},dataset:{},innerHTML:'',disabled:false,addEventListener(){},querySelectorAll(){return[];},querySelector(){return null;},closest(){return null;},classList:{add(){},remove(){}},focus(){}},o||{});
 const byId={};
 const ctx={console:{log(){},error(){},warn(){}},setTimeout:()=>0,clearTimeout(){},setInterval:()=>1,clearInterval(){},
@@ -26,7 +26,7 @@ vm.runInContext('renderApp=function(){};showView=function(){};openModal=function
 ctx.__toasts=[];ctx.__u=0;ctx.__rpcImpl=async()=>({data:false});
 const X=ctx.__x;
 const lastToast=()=>ctx.__toasts.length?String(ctx.__toasts[ctx.__toasts.length-1][0]):'';
-ck('APP_VERSION is v0.33.0', X.APP_VERSION==='v0.33.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.33.1', X.APP_VERSION==='v0.33.1 · live', X.APP_VERSION);
 
 function reset() {
   ctx.__toasts=[]; ctx.__opened=[]; ctx.__rpcCalls=[];
@@ -124,5 +124,33 @@ ck('14. re-check asks only about UNLINKED members with contacts (m2 only)',
    calls===1 && ctx.__rpcCalls.filter(function(c){return c[0]==='link_member_to_existing_user';}).length===1);
 ck('15. re-check reports what it found and reopens the list',
    lastToast().indexOf('already on Trustnet')>=0 && ctx.__opened_modal && ctx.__opened_modal[0]==='invite');
+// ── inviting someone who is NOT a member yet (restored in v0.33.1) ──
+reset(); ctx.__rpcImpl=async()=>({data:'tok'});
+const im3=X.modalInvite({circleId:'c1',circleName:'Ski'});
+ck('16. modal offers WhatsApp AND Email for someone new',
+   im3.indexOf('INVITE SOMEONE NEW')>=0 && im3.indexOf('data-action="invite-new"')>=0
+   && im3.indexOf('>WhatsApp<')>=0 && im3.indexOf('>Email<')>=0 && im3.indexOf('id="inv-contact"')>=0);
+ck('17. the one-link option is still there too', im3.indexOf('invite-copy-link')>=0);
+
+byId['inv-method']=el({value:'whatsapp'}); byId['inv-contact']=el({value:'050 987 6543'}); byId['inv-err']=el();
+ctx.__opened=[];
+await X.handleInviteNew(el({dataset:{circleId:'c1',circleName:'Ski'},disabled:false,textContent:''}));
+ck('18. new WhatsApp invite normalises the number and opens wa.me with the link',
+   ctx.__opened.length===1 && /wa\.me\/972509876543/.test(ctx.__opened[0]) && decodeURIComponent(ctx.__opened[0]).indexOf('join=tok')>=0);
+
+byId['inv-method']=el({value:'email'}); byId['inv-contact']=el({value:'new@friend.com'}); ctx.__opened=[];
+await X.handleInviteNew(el({dataset:{circleId:'c1',circleName:'Ski'},disabled:false,textContent:''}));
+ck('19. new email invite opens mailto with the link',
+   ctx.__opened.length===1 && ctx.__opened[0].indexOf('mailto:new%40friend.com')>=0);
+
+byId['inv-method']=el({value:'whatsapp'}); byId['inv-contact']=el({value:'+972501111111'}); ctx.__opened=[]; byId['inv-err']=el();
+await X.handleInviteNew(el({dataset:{circleId:'c1',circleName:'Ski'},disabled:false,textContent:''}));
+ck('20. inviting a number that is ALREADY a linked member -> refused',
+   ctx.__opened.length===0 && byId['inv-err'].textContent.indexOf('already in this circle')>=0);
+
+byId['inv-contact']=el({value:'not-a-number'}); ctx.__opened=[]; byId['inv-err']=el();
+await X.handleInviteNew(el({dataset:{circleId:'c1',circleName:'Ski'},disabled:false,textContent:''}));
+ck('21. invalid contact -> error, nothing opened', ctx.__opened.length===0 && byId['inv-err'].textContent.length>0);
+
 console.log('\nRESULT: '+pass+' passed, '+fail+' failed'); process.exit(fail?1:0);
 })();

@@ -854,7 +854,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.33.0 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.33.1 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1331,7 +1331,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.33.0 · live';
+const APP_VERSION = 'v0.33.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -4543,6 +4543,32 @@ function modalInvite(params) {
       + '</div>';
   }
 
+  // Invite someone who ISN'T a member yet — the common case, and the reason a
+  // contact form still belongs here alongside the member list.
+  body += '<div style="border-top:1px solid #EEF4F0;padding-top:14px;margin-bottom:16px;">'
+    + '<div style="font-size:11px;font-weight:700;color:#56695F;letter-spacing:0.4px;margin-bottom:8px;">INVITE SOMEONE NEW</div>'
+    + '<div id="inv-method-picker" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;" data-selected="whatsapp">'
+    + [{ v: 'whatsapp', l: 'WhatsApp' }, { v: 'email', l: 'Email' }]
+        .map(function(o) {
+          const sel = o.v === 'whatsapp';
+          return '<button type="button" data-action="pick-segment" data-picker-id="inv-method" data-value="' + o.v + '" style="'
+            + 'padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;'
+            + 'border:1.5px solid ' + (sel ? '#217A4B' : '#CDD9D1') + ';'
+            + 'background:' + (sel ? '#EBF7F1' : '#fff') + ';'
+            + 'color:' + (sel ? '#1A5235' : '#56695F') + ';">' + o.l + '</button>';
+        }).join('')
+    + '</div>'
+    + '<input type="hidden" id="inv-method" value="whatsapp">'
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+    + '<input class="field-input" id="inv-contact" dir="ltr" placeholder="+972 50 123 4567" '
+    + 'style="flex:1 1 200px;min-width:0;">'
+    + '<button class="btn btn-primary btn-sm" data-action="invite-new" data-circle-id="' + esc(circleId) + '" '
+    + 'data-circle-name="' + esc(circleName) + '" style="white-space:nowrap;">Send invite</button>'
+    + '</div>'
+    + '<div style="font-size:11px;color:#7A9086;margin-top:6px;line-height:1.5;">'
+    + 'Opens your own WhatsApp or mail app with the invite ready to send.</div>'
+    + '</div>';
+
   // Always available: one link anyone can use to join the circle.
   body += '<div style="border-top:1px solid #EEF4F0;padding-top:14px;">'
     + '<div style="font-size:11px;font-weight:700;color:#56695F;letter-spacing:0.4px;margin-bottom:6px;">OR SHARE ONE LINK</div>'
@@ -4639,6 +4665,49 @@ async function handleRecheckTrustnet(btn) {
     : 'None of them have Trustnet accounts yet.');
   closeModal();
   openModal('invite', { circleId: circleId, circleName: (AppState.circleById(circleId) || {}).name || 'your' });
+}
+
+// Invite a person who is NOT yet a member: type their contact, we open the
+// user's own WhatsApp/mail with the join link. (Restored alongside the member
+// list — inviting someone new is the common case.)
+async function handleInviteNew(btn) {
+  const circleId = btn.dataset.circleId || '';
+  const circleName = btn.dataset.circleName || 'your';
+  const method = (document.getElementById('inv-method') || {}).value || 'whatsapp';
+  const contact = ((document.getElementById('inv-contact') || {}).value || '').trim();
+  const errEl = document.getElementById('inv-err');
+  const fail = function(t) { if (errEl) { errEl.textContent = t; errEl.style.display = 'block'; } };
+  if (errEl) errEl.style.display = 'none';
+
+  if (method === 'whatsapp' && !normalizeIlPhone(contact)) { fail('Enter a valid phone number, e.g. 050 123 4567.'); return; }
+  if (method === 'email' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contact)) { fail('Enter a valid email address.'); return; }
+
+  // Are they already in this circle under that contact?
+  const tail = function(v) { return String(v || '').replace(/\D/g, '').slice(-9); };
+  const known = AppState.userMembers.find(function(m) {
+    if (m.circleId !== circleId || !m.contactValue) return false;
+    if (method === 'whatsapp') return tail(m.contactValue) === tail(contact);
+    return String(m.contactValue).toLowerCase() === contact.toLowerCase();
+  });
+  if (known && known.linkedUserId) { fail(known.name + ' is already in this circle and on Trustnet \u2014 nothing to send.'); return; }
+
+  btn.disabled = true; btn.textContent = 'Preparing\u2026';
+  const url = await circleInviteLink(circleId);
+  if (!url) { btn.disabled = false; btn.textContent = 'Send invite'; fail('Could not create an invite link.'); return; }
+  const text = inviteMessageFor(circleName, url);
+
+  if (method === 'whatsapp') {
+    const ph = normalizeIlPhone(contact).replace(/[^0-9]/g, '');
+    window.open('https://wa.me/' + ph + '?text=' + encodeURIComponent(text), 'tn_ext');
+    toast('WhatsApp opened \u2014 press send there.');
+  } else {
+    window.open('mailto:' + encodeURIComponent(contact)
+      + '?subject=' + encodeURIComponent('An invitation to ' + circleName + ' on Trustnet')
+      + '&body=' + encodeURIComponent(text), 'tn_ext');
+    toast('Email opened \u2014 press send there.');
+  }
+  btn.disabled = false; btn.textContent = 'Send invite';
+  const inp = document.getElementById('inv-contact'); if (inp) inp.value = '';
 }
 
 async function handleInviteCopyLink(btn) {
@@ -5857,6 +5926,9 @@ document.addEventListener('click', function(e) {
   }
   else if (action === 'recheck-trustnet') {
     handleRecheckTrustnet(target);
+  }
+  else if (action === 'invite-new') {
+    handleInviteNew(target);
   }
   else if (action === 'clear-data') {
     handleClearData();
