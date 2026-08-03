@@ -21,7 +21,7 @@ vm.runInContext(src,ctx,{filename:'app.js'});
 vm.runInContext('renderApp=function(){};showView=function(){};toast=function(m,t){globalThis.__toasts.push([m,t||"ok"]);};closeModal=function(){globalThis.__closed=true;};CURRENT_UID="me";',ctx);
 ctx.__toasts=[]; ctx.__rpc=async()=>({data:'tok-abc'});
 const X=ctx.__x;
-ck('APP_VERSION is v0.34.1', X.APP_VERSION==='v0.34.1 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.34.2', X.APP_VERSION==='v0.34.2 · live', X.APP_VERSION);
 
 // ── 1. invite modal is REAL, not a mock
 X.AppState.userProfile={id:'me',name:'Dan Shapiro',avatar:'DS',avatarColor:'#217A4B'};
@@ -55,13 +55,14 @@ ck('contact form is present for inviting someone NEW (not a blank-form-only moda
 ck('invite explains no install is needed', im2.indexOf('no install needed')>=0);
 
 // inviting a member uses THEIR stored contact — no typing
-ctx.__opened=[]; byId['inv-err']=el();
+ctx.__opened=[]; byId['inv-err']=el(); byId['inv-new-msg']=el();
 await X.handleInviteMember(el({dataset:{memberId:'m1',circleId:'c1',circleName:'ski'}, disabled:false, textContent:''}));
 ck('member invite opens wa.me with their number + join link',
    ctx.__opened.length===1 && /wa\.me\/972501234567/.test(ctx.__opened[0]) && decodeURIComponent(ctx.__opened[0]).indexOf('join=tok-abc')>=0);
 ctx.__opened=[];
 await X.handleInviteMember(el({dataset:{memberId:'m2',circleId:'c1',circleName:'ski'}, disabled:false, textContent:''}));
-ck('inviting someone already on Trustnet is refused', ctx.__opened.length===0 && ctx.__toasts.some(t=>String(t[0]).indexOf('already on Trustnet')>=0));
+ck('inviting someone already on Trustnet is refused, said inline',
+   ctx.__opened.length===0 && byId['inv-new-msg'].textContent.indexOf('already on Trustnet')>=0);
 
 // ── 3. shared-list notification: link fetched + no bogus button
 const appSrc = fs.readFileSync('/home/claude/app/index.html','utf8');

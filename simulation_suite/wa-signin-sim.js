@@ -27,7 +27,7 @@ vm.runInContext('renderApp=function(){};showView=function(){};openModal=function
  +'toast=function(m,t){globalThis.__toasts.push([m,t||"ok"]);};CURRENT_UID="me";',ctx);
 ctx.__toasts=[]; ctx.__rpcImpl=async()=>({data:[]});
 const X=ctx.__x;
-ck('APP_VERSION is v0.34.1', X.APP_VERSION==='v0.34.1 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.34.2', X.APP_VERSION==='v0.34.2 · live', X.APP_VERSION);
 
 // ── phone identity: app, function and SQL must agree on ONE canonical form ──
 function keyJs(raw){const d=String(raw||'').replace(/\D/g,'');return d.length>=9?d.slice(-9):d;}
@@ -61,28 +61,28 @@ X.AppState.userProfile={id:'me',name:'Dan S'};
 X.AppState.userMembers=[];
 X.AppState.userCircles=[{id:'c1',name:'Ski',memberIds:[]}];
 X.AppState.circleById=(id)=>X.AppState.userCircles.find(c=>c.id===id)||null;
-byId['inv-method']=el({value:'whatsapp'}); byId['inv-contact']=el({value:'050 123 4567'}); byId['inv-err']=el();
+byId['inv-method']=el({value:'whatsapp'}); byId['inv-contact']=el({value:'050 123 4567'}); byId['inv-err']=el(); byId['inv-new-msg']=el();
 ctx.__rpcImpl=async(n)=> n==='resolve_contacts'
   ? {data:[{input_value:'050 123 4567',method:'whatsapp',is_user:true,user_id:'u1',member_id:'m1',member_name:'Rina'}]}
   : {data:'tok'};
 ctx.__opened=[];
 await X.handleInviteNew(el({dataset:{circleId:'c1',circleName:'Ski'},disabled:false,textContent:''}));
 ck('typed contact who IS a member and IS on Trustnet -> refused with their name',
-   ctx.__opened.length===0 && byId['inv-err'].textContent.indexOf('Rina')>=0
-   && byId['inv-err'].textContent.indexOf('already on Trustnet')>=0);
+   ctx.__opened.length===0 && byId['inv-new-msg'].textContent.indexOf('Rina')>=0
+   && byId['inv-new-msg'].textContent.indexOf('already on Trustnet')>=0);
 
 ctx.__rpcImpl=async(n)=> n==='resolve_contacts'
   ? {data:[{input_value:'050 123 4567',method:'whatsapp',is_user:true,user_id:'u2',member_id:null,member_name:null}]}
   : {data:'tok'};
-byId['inv-err']=el(); ctx.__opened=[];
+byId['inv-err']=el(); byId['inv-new-msg']=el(); ctx.__opened=[];
 await X.handleInviteNew(el({dataset:{circleId:'c1',circleName:'Ski'},disabled:false,textContent:''}));
 ck('on Trustnet but NOT in this circle -> told to add them, nothing sent',
-   ctx.__opened.length===0 && byId['inv-err'].textContent.indexOf('Add them as a member')>=0);
+   ctx.__opened.length===0 && byId['inv-new-msg'].textContent.indexOf('Add them as a member')>=0);
 
 ctx.__rpcImpl=async(n)=> n==='resolve_contacts'
   ? {data:[{input_value:'050 123 4567',method:'whatsapp',is_user:false,user_id:null,member_id:null,member_name:null}]}
   : {data:'tok'};
-byId['inv-err']=el(); ctx.__opened=[];
+byId['inv-err']=el(); byId['inv-new-msg']=el(); ctx.__opened=[];
 await X.handleInviteNew(el({dataset:{circleId:'c1',circleName:'Ski'},disabled:false,textContent:''}));
 ck('genuinely new contact -> invite actually sent', ctx.__opened.length===1 && /wa\.me\/972501234567/.test(ctx.__opened[0]));
 

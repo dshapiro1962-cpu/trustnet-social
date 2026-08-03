@@ -30,19 +30,26 @@ let pass=0,fail=0; const ck=(n,c,x)=>{ if(c){pass++;console.log('  ✓',n);}else
 vm.runInContext(app,ctx,{filename:'app.js'});
 vm.runInContext('renderApp=function(){};showView=function(){};toast=function(){};CURRENT_UID="me";',ctx);
 const X=ctx.__x;
-ck('APP_VERSION is v0.34.1', X.APP_VERSION==='v0.34.1 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.34.2', X.APP_VERSION==='v0.34.2 · live', X.APP_VERSION);
 
 // ── one scroll container, not two ──
 ck('the modal itself no longer scrolls (nested scrollers removed)',
-   /\.modal \{[^}]*max-height: 90vh; overflow: hidden;/s.test(src));
+   /\.modal \{[^}]*overflow: hidden;[^}]*display: flex; flex-direction: column;/s.test(src));
 ck('the BODY is the single scroll area, flexing to fit',
    /\.modal-body \{[^}]*flex: 1 1 auto; min-height: 0; overflow-y: auto;/s.test(src));
 ck('header and footer stay put while the body scrolls',
    src.indexOf('.modal-header, .modal-footer { flex: 0 0 auto; }')>=0);
 
 // ── phone sheet ──
-ck('on phones the modal is a bottom sheet using 92vh',
-   src.indexOf('.modal-overlay { align-items: flex-end; padding: 0; }')>=0 && src.indexOf('max-height: 92vh')>=0);
+ck('on phones the modal is a bottom sheet',
+   src.indexOf('.modal-overlay { align-items: flex-end; padding: 0; }')>=0);
+// iOS Safari counts its toolbars in vh, so a vh-sized sheet hangs off the screen.
+ck('iOS: sheet sized in dvh (visible viewport), with a vh fallback',
+   src.indexOf('max-height: 88vh;')>=0 && src.indexOf('max-height: 88dvh;')>=0);
+ck('iOS: modal + overlay also use dvh',
+   src.indexOf('max-height: 90dvh;')>=0 && src.indexOf('height: 100vh; height: 100dvh;')>=0);
+ck('iOS: viewport-fit=cover set, so env(safe-area-*) is not zero',
+   src.indexOf('viewport-fit=cover')>=0);
 ck('sheet has a grab handle (says "this panel moves")', src.indexOf('.modal::before')>=0 && src.indexOf('width: 38px; height: 4px')>=0);
 ck('phone padding tightened to buy content height',
    src.indexOf('.modal-body { padding: 14px 18px; gap: 12px; }')>=0);
@@ -74,4 +81,12 @@ const im=X.modalInvite({circleId:'c1',circleName:'Ski'});
 ck('invite copy trimmed for a phone screen',
    im.indexOf('They answer from the link')>=0 && im.indexOf('without installing anything.')<0
    && im.indexOf('padding:6px 2px')>=0);
+// ── the verdict must appear WHERE THE FORM IS, not at the bottom of the sheet
+ck('invite form has its own inline message slot', im.indexOf('id="inv-new-msg"')>=0);
+const appTxt = src;
+ck('"already on Trustnet" is reported inline and scrolled into view',
+   appTxt.indexOf("(info.member_name")>=0 && appTxt.indexOf("already on Trustnet")>=0
+   && appTxt.indexOf("el2.scrollIntoView({ block: 'nearest'")>=0);
+ck('verdicts are colour-coded by meaning, not all red',
+   appTxt.indexOf("background:#E9F6EE;color:#1A5235;")>=0 && appTxt.indexOf("background:#EEF4FB;color:#1A3F6B;")>=0);
 console.log('\nRESULT: '+pass+' passed, '+fail+' failed'); process.exit(fail?1:0);

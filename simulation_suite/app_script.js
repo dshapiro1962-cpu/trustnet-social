@@ -419,7 +419,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.34.1 · live';
+const APP_VERSION = 'v0.34.2 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3649,6 +3649,8 @@ function modalInvite(params) {
     + '<button class="btn btn-primary btn-sm" data-action="invite-new" data-circle-id="' + esc(circleId) + '" '
     + 'data-circle-name="' + esc(circleName) + '" style="white-space:nowrap;">Send invite</button>'
     + '</div>'
+    + '<div id="inv-new-msg" style="display:none;font-size:12px;line-height:1.5;margin-top:8px;'
+    + 'padding:9px 11px;border-radius:9px;"></div>'
     + '<div style="font-size:11px;color:#7A9086;margin-top:5px;line-height:1.45;">'
     + 'Opens your WhatsApp or mail app, ready to send.</div>'
     + '</div>';
@@ -3772,15 +3774,28 @@ function inviteMessageFor(circleName, url) {
 }
 
 // Invite ONE member, using the contact details already on their record.
+// One place for invite feedback, beside the form and scrolled into view.
+// Both invite paths use it, so no message can render off-screen again.
+function inviteSay(text, kind) {
+  const el2 = document.getElementById('inv-new-msg');
+  if (!el2) return;
+  const style = kind === 'ok'
+    ? 'background:#E9F6EE;color:#1A5235;border:1px solid #C6EDD9;'
+    : (kind === 'info'
+      ? 'background:#EEF4FB;color:#1A3F6B;border:1px solid #CFE0F2;'
+      : 'background:#FDECEA;color:#9B2C22;border:1px solid #F5C6C0;');
+  el2.style.cssText = 'font-size:12px;line-height:1.5;margin-top:8px;padding:9px 11px;border-radius:9px;display:block;' + style;
+  el2.textContent = text;
+  if (el2.scrollIntoView) el2.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
 async function handleInviteMember(btn) {
   const m = AppState.userMembers.find(function(x) { return x.id === btn.dataset.memberId; });
   const circleId = btn.dataset.circleId || '';
   const circleName = btn.dataset.circleName || 'your';
-  const errEl = document.getElementById('inv-err');
-  const fail = function(t) { if (errEl) { errEl.textContent = t; errEl.style.display = 'block'; } };
-  if (errEl) errEl.style.display = 'none';
+  const fail = function(t) { inviteSay(t, 'error'); };
   if (!m) { fail('Member not found.'); return; }
-  if (m.linkedUserId) { toast(m.name + ' is already on Trustnet.', 'warn'); return; }
+  if (m.linkedUserId) { inviteSay('\u2713 ' + m.name + ' is already on Trustnet \u2014 nothing to send.', 'ok'); return; }
   if (!m.contactValue) { fail('No contact details for ' + m.name + ' \u2014 add a number or email first.'); return; }
 
   btn.disabled = true; btn.textContent = 'Preparing\u2026';
@@ -3837,9 +3852,12 @@ async function handleInviteNew(btn) {
   const circleName = btn.dataset.circleName || 'your';
   const method = (document.getElementById('inv-method') || {}).value || 'whatsapp';
   const contact = ((document.getElementById('inv-contact') || {}).value || '').trim();
-  const errEl = document.getElementById('inv-err');
-  const fail = function(t) { if (errEl) { errEl.textContent = t; errEl.style.display = 'block'; } };
-  if (errEl) errEl.style.display = 'none';
+  // Feedback belongs beside the form, not at the far bottom of a scrolling
+  // sheet — that is why the "already on Trustnet" answer was never seen.
+  const say = inviteSay;
+  const fail = function(t) { inviteSay(t, 'error'); };
+  const msgEl = document.getElementById('inv-new-msg');
+  if (msgEl) msgEl.style.display = 'none';
 
   if (method === 'whatsapp' && !normalizeIlPhone(contact)) { fail('Enter a valid phone number, e.g. 050 123 4567.'); return; }
   if (method === 'email' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contact)) { fail('Enter a valid email address.'); return; }
@@ -3852,11 +3870,11 @@ async function handleInviteNew(btn) {
   const info = resolved && resolved.length ? resolved[0] : null;
   if (info) {
     if (info.member_id && info.is_user) {
-      fail((info.member_name || 'They') + ' is already in this circle and already on Trustnet \u2014 nothing to send.');
+      say('\u2713 ' + (info.member_name || 'They') + ' is already in this circle and already on Trustnet \u2014 nothing to send.', 'ok');
       return;
     }
     if (info.is_user && !info.member_id) {
-      fail('This person is already on Trustnet but not in this circle. Add them as a member instead \u2014 they will get your questions in the app.');
+      say('This person is already on Trustnet but not in this circle. Add them as a member instead \u2014 they will get your questions in the app.', 'info');
       return;
     }
     if (info.member_id && !info.is_user) {
@@ -3885,19 +3903,12 @@ async function handleInviteNew(btn) {
 }
 
 async function handleInviteCopyLink(btn) {
-  const errEl = document.getElementById('inv-err');
-  if (errEl) errEl.style.display = 'none';
   btn.disabled = true; btn.textContent = 'Preparing\u2026';
   const url = await circleInviteLink(btn.dataset.circleId || '');
   btn.disabled = false; btn.textContent = 'Copy invite link';
-  if (!url) {
-    if (errEl) { errEl.textContent = 'Could not create an invite link.'; errEl.style.display = 'block'; }
-    return;
-  }
-  try { await navigator.clipboard.writeText(url); toast('Invite link copied.'); }
-  catch (e) {
-    if (errEl) { errEl.textContent = 'Copy failed. The link is: ' + url; errEl.style.display = 'block'; }
-  }
+  if (!url) { inviteSay('Could not create an invite link.', 'error'); return; }
+  try { await navigator.clipboard.writeText(url); inviteSay('\u2713 Invite link copied.', 'ok'); }
+  catch (e) { inviteSay('Copy failed. The link is: ' + url, 'error'); }
 }
 
 function modalFabMenu() {
