@@ -21,7 +21,7 @@ vm.runInContext(src,ctx,{filename:'app.js'});
 vm.runInContext('renderApp=function(){};showView=function(){};toast=function(m,t){globalThis.__toasts.push([m,t||"ok"]);};closeModal=function(){globalThis.__closed=true;};CURRENT_UID="me";',ctx);
 ctx.__toasts=[]; ctx.__rpc=async()=>({data:'tok-abc'});
 const X=ctx.__x;
-ck('APP_VERSION is v0.33.2', X.APP_VERSION==='v0.33.2 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.34.0', X.APP_VERSION==='v0.34.0 · live', X.APP_VERSION);
 
 // ── 1. invite modal is REAL, not a mock
 X.AppState.userProfile={id:'me',name:'Dan Shapiro',avatar:'DS',avatarColor:'#217A4B'};
@@ -40,8 +40,9 @@ X.AppState.userMembers=[
   {id:'m3',circleId:'c1',name:'Noa',avatar:'N',avatarColor:'#333',contactMethod:'app',contactValue:'',linkedUserId:null,isExternalSource:false}];
 const im2 = X.modalInvite({circleId:'c1', circleName:'ski'});
 ck('invite lists the circle\'s own members', im2.indexOf('Rina')>=0 && im2.indexOf('Yossi')>=0 && im2.indexOf('Noa')>=0);
-ck('members already on Trustnet are shown as such, with nothing to send',
-   im2.indexOf('ALREADY ON TRUSTNET')>=0 && im2.indexOf('Gets your questions in the app')>=0 && im2.indexOf('Nothing to send')>=0);
+ck('members already on Trustnet are shown in their own group, with no invite button',
+   im2.indexOf('ALREADY ON TRUSTNET')>=0 && im2.indexOf('Gets your questions in the app')>=0
+   && im2.indexOf('Nothing to send')<0);
 ck('only NOT-yet members get an invite button',
    im2.indexOf('data-action="invite-member" data-member-id="m1"')>=0 &&
    im2.indexOf('data-member-id="m2"')<0);

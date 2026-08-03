@@ -419,7 +419,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.33.2 · live';
+const APP_VERSION = 'v0.34.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -771,6 +771,12 @@ function circleCardHtml(c, isDemo) {
    ═══════════════════════════════════════════════ */
 
 function renderCircleDetail() {
+  // Linkage is resolved on view, so badges never show an add-time guess.
+  if (!AppState.isDemoMode && AppState.viewParams && AppState.viewParams.circleId
+      && AppState._linksFreshFor !== AppState.viewParams.circleId) {
+    AppState._linksFreshFor = AppState.viewParams.circleId;
+    refreshCircleLinks(AppState.viewParams.circleId);
+  }
   const cid = AppState.viewParams.circleId;
   const circle = AppState.circleById(cid);
   if (!circle) return '<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Circle not found</div></div>';
@@ -3570,6 +3576,17 @@ function modalInvite(params) {
   var members = AppState.userMembers.filter(function(m) {
     return m.circleId === circleId && !m.isExternalSource;
   });
+  // Resolve before trusting: the modal kicks off a refresh and re-renders when
+  // the answer arrives, so a stale linked flag can never drive what it shows.
+  if (!AppState.isDemoMode && circleId && AppState._inviteResolvedFor !== circleId) {
+    AppState._inviteResolvedFor = circleId;
+    refreshCircleLinks(circleId).then(function() {
+      const root = document.getElementById('modal-root');
+      if (root && root.innerHTML.indexOf('Invite to') >= 0) {
+        openModal('invite', { circleId: circleId, circleName: circleName });
+      }
+    });
+  }
   var onTrustnet = members.filter(function(m) { return m.linkedUserId; });
   var notYet = members.filter(function(m) { return !m.linkedUserId && m.contactValue; });
   var noContact = members.filter(function(m) { return !m.linkedUserId && !m.contactValue; });
@@ -3617,8 +3634,7 @@ function modalInvite(params) {
           return memberLine(m, '<span class="chip" style="font-size:10px;background:#E9F6EE;color:#1A5235;'
             + 'border:1px solid #C6EDD9;font-weight:700;">Gets your questions in the app</span>');
         }).join('')
-      + '<div style="font-size:11px;color:#7A9086;margin:6px 0 16px;line-height:1.5;">'
-      + 'Nothing to send \u2014 they already have Trustnet.</div>';
+      + '<div style="height:10px;"></div>';
   }
 
   if (notYet.length) {
@@ -3683,6 +3699,34 @@ function modalInvite(params) {
 // Real delivery: WhatsApp and email open the user's OWN app with the message and
 // the circle's invite link pre-filled; "Copy link" puts it on the clipboard.
 // (Replaces a mock whose only action was "this is simulated".)
+// ── The resolver: the ONE authority on "is this contact a Trustnet user, and
+// is it already a member of this circle?". Asked when the question is asked —
+// never read from a stored field that may have gone stale.
+async function resolveContacts(circleId, contacts) {
+  try {
+    const r = await sb.rpc('resolve_contacts', { p_circle_id: circleId || null, p_contacts: contacts });
+    if (r.error) { console.error('resolve_contacts failed:', r.error); return null; }
+    return r.data || [];
+  } catch (e) { console.error('resolve_contacts threw:', e); return null; }
+}
+
+// Refresh every member's linkage for a circle from current truth, then update
+// local state so badges reflect the database rather than add-time guesses.
+async function refreshCircleLinks(circleId) {
+  if (AppState.isDemoMode || !circleId) return;
+  try {
+    await sb.rpc('refresh_member_links', { p_circle_id: circleId });
+    const rows = await sb.from('members').select('id,linked_user_id').eq('circle_id', circleId);
+    if (rows.data) {
+      rows.data.forEach(function(r) {
+        const m = AppState.userMembers.find(function(x) { return x.id === r.id; });
+        if (m) m.linkedUserId = r.linked_user_id || null;
+      });
+      renderApp();
+    }
+  } catch (e) { console.error('refreshCircleLinks failed:', e); }
+}
+
 async function circleInviteLink(circleId) {
   try {
     const r = await sb.rpc('get_or_create_circle_link', { p_circle_id: circleId });
@@ -3695,8 +3739,9 @@ async function circleInviteLink(circleId) {
 function inviteMessageFor(circleName, url) {
   const who = AppState.userProfile ? AppState.userProfile.name.split(' ')[0] : 'A friend';
   return who + ' added you to their ' + circleName + ' circle on Trustnet \u2014 '
-    + 'where they keep recommendations from people they trust. '
-    + 'You can answer their questions straight from this link, no app needed: ' + url;
+    + 'where they keep recommendations from people they trust.\n\n'
+    + 'You can answer their questions straight from this link, no app needed:\n'
+    + url + '\n';
 }
 
 // Invite ONE member, using the contact details already on their record.
@@ -3772,14 +3817,26 @@ async function handleInviteNew(btn) {
   if (method === 'whatsapp' && !normalizeIlPhone(contact)) { fail('Enter a valid phone number, e.g. 050 123 4567.'); return; }
   if (method === 'email' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contact)) { fail('Enter a valid email address.'); return; }
 
-  // Are they already in this circle under that contact?
-  const tail = function(v) { return String(v || '').replace(/\D/g, '').slice(-9); };
-  const known = AppState.userMembers.find(function(m) {
-    if (m.circleId !== circleId || !m.contactValue) return false;
-    if (method === 'whatsapp') return tail(m.contactValue) === tail(contact);
-    return String(m.contactValue).toLowerCase() === contact.toLowerCase();
-  });
-  if (known && known.linkedUserId) { fail(known.name + ' is already in this circle and on Trustnet \u2014 nothing to send.'); return; }
+  // Ask the database about THIS contact, right now. (Deciding from the local
+  // member cache is exactly how "already a member and on Trustnet" was missed.)
+  btn.disabled = true; btn.textContent = 'Checking\u2026';
+  const resolved = await resolveContacts(circleId, [{ method: method, value: contact }]);
+  btn.disabled = false; btn.textContent = 'Send invite';
+  const info = resolved && resolved.length ? resolved[0] : null;
+  if (info) {
+    if (info.member_id && info.is_user) {
+      fail((info.member_name || 'They') + ' is already in this circle and already on Trustnet \u2014 nothing to send.');
+      return;
+    }
+    if (info.is_user && !info.member_id) {
+      fail('This person is already on Trustnet but not in this circle. Add them as a member instead \u2014 they will get your questions in the app.');
+      return;
+    }
+    if (info.member_id && !info.is_user) {
+      // A member who genuinely needs the invite: proceed, but say who it is.
+      toast('Sending ' + (info.member_name || 'them') + ' an invite.');
+    }
+  }
 
   btn.disabled = true; btn.textContent = 'Preparing\u2026';
   const url = await circleInviteLink(circleId);
@@ -5123,12 +5180,117 @@ function hideLoadingScreen() {
   if (ls) { ls.style.opacity = '0'; setTimeout(function() { ls.style.display = 'none'; }, 420); }
 }
 
+// ── WhatsApp sign-in ────────────────────────────────────────────────────────
+// Most Trustnet users arrive through WhatsApp, so this is the primary door;
+// email remains available behind the second tab.
+function waLoginPhoneOk(v) {
+  const d = String(v || '').replace(/\D/g, '');
+  return d.length >= 9 && d.length <= 15;
+}
+
+function wireWhatsAppLogin() {
+  const tabWa = document.getElementById('login-tab-wa');
+  const tabEm = document.getElementById('login-tab-email');
+  const paneWa = document.getElementById('login-wa-pane');
+  const paneEm = document.getElementById('login-email-pane');
+  const err = document.getElementById('login-err');
+  if (!tabWa || tabWa._wired) return;
+  tabWa._wired = true;
+
+  const activate = function(which) {
+    const on = 'background:#EBF7F1;border:1.5px solid #217A4B;color:#1A5235;font-weight:700;';
+    const off = 'background:#fff;border:1.5px solid #CDD9D1;color:#56695F;font-weight:600;';
+    tabWa.style.cssText = 'flex:1;' + (which === 'wa' ? on : off);
+    tabEm.style.cssText = 'flex:1;' + (which === 'wa' ? off : on);
+    paneWa.style.display = which === 'wa' ? '' : 'none';
+    paneEm.style.display = which === 'wa' ? 'none' : '';
+    if (err) err.style.display = 'none';
+  };
+  tabWa.addEventListener('click', function() { activate('wa'); });
+  tabEm.addEventListener('click', function() { activate('email'); });
+
+  const sendBtn = document.getElementById('login-wa-send');
+  sendBtn.addEventListener('click', async function() {
+    const phone = (document.getElementById('login-phone') || {}).value || '';
+    if (!waLoginPhoneOk(phone)) {
+      err.textContent = 'Enter your WhatsApp number, e.g. 050 123 4567.';
+      err.style.display = 'block'; return;
+    }
+    err.style.display = 'none';
+    sendBtn.disabled = true; sendBtn.textContent = 'Sending\u2026';
+    try {
+      const res = await fetch(SUPABASE_URL + '/functions/v1/wa-signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY },
+        body: JSON.stringify({ action: 'start', phone: phone }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+      if (d.retry_in) {
+        err.textContent = 'A code was just sent. Try again in ' + d.retry_in + 's.';
+        err.style.display = 'block';
+      } else {
+        AppState._waLoginPhone = phone;
+        document.getElementById('login-wa-addr').textContent = phone;
+        document.getElementById('login-form').style.display = 'none';
+        document.getElementById('login-wa-sent').style.display = 'block';
+        const ci = document.getElementById('login-wa-code'); if (ci) ci.focus();
+      }
+    } catch (e) {
+      err.textContent = 'Could not send the code: ' + (e.message || 'network error');
+      err.style.display = 'block';
+    }
+    sendBtn.disabled = false; sendBtn.textContent = 'Send code on WhatsApp';
+  });
+
+  const verifyBtn = document.getElementById('login-wa-verify');
+  verifyBtn.addEventListener('click', async function() {
+    const code = ((document.getElementById('login-wa-code') || {}).value || '').replace(/\D/g, '');
+    const cerr = document.getElementById('login-wa-err');
+    if (code.length !== 6) { cerr.textContent = 'Enter the 6-digit code.'; cerr.style.display = 'block'; return; }
+    cerr.style.display = 'none';
+    verifyBtn.disabled = true; verifyBtn.textContent = 'Signing in\u2026';
+    try {
+      const res = await fetch(SUPABASE_URL + '/functions/v1/wa-signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY },
+        body: JSON.stringify({ action: 'verify', phone: AppState._waLoginPhone, code: code }),
+      });
+      const d = await res.json();
+      if (!res.ok || !d.access_token) {
+        const map = {
+          wrong_code: 'That code is not right.',
+          code_expired: 'That code has expired \u2014 ask for a new one.',
+          no_pending_code: 'No code was requested for this number.',
+          too_many_attempts: 'Too many tries. Ask for a fresh code.',
+        };
+        throw new Error(map[d.error] || d.error || ('HTTP ' + res.status));
+      }
+      const set = await sb.auth.setSession({ access_token: d.access_token, refresh_token: d.refresh_token });
+      if (set.error) throw new Error(set.error.message);
+      location.reload();
+    } catch (e) {
+      cerr.textContent = e.message || 'Sign-in failed.';
+      cerr.style.display = 'block';
+      verifyBtn.disabled = false; verifyBtn.textContent = 'Sign in';
+    }
+  });
+
+  const back = document.getElementById('login-wa-back');
+  if (back) back.addEventListener('click', function(e) {
+    e.preventDefault();
+    document.getElementById('login-wa-sent').style.display = 'none';
+    document.getElementById('login-form').style.display = 'block';
+  });
+}
+
 function showLoginScreen() {
   hideLoadingScreen();
   document.getElementById('app').style.display = 'none';
   document.getElementById('onboarding').style.display = 'none';
   const lg = document.getElementById('login');
   lg.style.display = 'flex';
+  wireWhatsAppLogin();
   const btn = document.getElementById('login-send');
   if (btn && !btn._wired) {
     btn._wired = true;

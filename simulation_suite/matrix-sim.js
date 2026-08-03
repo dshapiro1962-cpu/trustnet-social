@@ -26,7 +26,7 @@ vm.runInContext('renderApp=function(){};showView=function(){};openModal=function
 ctx.__toasts=[];ctx.__u=0;ctx.__rpcImpl=async()=>({data:false});
 const X=ctx.__x;
 const lastToast=()=>ctx.__toasts.length?String(ctx.__toasts[ctx.__toasts.length-1][0]):'';
-ck('APP_VERSION is v0.33.2', X.APP_VERSION==='v0.33.2 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.34.0', X.APP_VERSION==='v0.34.0 · live', X.APP_VERSION);
 
 function reset() {
   ctx.__toasts=[]; ctx.__opened=[]; ctx.__rpcCalls=[];
@@ -144,9 +144,16 @@ ck('19. new email invite opens mailto with the link',
    ctx.__opened.length===1 && ctx.__opened[0].indexOf('mailto:new%40friend.com')>=0);
 
 byId['inv-method']=el({value:'whatsapp'}); byId['inv-contact']=el({value:'+972501111111'}); ctx.__opened=[]; byId['inv-err']=el();
+// The refusal now comes from the RESOLVER (asked live), not a local cache.
+const prevImpl = ctx.__rpcImpl;
+ctx.__rpcImpl = async (n) => n === 'resolve_contacts'
+  ? { data: [{ input_value: '+972501111111', method: 'whatsapp', is_user: true, user_id: 'u1', member_id: 'm1', member_name: 'Rina' }] }
+  : { data: 'tok' };
 await X.handleInviteNew(el({dataset:{circleId:'c1',circleName:'Ski'},disabled:false,textContent:''}));
-ck('20. inviting a number that is ALREADY a linked member -> refused',
-   ctx.__opened.length===0 && byId['inv-err'].textContent.indexOf('already in this circle')>=0);
+ck('20. inviting a number that is ALREADY a linked member -> refused (via live resolve)',
+   ctx.__opened.length===0 && byId['inv-err'].textContent.indexOf('already in this circle')>=0
+   && byId['inv-err'].textContent.indexOf('Rina')>=0);
+ctx.__rpcImpl = prevImpl;
 
 byId['inv-contact']=el({value:'not-a-number'}); ctx.__opened=[]; byId['inv-err']=el();
 await X.handleInviteNew(el({dataset:{circleId:'c1',circleName:'Ski'},disabled:false,textContent:''}));
