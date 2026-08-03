@@ -16,7 +16,20 @@
 //
 // Secrets: WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, SUPABASE_SERVICE_ROLE_KEY
 // ============================================================================
-import { adminClient, json, err, handleOptions } from "../_shared/utils.ts";
+import { json, err, handleOptions } from "../_shared/utils.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+// A dedicated admin client with session persistence OFF. The shared
+// adminClient() is fine elsewhere, but this function MINTS sessions — a client
+// that remembers auth state between invocations in a warm instance could leak
+// one caller's session into another's request.
+function signinAdmin() {
+  return createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
+}
 
 const ENGINE = "wa-signin-v1";
 const CODE_TTL_MIN = 10;
@@ -85,7 +98,7 @@ Deno.serve(async (req: Request) => {
   const key = phoneKey(rawPhone);
   if (!key || key.length < 9) return err("invalid_phone");
 
-  const admin = adminClient();
+  const admin = signinAdmin();
 
   // ── START: send a code ─────────────────────────────────────────────────────
   if (action === "start") {
