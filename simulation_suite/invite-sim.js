@@ -21,7 +21,7 @@ vm.runInContext(src,ctx,{filename:'app.js'});
 vm.runInContext('renderApp=function(){};showView=function(){};toast=function(m,t){globalThis.__toasts.push([m,t||"ok"]);};closeModal=function(){globalThis.__closed=true;};CURRENT_UID="me";',ctx);
 ctx.__toasts=[]; ctx.__rpc=async()=>({data:'tok-abc'});
 const X=ctx.__x;
-ck('APP_VERSION is v0.34.0', X.APP_VERSION==='v0.34.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.34.1', X.APP_VERSION==='v0.34.1 · live', X.APP_VERSION);
 
 // ── 1. invite modal is REAL, not a mock
 X.AppState.userProfile={id:'me',name:'Dan Shapiro',avatar:'DS',avatarColor:'#217A4B'};
@@ -52,7 +52,7 @@ ck('members with no contact details are offered a fix, not an invite',
 ck('a shareable circle link is always offered', im2.indexOf('invite-copy-link')>=0);
 ck('contact form is present for inviting someone NEW (not a blank-form-only modal)',
    im2.indexOf('id="inv-contact"')>=0 && im2.indexOf('INVITE SOMEONE NEW')>=0);
-ck('invite explains no install is needed', im2.indexOf('without installing anything')>=0);
+ck('invite explains no install is needed', im2.indexOf('no install needed')>=0);
 
 // inviting a member uses THEIR stored contact — no typing
 ctx.__opened=[]; byId['inv-err']=el();

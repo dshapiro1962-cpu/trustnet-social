@@ -419,7 +419,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.34.0 · live';
+const APP_VERSION = 'v0.34.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3267,6 +3267,32 @@ function renderSettings() {
    MODALS
    ═══════════════════════════════════════════════ */
 
+// Tell the user there is more below — but only when there actually is, and
+// only until they have seen it. A silently-clipped modal is how the invite
+// form became invisible on a phone.
+function attachScrollAffordance() {
+  const body = document.querySelector('.modal-overlay .modal-body');
+  const modal = document.querySelector('.modal-overlay .modal');
+  if (!body || !modal) return;
+  const old = modal.querySelector('.scroll-more');
+  if (old) old.remove();
+  // Wait for layout before measuring.
+  setTimeout(function() {
+    const more = body.scrollHeight - body.clientHeight;
+    if (more < 24) return;                     // nothing meaningful below
+    const pill = document.createElement('div');
+    pill.className = 'scroll-more';
+    pill.textContent = 'more below \u2193';
+    modal.appendChild(pill);
+    const update = function() {
+      const atEnd = body.scrollTop + body.clientHeight >= body.scrollHeight - 12;
+      pill.classList.toggle('gone', atEnd || body.scrollTop > 24);
+    };
+    body.addEventListener('scroll', update, { passive: true });
+    update();
+  }, 60);
+}
+
 function openModal(name, params) {
   let html = '';
   if (name === 'add-circle') html = modalAddCircle();
@@ -3297,6 +3323,7 @@ function openModal(name, params) {
   overlay.addEventListener('click', function(e) {
     if (!modal.contains(e.target)) closeModal();
   });
+  attachScrollAffordance();
 }
 
 function closeModal() {
@@ -3592,7 +3619,7 @@ function modalInvite(params) {
   var noContact = members.filter(function(m) { return !m.linkedUserId && !m.contactValue; });
 
   function memberLine(m, right) {
-    return '<div style="display:flex;align-items:center;gap:9px;padding:8px 4px;border-bottom:1px solid #F0F5F1;flex-wrap:wrap;">'
+    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid #F0F5F1;flex-wrap:wrap;">'
       + avatarEl(m, 'sm')
       + '<span style="flex:1 1 45%;min-width:110px;font-size:13px;font-weight:600;" dir="auto">' + esc(m.name) + '</span>'
       + right + '</div>';
@@ -3622,8 +3649,8 @@ function modalInvite(params) {
     + '<button class="btn btn-primary btn-sm" data-action="invite-new" data-circle-id="' + esc(circleId) + '" '
     + 'data-circle-name="' + esc(circleName) + '" style="white-space:nowrap;">Send invite</button>'
     + '</div>'
-    + '<div style="font-size:11px;color:#7A9086;margin-top:6px;line-height:1.5;">'
-    + 'Opens your own WhatsApp or mail app with the invite ready to send.</div>'
+    + '<div style="font-size:11px;color:#7A9086;margin-top:5px;line-height:1.45;">'
+    + 'Opens your WhatsApp or mail app, ready to send.</div>'
     + '</div>';
 
 
@@ -3646,8 +3673,8 @@ function modalInvite(params) {
             + 'data-circle-id="' + esc(circleId) + '" data-circle-name="' + esc(circleName) + '" style="white-space:nowrap;">'
             + (isWa ? 'WhatsApp' : 'Email') + ' invite</button>');
         }).join('')
-      + '<div style="font-size:11px;color:#7A9086;margin:6px 0 16px;line-height:1.5;">'
-      + 'They can answer your questions from the link without installing anything.</div>';
+      + '<div style="font-size:11px;color:#7A9086;margin:4px 0 12px;line-height:1.45;">'
+      + 'They answer from the link \u2014 no install needed.</div>';
   }
 
   if (noContact.length) {
@@ -3670,16 +3697,16 @@ function modalInvite(params) {
     body += '<div style="border-top:1px solid #EEF4F0;padding-top:12px;margin-bottom:14px;">'
       + '<button class="btn btn-secondary btn-sm" data-action="recheck-trustnet" data-circle-id="' + esc(circleId) + '">'
       + 'Check who\'s already on Trustnet</button>'
-      + '<div style="font-size:11px;color:#7A9086;margin-top:6px;line-height:1.5;">'
-      + 'People you added a while ago may have joined since.</div>'
+      + '<div style="font-size:11px;color:#7A9086;margin-top:5px;line-height:1.45;">'
+      + 'People added a while ago may have joined since.</div>'
       + '</div>';
   }
 
   // Always available: one link anyone can use to join the circle.
   body += '<div style="border-top:1px solid #EEF4F0;padding-top:14px;">'
     + '<div style="font-size:11px;font-weight:700;color:#56695F;letter-spacing:0.4px;margin-bottom:6px;">OR SHARE ONE LINK</div>'
-    + '<div style="font-size:12px;color:#56695F;line-height:1.6;margin-bottom:10px;">'
-    + 'Post it in a group chat \u2014 whoever taps it joins ' + esc(circleName) + '.</div>'
+    + '<div style="font-size:11.5px;color:#56695F;line-height:1.5;margin-bottom:8px;">'
+    + 'Post it in a group chat \u2014 whoever taps it joins.</div>'
     + '<button class="btn btn-secondary btn-sm" data-action="invite-copy-link" data-circle-id="' + esc(circleId) + '" '
     + 'data-circle-name="' + esc(circleName) + '">Copy invite link</button>'
     + '</div>'

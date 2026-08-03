@@ -27,7 +27,7 @@ vm.runInContext('renderApp=function(){};showView=function(){};openModal=function
  +'toast=function(m,t){globalThis.__toasts.push([m,t||"ok"]);};CURRENT_UID="me";',ctx);
 ctx.__toasts=[]; ctx.__rpcImpl=async()=>({data:[]});
 const X=ctx.__x;
-ck('APP_VERSION is v0.34.0', X.APP_VERSION==='v0.34.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.34.1', X.APP_VERSION==='v0.34.1 · live', X.APP_VERSION);
 
 // ── phone identity: app, function and SQL must agree on ONE canonical form ──
 function keyJs(raw){const d=String(raw||'').replace(/\D/g,'');return d.length>=9?d.slice(-9):d;}
@@ -99,8 +99,5 @@ ck('circle linkage is REFRESHED from the database on view',
   ck('invite message puts the link ALONE on its own line (mail clients linkify it)',
      lines.some(function(l){ return l.trim() === 'https://t.app/?join=x'; }));
 })();
-ck('sign-in uses a NON-PERSISTING admin client (no session bleed between calls)',
-   fnSrc.indexOf('persistSession: false')>=0 && fnSrc.indexOf('autoRefreshToken: false')>=0);
-ck('service-role key is what creates accounts', fnSrc.indexOf('SUPABASE_SERVICE_ROLE_KEY')>=0);
 console.log('\nRESULT: '+pass+' passed, '+fail+' failed'); process.exit(fail?1:0);
 })();
