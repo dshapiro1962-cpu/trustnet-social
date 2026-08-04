@@ -20,7 +20,7 @@ let pass=0,fail=0; const ck=(n,c,x)=>{ if(c){pass++;console.log('  ✓',n);}else
 vm.runInContext(src,ctx,{filename:'app.js'});
 vm.runInContext('renderApp=function(){};showView=function(){};toast=function(){};CURRENT_UID="me";',ctx);
 const X=ctx.__x;
-ck('APP_VERSION is v0.36.0', X.APP_VERSION==='v0.36.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.37.0', X.APP_VERSION==='v0.37.0 · live', X.APP_VERSION);
 
 X.AppState.isDemoMode=false;
 X.AppState.userCircles=[{id:'c1',name:'Ski',color:'#111',memberIds:[]}];
@@ -52,15 +52,26 @@ X.AppState._semantic={q:'ski', ids:['r2','r1'], why:{}, reranked:true};
 f=X.libFilterRecs();
 ck('reranked ORDER drives result order', f.filtered.map(r=>r.id).join(',')==='r2,r1', f.filtered.map(r=>r.id).join(','));
 
-// items outside the ranking fall to the end, never vanish
+// v0.37.0 PRODUCT LAW: the reranker's verdict is FINAL. Items it rejected do
+// NOT linger after the ranked ones — that union is how a dermatologist stayed
+// on the "ski" screen. (This check previously asserted the opposite.)
 X.AppState._semantic={q:'ski', ids:['r1'], why:{}, reranked:true};
 f=X.libFilterRecs();
-ck('ranked item first, unranked keyword match kept after', f.filtered[0].id==='r1' && f.filtered.length===2);
+ck('verdict is final: unranked items are excluded, not appended',
+   f.filtered.length===1 && f.filtered[0].id==='r1', f.filtered.map(r=>r.id).join(','));
 
-// category filter still composes with search
+// v0.37.0: while the semantic result is in flight, only NAME/LOCATION prefix
+// matches show (tags are not searchable text). 'shakshouka' is a tag, so the
+// in-flight set is EMPTY and the reranker will surface it a beat later.
 X.AppState.activeCatFilter='dining'; X.AppState.searchQuery='shakshouka'; X.AppState._semantic=null;
 f=X.libFilterRecs();
-ck('category filter composes with search', f.filtered.length===1 && f.filtered[0].id==='r3');
+ck('tags are not locally searchable (in-flight set empty for a tag term)',
+   f.filtered.length===0, f.filtered.length+' shown');
+// the category chip itself still composes with a NAME search
+X.AppState.searchQuery='opa';
+f=X.libFilterRecs();
+ck('category filter composes with a name search',
+   f.filtered.length===1 && f.filtered[0].id==='r3');
 
 // stale semantic state (query moved on) must be ignored
 X.AppState.activeCatFilter='all'; X.AppState.searchQuery='chamonix';

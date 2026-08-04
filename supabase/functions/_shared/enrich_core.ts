@@ -33,24 +33,31 @@ export function looksLikeSentence(s: string): boolean {
 }
 
 // The search document: everything a future question might reasonably use.
+// ═══ PRODUCT LAW (dan, 4 Aug 2026) ═══════════════════════════════════════════
+// Circles and categories are PROVENANCE, not EVIDENCE. The card may show
+// "from ski circle" — the client reads rec.circleId for that — but retrieval
+// must be blind to it: a Milano hotel discussed in the ski circle is a Milano
+// hotel. Only the item itself, the question asked, and the answers given are
+// searchable. This deliberately reverses 0014's "circle: <name>" design, which
+// put a dermatologist on the "ski" results screen for being filed in ski.
+// Guarded: a doc containing "circle:" is a test failure (librarian-sim,
+// enrichment-sim).
 export function buildSearchDoc(e: {
-  name: string; location: string; category: string; kind: string;
-  tags: string[]; note: string; query_text: string; circle_name: string;
+  name: string; location: string; kind: string;
+  tags: string[]; note: string; query_text: string;
 }): string {
   return [
     e.name,
     e.kind,
     e.location,
-    e.category,
     (e.tags || []).join(" "),
     e.note,
     e.query_text ? "asked: " + e.query_text : "",
-    e.circle_name ? "circle: " + e.circle_name : "",
   ].filter(Boolean).join(" · ").slice(0, 2000);
 }
 
 export async function aiEnrich(key: string, input: {
-  name: string; note: string; location: string; query_text: string; circle_name: string;
+  name: string; note: string; location: string; query_text: string;
 }): Promise<{ name: string; kind: string; category: string; tags: string[]; location: string } | null> {
   try {
     const r = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -72,10 +79,12 @@ export async function aiEnrich(key: string, input: {
             "location = city/region/country if determinable, else \"\". " +
             "tags = 4-10 SHORT search words a person might later use to find this: the type, " +
             "the audience, the occasion, distinguishing features, the domain. " +
-            "CRITICAL: include the words implied by the CONTEXT even when absent from the text — " +
-            "an item asked about in a ski circle must carry \"ski\"; one praised for children must " +
-            "carry \"family\" and \"kids\". Include both Hebrew and English forms of key words when " +
-            "the content is Hebrew. Tags are what makes it findable later." },
+            "Derive tags ONLY from the item itself, its note, the question asked and the answers "+
+            "given. NEVER from which circle or folder it was saved in \u2014 a restaurant discussed "+
+            "in a ski circle is just a restaurant (circles are the user's filing, not content). "+
+            "Words implied by the CONTENT do belong: an item praised for children must carry "+
+            "\"family\" and \"kids\". Include both Hebrew and English forms of key words when the "+
+            "content is Hebrew. Tags are what makes it findable later." },
           { role: "user", content: JSON.stringify(input) },
         ],
       }),
@@ -132,7 +141,7 @@ export async function embed(key: string, text: string): Promise<number[] | null>
 }
 
 export async function enrichOne(key: string, input: {
-  name: string; note: string; location: string; query_text: string; circle_name: string;
+  name: string; note: string; location: string; query_text: string;
 }): Promise<Enriched> {
   const ai = key ? await aiEnrich(key, input) : null;
   let name = ai?.name || input.name;
@@ -155,8 +164,8 @@ export async function enrichOne(key: string, input: {
   }
 
   const search_doc = buildSearchDoc({
-    name, location, category, kind, tags,
-    note: input.note || "", query_text: input.query_text || "", circle_name: input.circle_name || "",
+    name, location, kind, tags,
+    note: input.note || "", query_text: input.query_text || "",
   });
   return { name, location, category, tags, search_doc, resolved, kind };
 }

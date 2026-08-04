@@ -10,7 +10,7 @@
 // away. The Librarian keeps it, in a SEARCH DOCUMENT.
 //
 // modes:
-//  enrich  { name, note?, location?, query_text?, circle_name?, source? }
+//  enrich  { name, note?, location?, query_text? }  (circle_name ignored: provenance, not evidence)
 //          -> { entity:{name,location,category,tags,search_doc,resolved}, duplicate_of? }
 //  commit  { canonical_id, ...same inputs }   -> enriches AND writes to the row
 //  backfill{ limit? }                         -> repairs the caller's own library
@@ -61,18 +61,13 @@ Deno.serve(async (req: Request) => {
       return json({ engine: ENGINE, mode, force, repaired: 0, remaining: 0, total, done });
     }
 
-    // context lookups
+    // context lookup: the QUESTION is evidence and enters the doc.
+    // The circle is deliberately NOT fetched — provenance, not evidence.
     const qIds = [...new Set(todo.map((r: any) => r.query_id).filter(Boolean))];
-    const cIds = [...new Set(todo.map((r: any) => r.circle_id).filter(Boolean))];
     const qText: Record<string, string> = {};
-    const cName: Record<string, string> = {};
     if (qIds.length) {
       const { data } = await admin.from("queries").select("id,text").in("id", qIds);
       for (const q of data || []) qText[q.id] = q.text;
-    }
-    if (cIds.length) {
-      const { data } = await admin.from("circles").select("id,name").in("id", cIds);
-      for (const c of data || []) cName[c.id] = c.name;
     }
 
     let repaired = 0;
@@ -82,7 +77,6 @@ Deno.serve(async (req: Request) => {
       const e = await enrichOne(key, {
         name: cn.name || "", note: (r as any).note || "", location: cn.location || "",
         query_text: (r as any).query_id ? (qText[(r as any).query_id] || "") : "",
-        circle_name: (r as any).circle_id ? (cName[(r as any).circle_id] || "") : "",
       });
       const vec = await embed(key, e.search_doc);
       const patch: Record<string, unknown> = {
@@ -110,7 +104,8 @@ Deno.serve(async (req: Request) => {
     note: String(body.note || "").slice(0, 800),
     location: String(body.location || "").slice(0, 120),
     query_text: String(body.query_text || "").slice(0, 300),
-    circle_name: String(body.circle_name || "").slice(0, 60),
+    // circle_name intentionally ABSENT — circles are provenance, not evidence.
+    // Clients may still send it; it is ignored. See enrich_core PRODUCT LAW.
   };
   if (!input.name && !input.query_text) return err("name_or_query_required");
 

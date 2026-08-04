@@ -965,7 +965,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.36.0 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.37.0 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1443,7 +1443,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.36.0 · live';
+const APP_VERSION = 'v0.37.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -2247,10 +2247,8 @@ async function handleTriageAssign(btn) {
     toast('Could not file it: ' + res.error.message, 'warn');
     return;
   }
-  // "circle: <name>" is IN the search document. Filing to ski without this
-  // re-commit leaves "ski" absent from the record — the exact Avoriaz bug.
-  librarianCommit(rec.canonicalId, { force: true, note: rec.note || '',
-    circleName: circle.name });
+  // No re-commit here as of v0.37.0: filing to a circle changes PROVENANCE
+  // only. The doc never mentions circles, so refiling can't stale it.
   renderApp();
   toast('Filed to ' + circle.name + '.');
 }
@@ -2647,9 +2645,8 @@ async function handleSaveFromSheet(idx) {
     });
     await saveRecs();
     // Merged comments carry new context — refresh the catalogue entry.
-    const circ2 = q ? AppState.circleById(q.circleId) : null;
     librarianCommit(canId, { force: true, note: already.note || fullNote,
-      queryText: q ? q.text : '', circleName: circ2 ? circ2.name : '' });
+      queryText: q ? q.text : '' });
   } else {
     const viaMember = it.member_id && AppState.userMembers.some(function(m) { return m.id === it.member_id; })
       ? it.member_id : (AppState.userProfile ? AppState.userProfile.id : null);
@@ -2661,9 +2658,8 @@ async function handleSaveFromSheet(idx) {
     await saveCanonicals();
     await saveRecs();
     // Persist the catalogue entry so the item is findable by search.
-    const circ = q ? AppState.circleById(q.circleId) : null;
     librarianCommit(canId, { force: true, note: fullNote,
-      queryText: q ? q.text : '', circleName: circ ? circ.name : '' });
+      queryText: q ? q.text : '' });
   }
   it.from_you = true;
   renderApp();
@@ -2862,14 +2858,30 @@ function libFilterRecs() {
     if (filter !== 'all' && rec.circleId !== filter) return false;
     if (catFilter !== 'all' && (can.primaryCategory || 'other') !== catFilter) return false;
     if (search) {
-      const hay = [can.name, can.category, can.location, rec.note,
-                   rec.tags ? rec.tags.join(' ') : '',
-                   can.aiTags ? can.aiTags.join(' ') : '',
-                   can.primaryCategory || ''].join(' ').toLowerCase();
-      const kwHit = hay.includes(search);
-      const semHit = sem && sem.indexOf(rec.id) >= 0;
-      if (!kwHit && !semHit) return false;
-      if (!kwHit && semHit) semOnly[rec.id] = true;
+      // ═══ ONE AUTHORITY (v0.37.0) ═══════════════════════════════════════════
+      // The old arm substring-matched over notes, tags and categories and
+      // UNIONED the hits with the server's list — so items the reranker had
+      // explicitly rejected re-entered through the side door ("whiskey"
+      // contains "ski"; a dermatologist tagged from her circle surfaced for
+      // "ski"). Dan's law: only the item, the question and the answers are
+      // searchable; and when the librarian has ruled on a query, its verdict
+      // is FINAL. The local arm's only job now is instant feedback while the
+      // semantic result is in flight: word-PREFIX matches on NAME and
+      // LOCATION only ("skis" matches "ski"; "whiskey" does not). Once the
+      // reranked ids arrive for this exact query, they are the result set.
+      const words = [can.name, can.location].join(' ').toLowerCase()
+        .split(/[\s·,\-()\/]+/).filter(Boolean);
+      const terms = search.split(/\s+/).filter(Boolean);
+      const kwHit = terms.every(function(t) {
+        return words.some(function(w) { return w.indexOf(t) === 0; });
+      });
+      const semReady = sem !== null;
+      if (semReady) {
+        if (sem.indexOf(rec.id) < 0) return false;
+        if (!kwHit) semOnly[rec.id] = true;   // badge: found by meaning, not name
+      } else if (!kwHit) {
+        return false;
+      }
     }
     return true;
   });
@@ -3165,11 +3177,10 @@ async function handleSaveEditRec(btn) {
   btn.disabled = true;
   await saveCanonicals();
   await saveRecs();
-  // The note, name and circle are INSIDE the search document — an edit makes
-  // it stale, and backfill skips stale docs. Re-commit or search drifts.
-  const edCircle = rec.circleId ? AppState.circleById(rec.circleId) : null;
-  librarianCommit(rec.canonicalId, { force: true, note: rec.note,
-    circleName: edCircle ? edCircle.name : '' });
+  // The note and name are INSIDE the search document — an edit makes it
+  // stale, and backfill skips stale docs. Re-commit or search drifts.
+  // (The circle is NOT re-committed: provenance, not evidence.)
+  librarianCommit(rec.canonicalId, { force: true, note: rec.note });
   closeModal();
   renderApp();
   toast('\u201c' + name + '\u201d updated.');
@@ -4000,12 +4011,14 @@ function librarianCommit(canonicalId, opts) {
   // would leave them broken forever; gating on the document self-heals them.
   if (can.hasSearchDoc && !opts.force) return Promise.resolve(null);
   can._classifying = true;
+  // PRODUCT LAW (dan, 4 Aug): circles are provenance, not evidence. The card
+  // shows the circle from rec.circleId; retrieval never learns it. No
+  // circle_name is sent — the librarian ignores it anyway as of v0.37.0.
   return fnPost('librarian', {
     mode: 'commit', canonical_id: canonicalId,
     name: can.name || '', note: opts.note || '',
     location: can.location || '',
     query_text: opts.queryText || '',
-    circle_name: opts.circleName || '',
   }).then(function(r) {
     can._classifying = false;
     if (r && r.error) {
@@ -4034,11 +4047,9 @@ function librarianCommit(canonicalId, opts) {
 // retry) — five call sites depend on them — but routed through the Librarian.
 function requestClassify(canonicalId, note, context) {
   const rec = existingRecFor(canonicalId);
-  const circle = rec && rec.circleId ? AppState.circleById(rec.circleId) : null;
   return librarianCommit(canonicalId, {
     note: note || (rec && rec.note) || '',
     queryText: context || '',
-    circleName: circle ? circle.name : '',
   });
 }
 
@@ -5574,10 +5585,8 @@ async function handleConfirmSaveToLibrary(respId) {
     // A merged comment brings NEW context (another question, more words).
     // Re-commit so the catalogue entry grows with it — otherwise the item stays
     // findable only by its original wording. (Found by the eval, 31 Jul.)
-    const qc = AppState.circleById(AppState.queryState.circleId);
     librarianCommit(dupRec2.canonicalId, { force: true, note: dupRec2.note || note,
-      queryText: AppState.queryState.text || '',
-      circleName: qc ? qc.name : '' });
+      queryText: AppState.queryState.text || '' });
     resp.savedToLibrary = true;
     await saveQueries();
     closeModal();
@@ -5603,10 +5612,8 @@ async function handleConfirmSaveToLibrary(respId) {
   // PERSIST the catalogue entry: enrich only RETURNS the entity — commit writes
   // the search document + embedding, without which the item is invisible to
   // search even though it looks perfect on screen. (Bug found 28 Jul.)
-  const qCircle2 = AppState.circleById(AppState.queryState.circleId);
   librarianCommit(canId, { force: true, note: note,
-    queryText: AppState.queryState.text || '',
-    circleName: qCircle2 ? qCircle2.name : '' });
+    queryText: AppState.queryState.text || '' });
 
   // Mark response as saved so button changes to ✓ — and PERSIST it,
   // or the 60s heartbeat re-fetch resurrects the button (bug fixed v0.16.1)

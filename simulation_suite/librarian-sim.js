@@ -30,8 +30,20 @@ let pass=0,fail=0; const ck=(n,c,x)=>{ if(c){pass++;console.log('  ✓',n);}else
 // ── drift guard: the mirrored logic must still match the deployed source
 ck('DRIFT GUARD: buildSearchDoc still joins with " · " and caps at 2000',
    src.indexOf('join(" · ").slice(0, 2000)')>=0);
-ck('DRIFT GUARD: doc still includes "asked:" and "circle:" context',
-   src.indexOf('"asked: " + e.query_text')>=0 && src.indexOf('"circle: " + e.circle_name')>=0);
+ck('DRIFT GUARD: doc includes "asked:" (the question IS evidence)',
+   src.indexOf('"asked: " + e.query_text') >= 0);
+// structural, not literal: NO form of the word circle may exist anywhere in
+// the doc builder or its inputs. (A literal check passed while "circle: ski"
+// sat in the doc — a guard that can't fail isn't a guard.)
+const docFnStart = coreSrc.indexOf('export function buildSearchDoc');
+const docFnEnd = coreSrc.indexOf('.slice(0, 2000);', docFnStart);
+const docFn = (docFnStart >= 0 && docFnEnd > docFnStart) ? coreSrc.slice(docFnStart, docFnEnd) : '';
+ck('PRODUCT LAW: buildSearchDoc body is 100% circle-free', 
+   docFn.length > 0 && !/circle/i.test(docFn), docFn.match(/.*circle.*/i));
+ck('PRODUCT LAW: no enrichment input carries a circle field',
+   !/circle_name/.test(coreSrc));
+ck('PRODUCT LAW: enrichment prompt forbids circle-derived tags',
+   /NEVER from which circle/.test(coreSrc));
 ck('DRIFT GUARD: sentence rule still 7 words / punctuation / verdict-opener',
    src.indexOf('words >= 7')>=0 && src.indexOf('/[.!?]$/')>=0 && src.indexOf('בהחלט')>=0);
 

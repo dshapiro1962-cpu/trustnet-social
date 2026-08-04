@@ -193,7 +193,7 @@ Deno.serve(async (req) => {
   // text. Search retrieves against search_doc; the vector must be OF it.
   const searchDoc = buildSearchDoc({
     name, location, category, kind: "", tags: tags as string[],
-    note, query_text: "", circle_name: "",
+    note, query_text: "",
   });
   const embedding = await embedDoc(key, searchDoc);
 

@@ -260,3 +260,59 @@ scratch. Not urgent; belongs on the list before beta.
 
 ## NEXT (after v0.36.0 deploys): triage tray + chat-import UX, then beta
 readiness → first 3–5 connectors.
+
+# ═══ 4 AUG 2026 (evening) — v0.37.0 · PRODUCT LAW: PROVENANCE ≠ EVIDENCE ═══
+
+## THE LAW (dan, verbatim intent — supersedes 0014's design)
+Circles and categories are the USER'S FILING, not content. The card may show
+"from ski circle" (client reads rec.circleId — display never came from the
+search doc). But retrieval — the search document, tags, embedding, reranker
+evidence — must be BLIND to them: a Milano hotel discussed in the ski circle
+is a Milano hotel. Only the item itself, the question asked, and the answers
+given are searchable. The question stays in the doc ("is Avoriaz a good ski
+resort" keeps Avoriaz findable by "ski" — that is content, not filing).
+
+## WHY (the post-mortem that forced it)
+The 0014 design wrote "circle: <name>" into every doc and told the enricher to
+inject circle words into tags. Filed-in-ski items (a dermatologist, two BBQ
+grills, Basta) therefore LITERALLY contained "ski": exact_bonus=1.0 in the
+hybrid RPC, tag "ski" in the client. The GPT reranker correctly rejected them
+— but the library screen UNIONED a local substring scan (name+note+TAGS+
+categories) with the reranked ids, re-injecting everything the reranker had
+thrown out ("whiskey" contains "ski"; "skin" contains "ski"). Weeks of junk
+results, misdiagnosed twice (as DB corruption, as seed data) before the two
+mechanisms were separated. v0.36.0's triage re-commit hook was built to serve
+the OLD law and is now DELETED — refiling is pure metadata.
+
+## WHAT CHANGED
+- enrich_core: buildSearchDoc drops circle AND category; enrichment prompt
+  forbids circle-derived tags ("NEVER from which circle"); circle_name removed
+  from every signature. Librarian ignores client-sent circle_name.
+- librarian backfill: no longer fetches circle names (question text still is).
+- extract-chat-recs / whatsapp-webhook: circle-blind.
+- Client librarianCommit/requestClassify: no circleName. Edit-rec still
+  re-commits (the NOTE is evidence). Triage-assign commits NOTHING.
+- Library screen — ONE AUTHORITY: local arm is word-PREFIX on NAME/LOCATION
+  only, and ONLY while the semantic result is in flight. Once reranked ids
+  arrive for the exact query, they ARE the result set; empty verdict shows
+  empty ("an empty answer beats a wrong one"). No union, ever.
+- Guards: searchdisplay-sim (15 checks incl. Basta/whiskey/skin/Hebrew
+  fixtures); buildSearchDoc body must be 100% circle-free (STRUCTURAL check —
+  the first literal-string version passed while "circle: ski" sat in the doc;
+  extraction is index-based because a lazy regex captured only the signature);
+  search-sim's two union-era checks deliberately flipped. 466 checks / 27
+  suites green; both negative tests proven to bite.
+
+## DEPLOY REQUIRES A ONE-TIME RE-ENRICHMENT
+Every pre-v0.37.0 doc and tag set is circle-contaminated. After deploying,
+run from the app console: fnPost('librarian',{mode:'backfill',limit:100,
+force:true}).then(console.log)  (~70 GPT-4o+embed calls, a few minutes, dan's
+account only). Then verify: select count(*) from canonicals where search_doc
+ilike '%circle:%';  → must be 0.
+
+## STILL OPEN (next sessions)
+- Chat-import name-dedup hole: "שושן-שמוליק" vs "שושן שמוליק" — a hyphen
+  defeats it (produced the Aug-2 duplicate pairs dan deleted by hand).
+- Shared-canonical display dedupe (Silverton showed twice) — product call.
+- Migrations 0002–0009 still absent from the repo.
+- Test-account debris: 5 doc-less canonicals under test users — harmless.

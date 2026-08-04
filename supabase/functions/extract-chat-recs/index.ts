@@ -103,11 +103,9 @@ Deno.serve(async (req: Request) => {
     const source: string = (typeof body.source === "string" && body.source.trim()) ? body.source.trim().slice(0, 60) : "WhatsApp chat";
     const collectionTitle: string = typeof body.collection_title === "string" ? body.collection_title.trim().slice(0, 80) : "";
 
-    let circleName = "";
     if (circleId) {
-      const { data: circ } = await admin.from("circles").select("id, owner_id, name").eq("id", circleId).single();
+      const { data: circ } = await admin.from("circles").select("id, owner_id").eq("id", circleId).single();
       if (!circ || circ.owner_id !== userId) return err("circle_not_found_or_not_yours", 403);
-      circleName = circ.name || "";
     }
 
     const { data: mine } = await admin
@@ -130,7 +128,7 @@ Deno.serve(async (req: Request) => {
       const searchDoc = buildSearchDoc({
         name: it.name, location: it.location || "",
         category: CATEGORIES.includes(it.category) ? it.category : "other",
-        kind: "", tags: [], note: noteForDoc, query_text: "", circle_name: circleName,
+        kind: "", tags: [], note: noteForDoc, query_text: "",
       });
       const key = Deno.env.get("OPENAI_API_KEY");
       const vec = key ? await embed(key, searchDoc) : null;

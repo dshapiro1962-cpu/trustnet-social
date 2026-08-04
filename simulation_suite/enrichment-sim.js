@@ -41,12 +41,11 @@ const fnBody = (name) => {
 };
 [['handleSaveRec', 'requestClassify'], ['handleSaveFromFeed', 'requestClassify'],
  ['handleSaveFromSheet', 'librarianCommit'], ['handleConfirmSaveToLibrary', 'librarianCommit'],
- ['handleSaveEditRec', 'librarianCommit'], ['handleTriageAssign', 'librarianCommit'],
-].forEach(([f, via]) => ck(f + ' → ' + via, fnBody(f).indexOf(via) >= 0));
+ ['handleSaveEditRec', 'librarianCommit'], ].forEach(([f, via]) => ck(f + ' → ' + via, fnBody(f).indexOf(via) >= 0));
 ck('edit-rec re-commits with FORCE (its doc exists but is stale)',
    /librarianCommit\(rec\.canonicalId, \{ force: true/.test(fnBody('handleSaveEditRec')));
-ck('triage re-commits with FORCE and the NEW circle name (the Avoriaz case)',
-   /force: true[\s\S]{0,80}circleName: circle\.name/.test(fnBody('handleTriageAssign')));
+ck('triage does NOT re-commit — refiling is pure provenance as of v0.37.0',
+   fnBody('handleTriageAssign').indexOf('librarianCommit') < 0);
 
 // ── 4. the gate is the DOCUMENT, not the category ───────────────────────────
 ck('client loads search_doc presence from the DB', web.indexOf('hasSearchDoc:!!c.search_doc') >= 0);
@@ -61,14 +60,19 @@ ck('classified-but-unindexed items self-heal on view',
 ck('_shared/enrich_core.ts exports buildSearchDoc', /export function buildSearchDoc/.test(core));
 ck('buildSearchDoc exists in exactly ONE file',
    [core, lib, chat, hook].filter(s => /function buildSearchDoc/.test(s)).length === 1);
-ck('the doc still contains circle and note (the whole point)',
-   /"circle: " \+ e\.circle_name/.test(core) && /e\.note,/.test(core));
+const docFn2Start = core.indexOf('export function buildSearchDoc');
+const docFn2End = core.indexOf('.slice(0, 2000);', docFn2Start);
+const docFn2 = (docFn2Start >= 0 && docFn2End > docFn2Start) ? core.slice(docFn2Start, docFn2End) : '';
+ck('the doc contains the note and the question — and is 100% circle-free',
+   /e\.note,/.test(docFn2) && /"asked: " \+ e\.query_text/.test(docFn2)
+   && docFn2.length > 0 && !/circle/i.test(docFn2), docFn2.match(/.*circle.*/i));
 ck('librarian imports the core', /from "\.\.\/_shared\/enrich_core\.ts"/.test(lib));
 ck('librarian defines no local enrichment (no drift possible)',
    !/function aiEnrich|function buildSearchDoc|function enrichOne/.test(lib));
 ck('extract-chat-recs writes search_doc at birth', /search_doc: searchDoc/.test(chat));
 ck('extract-chat-recs embeds THE DOCUMENT', /await embed\(key, searchDoc\)/.test(chat));
-ck('extract-chat-recs puts the circle name into the doc', /circle_name: circleName/.test(chat));
+ck('extract-chat-recs sends NO circle to the doc (provenance, not evidence)',
+   !/circle_name/.test(chat));
 ck('webhook writes search_doc at birth', /canInsert\.search_doc = searchDoc/.test(hook));
 ck('webhook embeds THE DOCUMENT (third format eliminated)',
    /await embedDoc\(key, searchDoc\)/.test(hook) && hook.indexOf('input: [name, location, note') < 0);
@@ -132,7 +136,8 @@ X.AppState.userCircles = [{ id: 'ski1', name: 'ski' }];
   ck('new item: exactly one librarian commit fired',
      calls.length === 1 && calls[0].fn === 'librarian' && calls[0].body.mode === 'commit',
      JSON.stringify(calls.map(c => c.fn)));
-  ck('...carrying the circle name', calls[0] && calls[0].body.circle_name === 'ski');
+  ck('...and NO circle name in the payload (retrieval is circle-blind)',
+     calls[0] && !('circle_name' in calls[0].body));
   ck('...and the note', calls[0] && calls[0].body.note === 'great for kids');
   ck('...and local state now shows a doc (no refire loop)',
      X.AppState.userCanonicals[0].hasSearchDoc === true);
@@ -146,14 +151,12 @@ X.AppState.userCircles = [{ id: 'ski1', name: 'ski' }];
   await X.librarianCommit('c-done', { force: true, note: 'fondue', circleName: 'ski' });
   ck('force: true reopens the gate for stale-doc repair', calls.length === 1);
 
-  // triage: filing to a circle re-commits with the NEW circle name
+  // triage: filing to a circle is pure metadata — NO commit may fire
   calls.length = 0;
   X.AppState.circleById = (id) => X.AppState.userCircles.find(c => c.id === id) || null;
   await X.handleTriageAssign({ dataset: { recId: 'r2', circleId: 'ski1' }, disabled: false });
-  const tc = calls.find(c => c.fn === 'librarian');
-  ck('triage-assign fires a forced recommit with the circle name',
-     !!tc && tc.body.circle_name === 'ski' && tc.body.mode === 'commit',
-     JSON.stringify(calls));
+  ck('triage-assign fires NO librarian call (provenance, not evidence)',
+     calls.filter(c => c.fn === 'librarian').length === 0, JSON.stringify(calls));
 
   console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
 })();
