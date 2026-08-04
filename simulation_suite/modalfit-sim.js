@@ -32,7 +32,7 @@ let pass=0,fail=0; const ck=(n,c,x)=>{ if(c){pass++;console.log('  ✓',n);}else
 vm.runInContext(app,ctx,{filename:'app.js'});
 vm.runInContext('renderApp=function(){};showView=function(){};toast=function(){};CURRENT_UID="me";',ctx);
 const X=ctx.__x;
-ck('APP_VERSION is v0.35.0', X.APP_VERSION==='v0.35.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.35.1', X.APP_VERSION==='v0.35.1 · live', X.APP_VERSION);
 
 // ── one scroll container, not two ──
 ck('the modal itself no longer scrolls (nested scrollers removed)',
@@ -68,6 +68,39 @@ ck('headerless modals (the + menu) still get proper top padding',
 ck('phone padding tightened to buy content height',
    src.indexOf('.modal-body { padding: 14px 18px; gap: 12px; }')>=0);
 ck('footer respects the phone safe area', src.indexOf('env(safe-area-inset-bottom')>=0);
+
+// ── STACKING (v0.35.1) ───────────────────────────────────────────────────
+// THE BUG THAT COST A WEEK: every geometry check above passed while the
+// dialog was still broken on dan's iPhone, because the modal was never
+// mispositioned — the tab bar (z-index 900) simply PAINTED OVER it (100).
+// Geometry tests cannot see paint order. These can.
+const zOf = (re) => { const m = src.match(re); return m ? parseInt(m[1],10) : NaN; };
+const zOverlay = zOf(/\.modal-overlay \{[^}]*z-index: (\d+)/s);
+const zTabbar  = zOf(/#mobile-tabbar \{[^}]*z-index: (\d+)/s);
+const zOnb     = zOf(/#onboarding \{[^}]*z-index: (\d+)/s);
+const zLoad    = zOf(/#loading-screen \{[^}]*z-index: (\d+)/s);
+const zLogin   = zOf(/id="login"[^>]*z-index:(\d+)/);
+const zToast   = zOf(/#toast-container \{[^}]*z-index: (\d+)/s);
+
+ck('modal overlay outranks the mobile tab bar (THE iPhone dialog bug)',
+   zOverlay > zTabbar, 'overlay '+zOverlay+' vs tabbar '+zTabbar);
+ck('the + button cannot float over an open dialog',
+   zOverlay > zTabbar);
+ck('tab bar does not cover the loading screen', zLoad > zTabbar,
+   'loading '+zLoad+' vs tabbar '+zTabbar);
+ck('tab bar does not cover onboarding', zOnb > zTabbar,
+   'onboarding '+zOnb+' vs tabbar '+zTabbar);
+ck('tab bar does not cover the login screen', zLogin > zTabbar,
+   'login '+zLogin+' vs tabbar '+zTabbar);
+ck('toasts stay visible above an open modal', zToast > zOverlay);
+ck('no two full-screen layers share a z-index (DOM order must never decide)',
+   new Set([zOverlay,zOnb,zLoad,zLogin,zToast]).size === 5,
+   [zOverlay,zOnb,zLoad,zLogin,zToast].join(','));
+ck('the layer scale is documented in the source',
+   src.indexOf('LAYER SCALE')>=0);
+ck('no NaN in the layer inventory (a rule was renamed or deleted)',
+   [zOverlay,zTabbar,zOnb,zLoad,zLogin,zToast].every(n=>!isNaN(n)));
+
 
 // ── the affordance ──
 ck('scroll SHADOWS appear only when there is more in that direction',

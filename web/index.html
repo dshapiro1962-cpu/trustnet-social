@@ -211,7 +211,8 @@ html, body { max-width: 100%; overflow-x: hidden; }
        height again. That combination is what doubled the bar. */
     box-sizing: border-box;
     min-height: 62px; height: auto;
-    background: #fff; border-top: 1px solid #E5EDE8; z-index: 900;
+    background: #fff; border-top: 1px solid #E5EDE8;
+    z-index: 100;   /* LAYER SCALE: below every dialog. Was 900 — that is the bug. */
     align-items: center;
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
@@ -377,9 +378,28 @@ html, body { max-width: 100%; overflow-x: hidden; }
 }
 .search-input:focus { border-color: #2D9460; border-color: var(--green-400); }
 
+/* ── LAYER SCALE — the single source of truth for stacking ──────────────
+   Read this before adding any `position: fixed` element. Ad-hoc z-index
+   numbers are what buried the bottom of every dialog behind the tab bar
+   for a week: the overlay was 100, the tab bar was 900, so the bar (and
+   its + button) painted OVER the modal. It looked like a positioning bug
+   and was not one. Geometry was never the problem.
+
+     10   content chrome (sidebar)
+     100  mobile tab bar        — above the page, below every dialog
+     1000 modal overlay         — MUST outrank the tab bar
+     1100 onboarding            — full-screen takeover, above modals
+     1200 login                 — outranks onboarding
+     1300 loading screen        — outranks everything except toasts
+     9999 toasts                — always visible, even over a modal
+
+   Rule: a full-screen layer NEVER shares a z-index with another, or DOM
+   order silently decides the winner (that is how the tab bar came to
+   paint over the login screen). Guarded by modalfit-sim. */
+
 /* Modal */
 .modal-overlay {
-  position: fixed; inset: 0; z-index: 100;
+  position: fixed; inset: 0; z-index: 1000;
   background: rgba(10,15,13,0.55);
   display: flex; align-items: center; justify-content: center;
   padding: 20px;
@@ -621,7 +641,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
 
 /* ── Loading ── */
 #loading-screen {
-  position: fixed; inset: 0; z-index: 200;
+  position: fixed; inset: 0; z-index: 1300;   /* LAYER SCALE */
   background: #0D2B1F; background: var(--green-900);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 20px;
@@ -646,7 +666,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
 
 /* ── Onboarding ── */
 #onboarding {
-  position: fixed; inset: 0; z-index: 150;
+  position: fixed; inset: 0; z-index: 1100;   /* LAYER SCALE */
   background: #0D2B1F; background: var(--green-900);
   display: flex; align-items: center; justify-content: center;
   padding: 20px;
@@ -759,7 +779,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 </div>
 
 <!-- Onboarding (shown on first run) -->
-<div id="login" style="display:none;position:fixed;inset:0;z-index:900;background:linear-gradient(160deg,#0D2B1F,#164534);align-items:center;justify-content:center;">
+<div id="login" style="display:none;position:fixed;inset:0;z-index:1200;background:linear-gradient(160deg,#0D2B1F,#164534);align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:18px;padding:36px 32px;max-width:400px;width:calc(100% - 40px);box-shadow:0 20px 60px rgba(0,0,0,0.35);">
     <div style="width:44px;height:44px;border-radius:12px;background:#217A4B;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;margin-bottom:18px;">T</div>
     <div id="login-form">
@@ -935,7 +955,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.35.0 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.35.1 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1412,7 +1432,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.35.0 · live';
+const APP_VERSION = 'v0.35.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
