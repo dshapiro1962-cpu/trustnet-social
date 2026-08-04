@@ -15,9 +15,11 @@ const el=(o)=>{const e=Object.assign({value:'',textContent:'',style:{},dataset:{
   focus(){}},o||{}); return e;};
 const bodyEl=el({className:'modal-body',scrollHeight:900,clientHeight:400});
 const modalEl=el({className:'modal'});
+const overlayEl=el({className:'modal-overlay'});
+overlayEl.querySelector=(sel)=> sel.indexOf('.modal')>=0 ? modalEl : null;
 const ctx={console:{log(){},error(){},warn(){}},setTimeout:(f)=>{if(typeof f==='function')f();return 0;},clearTimeout(){},setInterval:()=>1,clearInterval(){},
  document:{getElementById:()=>el(),createElement:(t)=>el({tag:t}),
-   querySelector:(sel)=>{ if(sel.indexOf('.modal-body')>=0) return bodyEl; if(sel.indexOf('.modal')>=0) return modalEl; return null; },
+   querySelector:(sel)=>{ if(sel.indexOf('.modal-body')>=0) return bodyEl; if(sel==='.modal-overlay') return overlayEl; if(sel.indexOf('.modal')>=0) return modalEl; return null; },
    querySelectorAll:()=>[],addEventListener(){},removeEventListener(){},body:el(),documentElement:el(),hidden:false,visibilityState:'visible'},
  window:{supabase:null,addEventListener(){},innerWidth:390,innerHeight:700,visualViewport:{height:700,addEventListener(){}},location:{href:'x',search:'',hash:'',origin:'x'},matchMedia:()=>({matches:false,addEventListener(){}})},
  location:{href:'x',search:'',hash:'',origin:'x'},navigator:{userAgent:'sim',language:'en'},
@@ -30,7 +32,7 @@ let pass=0,fail=0; const ck=(n,c,x)=>{ if(c){pass++;console.log('  ✓',n);}else
 vm.runInContext(app,ctx,{filename:'app.js'});
 vm.runInContext('renderApp=function(){};showView=function(){};toast=function(){};CURRENT_UID="me";',ctx);
 const X=ctx.__x;
-ck('APP_VERSION is v0.34.3', X.APP_VERSION==='v0.34.3 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.35.0', X.APP_VERSION==='v0.35.0 · live', X.APP_VERSION);
 
 // ── one scroll container, not two ──
 ck('the modal itself no longer scrolls (nested scrollers removed)',
@@ -41,23 +43,28 @@ ck('header and footer stay put while the body scrolls',
    src.indexOf('.modal-header, .modal-footer { flex: 0 0 auto; }')>=0);
 
 // ── phone sheet ──
-ck('on phones the modal is a bottom sheet',
-   src.indexOf('.modal-overlay { align-items: flex-end; padding: 0; }')>=0);
+// THE BUG: a bottom-anchored sheet anchors to the LAYOUT viewport's bottom,
+// which on iOS sits behind Safari's toolbar — so every dialog's lower part was
+// hidden. Centred inside a JS-pinned overlay is immune to that.
+ck('modals are CENTRED, never bottom-anchored',
+   src.indexOf('.modal-overlay { align-items: center; padding: 12px; }')>=0
+   && src.indexOf('align-items: flex-end')<0);
+ck('no grab handle left over from the sheet design', src.indexOf('.modal::before')<0);
 // REGRESSION GUARDS — v0.34.2 broke the app by changing a PAGE-WIDE setting to
 // fix a modal. viewport-fit=cover woke up dormant env() padding and doubled the
 // tab bar. Never again: modal problems get modal-scoped fixes.
 ck('NO page-wide viewport-fit=cover (it doubled the tab bar)',
    src.indexOf('viewport-fit=cover') < 0);
 ck('no dvh dependency (needs iOS 15.4+; we measure instead)',
-   src.replace(/\/\*[\s\S]*?\*\//g,'').indexOf('dvh') < 0);
+   src.replace(/\/\*[\s\S]*?\*\//g,'').replace(/^\s*\/\/.*$/gm,'').indexOf('dvh') < 0);
 ck('tab bar cannot be broken by safe-area padding again',
    src.indexOf('box-sizing: border-box;\n    min-height: 62px; height: auto;')>=0
    && src.indexOf('env(safe-area-inset-bottom, 0px)')>=0);
 ck('modal height is MEASURED from the visible viewport',
    src.indexOf('window.visualViewport')>=0 && src.indexOf('function sizeModalToViewport')>=0);
-ck('headerless modals (the + menu) get top padding under the grab handle',
+ck('headerless modals (the + menu) still get proper top padding',
    src.indexOf('.modal > .modal-body:first-of-type { padding-top: 16px; }')>=0);
-ck('sheet has a grab handle (says "this panel moves")', src.indexOf('.modal::before')>=0 && src.indexOf('width: 38px; height: 4px')>=0);
+
 ck('phone padding tightened to buy content height',
    src.indexOf('.modal-body { padding: 14px 18px; gap: 12px; }')>=0);
 ck('footer respects the phone safe area', src.indexOf('env(safe-area-inset-bottom')>=0);
@@ -102,6 +109,19 @@ ck('the + menu has a body the flex layout can size', fab.indexOf('modal-body')>=
 // measurement actually applies a pixel height
 ctx.__vvHeight = 700;
 X.sizeModalToViewport();
-ck('measured height applied to the modal in px',
-   /^\d+px$/.test(String(modalEl.style.maxHeight||'')), modalEl.style.maxHeight);
+ck('overlay is PINNED to the visible viewport (top + height in px)',
+   overlayEl.style.height==='700px' && overlayEl.style.top==='0px' && overlayEl.style.bottom==='auto');
+ck('modal fits inside it with room to spare',
+   modalEl.style.maxHeight==='676px', modalEl.style.maxHeight);
+// iOS slides the visual viewport: offsetTop must be honoured
+ctx.window.visualViewport={height:560,offsetTop:90,addEventListener(){}};
+X.sizeModalToViewport();
+ck('when iOS slides the viewport, the overlay follows it',
+   overlayEl.style.top==='90px' && overlayEl.style.height==='560px' && modalEl.style.maxHeight==='536px');
+// no visualViewport (old browsers) must still work
+ctx.window.visualViewport=undefined; ctx.window.innerHeight=800;
+X.sizeModalToViewport();
+ck('falls back to innerHeight when visualViewport is unavailable',
+   overlayEl.style.height==='800px' && modalEl.style.maxHeight==='776px');
+ck('viewport SCROLL is tracked, not just resize', src.indexOf("visualViewport.addEventListener('scroll', reflow)")>=0);
 console.log('\nRESULT: '+pass+' passed, '+fail+' failed'); process.exit(fail?1:0);

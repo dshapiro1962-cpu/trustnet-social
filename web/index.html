@@ -420,22 +420,18 @@ html, body { max-width: 100%; overflow-x: hidden; }
 }
 /* A phone modal is a bottom sheet: full width, more height, thumb-reachable. */
 @media (max-width: 768px) {
-  .modal-overlay { align-items: flex-end; padding: 0; }
+  /* CENTRED, not bottom-anchored. The overlay is pinned to the VISIBLE
+     viewport by sizeModalToViewport(), so centring is true centring even while
+     Safari's toolbars are on screen. */
+  .modal-overlay { align-items: center; padding: 12px; }
   .modal {
     max-width: 100%;
-    max-height: 88vh;          /* JS overrides this with a measured value */
-    border-radius: 18px 18px 0 0;
-    animation: sheet-up 200ms cubic-bezier(0.32,0.72,0,1);
+    max-height: 88vh;          /* replaced by a measured px value in JS */
+    border-radius: 16px;
   }
   .modal-header { padding: 14px 18px 12px; }
   .modal-body { padding: 14px 18px; gap: 12px; }
   .modal-footer { padding: 12px 18px 16px; }
-  /* the grab handle says "this panel moves" before any text does */
-  .modal::before {
-    content: ''; flex: 0 0 auto; width: 38px; height: 4px; border-radius: 2px;
-    background: #D6E3DA; margin: 8px auto 2px;
-  }
-  /* Modals with no header (the + menu) must not sit flush under the handle. */
   .modal > .modal-body:first-of-type { padding-top: 16px; }
 }
 @keyframes sheet-up { from { transform: translateY(14px); opacity: 0.6; } to { transform: none; opacity: 1; } }
@@ -939,7 +935,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.34.3 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.35.0 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1416,7 +1412,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.34.3 · live';
+const APP_VERSION = 'v0.35.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -4267,16 +4263,24 @@ function renderSettings() {
 // Tell the user there is more below — but only when there actually is, and
 // only until they have seen it. A silently-clipped modal is how the invite
 // form became invisible on a phone.
+// The one honest source of "what the user can actually see" on iOS.
+// CSS units (vh, and dvh before 15.4) describe the LAYOUT viewport, which
+// extends behind Safari's toolbars — which is why bottom-anchored dialogs had
+// their lower half hidden. We pin the overlay to the VISUAL viewport instead.
 function sizeModalToViewport() {
-  const modal = document.querySelector('.modal-overlay .modal');
+  const overlay = document.querySelector('.modal-overlay');
+  if (!overlay) return;
+  const modal = overlay.querySelector('.modal');
   if (!modal) return;
   const vv = window.visualViewport;
-  const h = Math.round((vv && vv.height) ? vv.height : window.innerHeight);
+  const h = Math.round(vv && vv.height ? vv.height : window.innerHeight);
+  const top = Math.round(vv && vv.offsetTop ? vv.offsetTop : 0);
   if (!h) return;
-  const isPhone = window.innerWidth <= 768;
-  // Leave room for the browser chrome the viewport doesn't report, and for the
-  // backdrop margin on desktop.
-  modal.style.maxHeight = Math.max(220, Math.round(h * (isPhone ? 0.88 : 0.9))) + 'px';
+  overlay.style.top = top + 'px';
+  overlay.style.bottom = 'auto';
+  overlay.style.height = h + 'px';
+  const pad = window.innerWidth <= 768 ? 24 : 40;   // matches the overlay padding
+  modal.style.maxHeight = Math.max(200, h - pad) + 'px';
 }
 
 function attachScrollAffordance() {
@@ -4337,9 +4341,12 @@ function openModal(name, params) {
   // Re-measure when the keyboard opens or the toolbars slide away.
   if (window.visualViewport && !window._tnVvBound) {
     window._tnVvBound = true;
-    window.visualViewport.addEventListener('resize', function() {
+    const reflow = function() {
       if (document.querySelector('.modal-overlay .modal')) sizeModalToViewport();
-    });
+    };
+    // resize = keyboard or toolbars; scroll = the visual viewport slides on iOS
+    window.visualViewport.addEventListener('resize', reflow);
+    window.visualViewport.addEventListener('scroll', reflow);
   }
 }
 

@@ -26,7 +26,7 @@ vm.runInContext('renderApp=function(){};showView=function(){};openModal=function
 ctx.__toasts=[];ctx.__u=0;ctx.__rpcImpl=async()=>({data:false});
 const X=ctx.__x;
 const lastToast=()=>ctx.__toasts.length?String(ctx.__toasts[ctx.__toasts.length-1][0]):'';
-ck('APP_VERSION is v0.34.3', X.APP_VERSION==='v0.34.3 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.35.0', X.APP_VERSION==='v0.35.0 · live', X.APP_VERSION);
 
 function reset() {
   byId['inv-new-msg']=el(); byId['inv-err']=el();

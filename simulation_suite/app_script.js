@@ -419,7 +419,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.34.3 · live';
+const APP_VERSION = 'v0.35.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3270,16 +3270,24 @@ function renderSettings() {
 // Tell the user there is more below — but only when there actually is, and
 // only until they have seen it. A silently-clipped modal is how the invite
 // form became invisible on a phone.
+// The one honest source of "what the user can actually see" on iOS.
+// CSS units (vh, and dvh before 15.4) describe the LAYOUT viewport, which
+// extends behind Safari's toolbars — which is why bottom-anchored dialogs had
+// their lower half hidden. We pin the overlay to the VISUAL viewport instead.
 function sizeModalToViewport() {
-  const modal = document.querySelector('.modal-overlay .modal');
+  const overlay = document.querySelector('.modal-overlay');
+  if (!overlay) return;
+  const modal = overlay.querySelector('.modal');
   if (!modal) return;
   const vv = window.visualViewport;
-  const h = Math.round((vv && vv.height) ? vv.height : window.innerHeight);
+  const h = Math.round(vv && vv.height ? vv.height : window.innerHeight);
+  const top = Math.round(vv && vv.offsetTop ? vv.offsetTop : 0);
   if (!h) return;
-  const isPhone = window.innerWidth <= 768;
-  // Leave room for the browser chrome the viewport doesn't report, and for the
-  // backdrop margin on desktop.
-  modal.style.maxHeight = Math.max(220, Math.round(h * (isPhone ? 0.88 : 0.9))) + 'px';
+  overlay.style.top = top + 'px';
+  overlay.style.bottom = 'auto';
+  overlay.style.height = h + 'px';
+  const pad = window.innerWidth <= 768 ? 24 : 40;   // matches the overlay padding
+  modal.style.maxHeight = Math.max(200, h - pad) + 'px';
 }
 
 function attachScrollAffordance() {
@@ -3340,9 +3348,12 @@ function openModal(name, params) {
   // Re-measure when the keyboard opens or the toolbars slide away.
   if (window.visualViewport && !window._tnVvBound) {
     window._tnVvBound = true;
-    window.visualViewport.addEventListener('resize', function() {
+    const reflow = function() {
       if (document.querySelector('.modal-overlay .modal')) sizeModalToViewport();
-    });
+    };
+    // resize = keyboard or toolbars; scroll = the visual viewport slides on iOS
+    window.visualViewport.addEventListener('resize', reflow);
+    window.visualViewport.addEventListener('scroll', reflow);
   }
 }
 
