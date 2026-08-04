@@ -26,7 +26,7 @@ vm.runInContext('renderApp=function(){};showView=function(){};openModal=function
 ctx.__toasts=[];ctx.__u=0;ctx.__rpcImpl=async()=>({data:false});
 const X=ctx.__x;
 const lastToast=()=>ctx.__toasts.length?String(ctx.__toasts[ctx.__toasts.length-1][0]):'';
-ck('APP_VERSION is v0.34.2', X.APP_VERSION==='v0.34.2 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.34.3', X.APP_VERSION==='v0.34.3 · live', X.APP_VERSION);
 
 function reset() {
   byId['inv-new-msg']=el(); byId['inv-err']=el();
@@ -162,9 +162,9 @@ ck('21. invalid contact -> error, nothing opened', ctx.__opened.length===0 && by
 
 // ── the reason it was invisible: modals must SCROLL, and the primary action first
 const cssSrc = require('fs').readFileSync('/home/claude/app/index.html','utf8');
-ck('22. modal body is the single scroll area and fits the phone (iOS dvh)',
+ck('22. modal body is the single scroll area, height measured not guessed',
    cssSrc.indexOf('flex: 1 1 auto; min-height: 0; overflow-y: auto;')>=0
-   && cssSrc.indexOf('max-height: 88dvh;')>=0);
+   && cssSrc.indexOf('function sizeModalToViewport')>=0);
 const im4=X.modalInvite({circleId:'c1',circleName:'Ski'});
 ck('23. the invite FORM comes before the member list',
    im4.indexOf('INVITE SOMEONE NEW') < im4.indexOf('ALREADY ON TRUSTNET'));

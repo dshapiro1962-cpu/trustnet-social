@@ -419,7 +419,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.34.2 · live';
+const APP_VERSION = 'v0.34.3 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3270,6 +3270,18 @@ function renderSettings() {
 // Tell the user there is more below — but only when there actually is, and
 // only until they have seen it. A silently-clipped modal is how the invite
 // form became invisible on a phone.
+function sizeModalToViewport() {
+  const modal = document.querySelector('.modal-overlay .modal');
+  if (!modal) return;
+  const vv = window.visualViewport;
+  const h = Math.round((vv && vv.height) ? vv.height : window.innerHeight);
+  if (!h) return;
+  const isPhone = window.innerWidth <= 768;
+  // Leave room for the browser chrome the viewport doesn't report, and for the
+  // backdrop margin on desktop.
+  modal.style.maxHeight = Math.max(220, Math.round(h * (isPhone ? 0.88 : 0.9))) + 'px';
+}
+
 function attachScrollAffordance() {
   const body = document.querySelector('.modal-overlay .modal-body');
   const modal = document.querySelector('.modal-overlay .modal');
@@ -3323,7 +3335,15 @@ function openModal(name, params) {
   overlay.addEventListener('click', function(e) {
     if (!modal.contains(e.target)) closeModal();
   });
+  sizeModalToViewport();
   attachScrollAffordance();
+  // Re-measure when the keyboard opens or the toolbars slide away.
+  if (window.visualViewport && !window._tnVvBound) {
+    window._tnVvBound = true;
+    window.visualViewport.addEventListener('resize', function() {
+      if (document.querySelector('.modal-overlay .modal')) sizeModalToViewport();
+    });
+  }
 }
 
 function closeModal() {
