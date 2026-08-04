@@ -233,6 +233,7 @@ async function loadUserData() {
     location:c.location||'', description:c.description||'', imageEmoji:c.image_emoji||'📌', googleUrl:c.google_url,
     websiteUrl:c.website_url, linkedinUrl:c.linkedin_url,
     primaryCategory:c.primary_category||'', aiTags:c.ai_tags||[], imageUrl:c.image_url||'',
+    hasSearchDoc:!!c.search_doc,
     createdBy:c.created_by||null }; });
 
   // queries + responses
@@ -419,7 +420,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.35.1 · live';
+const APP_VERSION = 'v0.36.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -1223,6 +1224,10 @@ async function handleTriageAssign(btn) {
     toast('Could not file it: ' + res.error.message, 'warn');
     return;
   }
+  // "circle: <name>" is IN the search document. Filing to ski without this
+  // re-commit leaves "ski" absent from the record — the exact Avoriaz bug.
+  librarianCommit(rec.canonicalId, { force: true, note: rec.note || '',
+    circleName: circle.name });
   renderApp();
   toast('Filed to ' + circle.name + '.');
 }
@@ -1619,14 +1624,9 @@ async function handleSaveFromSheet(idx) {
     });
     await saveRecs();
     // Merged comments carry new context — refresh the catalogue entry.
-    if (!AppState.isDemoMode) {
-      const circ2 = q ? AppState.circleById(q.circleId) : null;
-      fnPost('librarian', {
-        mode: 'commit', canonical_id: canId,
-        name: it.name, note: already.note || fullNote, location: it.location || '',
-        query_text: q ? q.text : '', circle_name: circ2 ? circ2.name : '',
-      }).catch(function(e) { console.error('librarian re-commit failed:', e); });
-    }
+    const circ2 = q ? AppState.circleById(q.circleId) : null;
+    librarianCommit(canId, { force: true, note: already.note || fullNote,
+      queryText: q ? q.text : '', circleName: circ2 ? circ2.name : '' });
   } else {
     const viaMember = it.member_id && AppState.userMembers.some(function(m) { return m.id === it.member_id; })
       ? it.member_id : (AppState.userProfile ? AppState.userProfile.id : null);
@@ -1638,14 +1638,9 @@ async function handleSaveFromSheet(idx) {
     await saveCanonicals();
     await saveRecs();
     // Persist the catalogue entry so the item is findable by search.
-    if (!AppState.isDemoMode) {
-      const circ = q ? AppState.circleById(q.circleId) : null;
-      fnPost('librarian', {
-        mode: 'commit', canonical_id: canId,
-        name: it.name, note: fullNote, location: it.location || '',
-        query_text: q ? q.text : '', circle_name: circ ? circ.name : '',
-      }).catch(function(e) { console.error('librarian commit failed:', e); });
-    }
+    const circ = q ? AppState.circleById(q.circleId) : null;
+    librarianCommit(canId, { force: true, note: fullNote,
+      queryText: q ? q.text : '', circleName: circ ? circ.name : '' });
   }
   it.from_you = true;
   renderApp();
@@ -2147,6 +2142,11 @@ async function handleSaveEditRec(btn) {
   btn.disabled = true;
   await saveCanonicals();
   await saveRecs();
+  // The note, name and circle are INSIDE the search document — an edit makes
+  // it stale, and backfill skips stale docs. Re-commit or search drifts.
+  const edCircle = rec.circleId ? AppState.circleById(rec.circleId) : null;
+  librarianCommit(rec.canonicalId, { force: true, note: rec.note,
+    circleName: edCircle ? edCircle.name : '' });
   closeModal();
   renderApp();
   toast('\u201c' + name + '\u201d updated.');
@@ -2958,12 +2958,32 @@ function existingRecFor(canonicalId) {
   return AppState.userRecs.find(function(r) { return r.canonicalId === canonicalId; }) || null;
 }
 
-function requestClassify(canonicalId, note, context) {
-  if (AppState.isDemoMode) return;
+// ═══ THE ENRICHMENT CHOKE POINT ═════════════════════════════════════════════
+// Every catalogue write in the client goes through librarianCommit. There is
+// NO other path: this replaced classify-rec (deleted 4 Aug 2026), which
+// embedded DIFFERENT text than the search document and left items looking
+// classified while invisible to search. Two systems owned the same columns
+// and avoided corruption only because classify-rec bailed when a category was
+// already set. Guarded by enrichment-sim: exactly ONE "mode: 'commit'" may
+// exist in this file. If you are adding a save path, call librarianCommit —
+// do not add another fnPost('librarian').
+function librarianCommit(canonicalId, opts) {
+  opts = opts || {};
+  if (AppState.isDemoMode) return Promise.resolve(null);
   const can = AppState.canonicalById(canonicalId);
-  if (!can || can.primaryCategory || can._classifying) return;
+  if (!can || can._classifying) return Promise.resolve(null);
+  // Gate on the search DOCUMENT, not the category: classify-rec's last five
+  // victims (31 Jul) have a category but no document. Gating on category
+  // would leave them broken forever; gating on the document self-heals them.
+  if (can.hasSearchDoc && !opts.force) return Promise.resolve(null);
   can._classifying = true;
-  fnPost('classify-rec', { canonical_id: canonicalId, note: note || '', context: context || '' }).then(function(r) {
+  return fnPost('librarian', {
+    mode: 'commit', canonical_id: canonicalId,
+    name: can.name || '', note: opts.note || '',
+    location: can.location || '',
+    query_text: opts.queryText || '',
+    circle_name: opts.circleName || '',
+  }).then(function(r) {
     can._classifying = false;
     if (r && r.error) {
       can._classifyFailed = r.error;
@@ -2972,19 +2992,40 @@ function requestClassify(canonicalId, note, context) {
         toast('AI filing failed: ' + r.error, 'warn');
       }
       if (AppState.currentView === 'rec-detail') renderApp();
-      return;
+      return null;
     }
-    if (r && r.category) {
-      can._classifyFailed = null;
-      can.primaryCategory = r.category;
-      can.aiTags = r.tags || [];
+    can._classifyFailed = null;
+    can.hasSearchDoc = true;
+    if (r && r.entity) {
+      if (r.entity.name) can.name = r.entity.name;
+      if (r.entity.location) can.location = r.entity.location;
+      if (r.entity.category) can.primaryCategory = r.entity.category;
+      if (r.entity.tags && r.entity.tags.length) can.aiTags = r.entity.tags;
       if (AppState.currentView === 'rec-detail' || AppState.currentView === 'library') renderApp();
     }
-  }).catch(function() { can._classifying = false; });
+    return r;
+  }).catch(function() { can._classifying = false; return null; });
+}
+
+// Kept name, signature, and UI contract (_classifying spinner, _classifyFailed
+// retry) — five call sites depend on them — but routed through the Librarian.
+function requestClassify(canonicalId, note, context) {
+  const rec = existingRecFor(canonicalId);
+  const circle = rec && rec.circleId ? AppState.circleById(rec.circleId) : null;
+  return librarianCommit(canonicalId, {
+    note: note || (rec && rec.note) || '',
+    queryText: context || '',
+    circleName: circle ? circle.name : '',
+  });
 }
 
 function catChipHtml(can, rec) {
   if (AppState.isDemoMode || !can) return '';
+  // classify-rec's leftovers: category present, search document absent. They
+  // look finished, so show the normal chip — but repair silently on view.
+  if (can.primaryCategory && !can.hasSearchDoc && !can._classifyFailed) {
+    requestClassify(can.id, (rec && rec.note) || '', '');
+  }
   if (!can.primaryCategory) {
     var chipCtx = '';
     if (rec && rec.queryId) {
@@ -4510,15 +4551,10 @@ async function handleConfirmSaveToLibrary(respId) {
     // A merged comment brings NEW context (another question, more words).
     // Re-commit so the catalogue entry grows with it — otherwise the item stays
     // findable only by its original wording. (Found by the eval, 31 Jul.)
-    if (!AppState.isDemoMode) {
-      const qc = AppState.circleById(AppState.queryState.circleId);
-      fnPost('librarian', {
-        mode: 'commit', canonical_id: dupRec2.canonicalId,
-        name: finalName, note: dupRec2.note || note, location: finalLoc,
-        query_text: AppState.queryState.text || '',
-        circle_name: qc ? qc.name : '',
-      }).catch(function(e) { console.error('librarian re-commit failed:', e); });
-    }
+    const qc = AppState.circleById(AppState.queryState.circleId);
+    librarianCommit(dupRec2.canonicalId, { force: true, note: dupRec2.note || note,
+      queryText: AppState.queryState.text || '',
+      circleName: qc ? qc.name : '' });
     resp.savedToLibrary = true;
     await saveQueries();
     closeModal();
@@ -4544,17 +4580,10 @@ async function handleConfirmSaveToLibrary(respId) {
   // PERSIST the catalogue entry: enrich only RETURNS the entity — commit writes
   // the search document + embedding, without which the item is invisible to
   // search even though it looks perfect on screen. (Bug found 28 Jul.)
-  if (!AppState.isDemoMode) {
-    const qCircle2 = AppState.circleById(AppState.queryState.circleId);
-    fnPost('librarian', {
-      mode: 'commit', canonical_id: canId,
-      name: finalName, note: note, location: finalLoc,
-      query_text: AppState.queryState.text || '',
-      circle_name: qCircle2 ? qCircle2.name : '',
-    }).catch(function(e) { console.error('librarian commit failed:', e); });
-  } else {
-    requestClassify(canId, note, AppState.queryState ? AppState.queryState.text : '');
-  }
+  const qCircle2 = AppState.circleById(AppState.queryState.circleId);
+  librarianCommit(canId, { force: true, note: note,
+    queryText: AppState.queryState.text || '',
+    circleName: qCircle2 ? qCircle2.name : '' });
 
   // Mark response as saved so button changes to ✓ — and PERSIST it,
   // or the 60s heartbeat re-fetch resurrects the button (bug fixed v0.16.1)

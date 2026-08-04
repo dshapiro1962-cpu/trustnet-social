@@ -9,10 +9,10 @@
 //               GOOGLE_PLACES_API_KEY?
 // ============================================================================
 import { adminClient, json } from "../_shared/utils.ts";
+import { CATEGORIES, buildSearchDoc, embed as embedDoc } from "../_shared/enrich_core.ts";
 
 const ENGINE = "wawh-v3-image";
 
-const CATEGORIES = ["dining","travel","healthcare","home","culture","hobbies","professional","other"];
 
 function digits(s: string): string { return (s || "").replace(/\D/g, ""); }
 
@@ -187,19 +187,15 @@ Deno.serve(async (req) => {
     return json({ ok: true });
   }
 
-  // ── embed for meaning-search ───────────────────────────────────────────────
-  let embedding: number[] | null = null;
-  try {
-    const emb = await fetch("https://api.openai.com/v1/embeddings", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "text-embedding-3-large", dimensions: 1536,
-        input: [name, location, note, tags.join(", ")].filter(Boolean).join(" | "),
-      }),
-    });
-    if (emb.ok) { const e = await emb.json(); embedding = e.data?.[0]?.embedding ?? null; }
-  } catch (_) { /* best-effort */ }
+  // ── the search document + its embedding, from the ONE shared core ─────────
+  // This replaced a third, drifting embedding format ("name | location | note
+  // | tags") that matched neither the librarian's document nor classify-rec's
+  // text. Search retrieves against search_doc; the vector must be OF it.
+  const searchDoc = buildSearchDoc({
+    name, location, category, kind: "", tags: tags as string[],
+    note, query_text: "", circle_name: "",
+  });
+  const embedding = await embedDoc(key, searchDoc);
 
   // ── write canonical + recommendation ───────────────────────────────────────
   const canInsert: Record<string, unknown> = {
@@ -209,6 +205,8 @@ Deno.serve(async (req) => {
     website_url: urlMatch ? urlMatch[0].slice(0, 300) : null,
     image_url: imageUrl,
   };
+  canInsert.search_doc = searchDoc;
+  canInsert.search_doc_at = new Date().toISOString();
   if (embedding) canInsert.embedding = embedding;
   const { data: canRow, error: canErr } = await admin
     .from("canonicals").insert(canInsert).select("id").single();

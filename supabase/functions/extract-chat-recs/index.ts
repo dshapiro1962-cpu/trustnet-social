@@ -11,9 +11,9 @@
 // OBSERVABILITY DOCTRINE: provider failures are logged VERBATIM.
 // ============================================================================
 import { adminClient, getUserId, json, err, handleOptions } from "../_shared/utils.ts";
+import { CATEGORIES, buildSearchDoc, embed } from "../_shared/enrich_core.ts";
 
 const ENGINE = "extract-chat-recs-v2";
-const CATEGORIES = ["dining", "travel", "healthcare", "home", "culture", "hobbies", "professional", "other"];
 
 interface Msg { d: string; s: string; t: string; }
 interface Item { name: string; category: string; location: string; note: string; phone: string; }
@@ -103,9 +103,11 @@ Deno.serve(async (req: Request) => {
     const source: string = (typeof body.source === "string" && body.source.trim()) ? body.source.trim().slice(0, 60) : "WhatsApp chat";
     const collectionTitle: string = typeof body.collection_title === "string" ? body.collection_title.trim().slice(0, 80) : "";
 
+    let circleName = "";
     if (circleId) {
-      const { data: circ } = await admin.from("circles").select("id, owner_id").eq("id", circleId).single();
+      const { data: circ } = await admin.from("circles").select("id, owner_id, name").eq("id", circleId).single();
       if (!circ || circ.owner_id !== userId) return err("circle_not_found_or_not_yours", 403);
+      circleName = circ.name || "";
     }
 
     const { data: mine } = await admin
@@ -122,13 +124,26 @@ Deno.serve(async (req: Request) => {
       if (!norm) continue;
       if (have.has(norm)) { skipped++; continue; }
 
-      const { data: canRow, error: canErr } = await admin.from("canonicals").insert({
+      // The search document is written AT BIRTH. Before 4 Aug 2026 chat-import
+      // items had category+tags but no document — findable-looking, unfindable.
+      const noteForDoc = it.note + (it.phone ? (it.note ? " \u00b7 " : "") + it.phone : "");
+      const searchDoc = buildSearchDoc({
+        name: it.name, location: it.location || "",
+        category: CATEGORIES.includes(it.category) ? it.category : "other",
+        kind: "", tags: [], note: noteForDoc, query_text: "", circle_name: circleName,
+      });
+      const key = Deno.env.get("OPENAI_API_KEY");
+      const vec = key ? await embed(key, searchDoc) : null;
+      const canInsert: Record<string, unknown> = {
         type: "place", name: it.name, category: "", location: it.location || "",
         image_emoji: "\u{1F4CC}", created_by: userId,
         primary_category: CATEGORIES.includes(it.category) ? it.category : "other",
         class_source: "ai", classified_at: new Date().toISOString(),
+        search_doc: searchDoc, search_doc_at: new Date().toISOString(),
         website_url: null, image_url: null,
-      }).select("id").single();
+      };
+      if (vec) canInsert.embedding = vec;
+      const { data: canRow, error: canErr } = await admin.from("canonicals").insert(canInsert).select("id").single();
       if (canErr || !canRow) {
         console.error("save_canonical_error", it.name, canErr?.message);
         return err("save_failed_at_" + it.name.slice(0, 30) + ": " + (canErr?.message || "unknown"), 500);

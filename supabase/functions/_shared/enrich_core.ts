@@ -1,0 +1,163 @@
+// ============================================================================
+// _shared/enrich_core.ts — THE single source of truth for enrichment.
+// Extracted VERBATIM from librarian/index.ts on 4 Aug 2026, not copied:
+// librarian imports from here, and so do extract-chat-recs and
+// whatsapp-webhook. Before this file existed there were FOUR drifting
+// versions of "what text do we embed" (librarian, classify-rec, the webhook,
+// and nothing at all for chat import) — which is exactly how items became
+// invisible to search while looking perfectly classified.
+// Change the search document HERE and every path changes together.
+// ============================================================================
+
+export const CATEGORIES = ["dining","travel","healthcare","home","culture","hobbies","professional","other"];
+export const EMB_MODEL = "text-embedding-3-large";
+
+export interface Enriched {
+  name: string; location: string; category: string; tags: string[];
+  search_doc: string; resolved: boolean; kind: string;
+}
+
+export function norm(s: string): string {
+  return (s || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+// A recommendation name is an ENTITY, never a sentence (the Avoriaz rule).
+export function looksLikeSentence(s: string): boolean {
+  const t = (s || "").trim();
+  if (!t) return true;
+  const words = t.split(/\s+/).length;
+  if (words >= 7) return true;
+  if (/[.!?]$/.test(t) && words >= 4) return true;
+  if (/^(yes|no|yeah|sure|definitely|absolutely|כן|לא|בהחלט)\b/i.test(t)) return true;
+  return false;
+}
+
+// The search document: everything a future question might reasonably use.
+export function buildSearchDoc(e: {
+  name: string; location: string; category: string; kind: string;
+  tags: string[]; note: string; query_text: string; circle_name: string;
+}): string {
+  return [
+    e.name,
+    e.kind,
+    e.location,
+    e.category,
+    (e.tags || []).join(" "),
+    e.note,
+    e.query_text ? "asked: " + e.query_text : "",
+    e.circle_name ? "circle: " + e.circle_name : "",
+  ].filter(Boolean).join(" · ").slice(0, 2000);
+}
+
+export async function aiEnrich(key: string, input: {
+  name: string; note: string; location: string; query_text: string; circle_name: string;
+}): Promise<{ name: string; kind: string; category: string; tags: string[]; location: string } | null> {
+  try {
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: Deno.env.get("LIBRARIAN_MODEL") ?? "gpt-4o",
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content:
+            "You are a librarian turning a recommendation into a findable catalogue entry. " +
+            "Return JSON only: {\"name\":\"...\",\"kind\":\"...\",\"category\":\"...\",\"location\":\"...\",\"tags\":[\"...\"]}. " +
+            "name = the ENTITY only (a place/person/product/title), cleaned of verdict words. " +
+            "Never return a sentence as a name. " +
+            "kind = 2-4 words saying what it IS, in the content language AND English if different " +
+            "(e.g. \"ski resort\", \"רופאת עור dermatologist\", \"shakshouka restaurant\"). " +
+            "category = one of [" + CATEGORIES.map((c) => '"' + c + '"').join(",") + "]. " +
+            "location = city/region/country if determinable, else \"\". " +
+            "tags = 4-10 SHORT search words a person might later use to find this: the type, " +
+            "the audience, the occasion, distinguishing features, the domain. " +
+            "CRITICAL: include the words implied by the CONTEXT even when absent from the text — " +
+            "an item asked about in a ski circle must carry \"ski\"; one praised for children must " +
+            "carry \"family\" and \"kids\". Include both Hebrew and English forms of key words when " +
+            "the content is Hebrew. Tags are what makes it findable later." },
+          { role: "user", content: JSON.stringify(input) },
+        ],
+      }),
+    });
+    if (!r.ok) return null;
+    const c = await r.json();
+    const p = JSON.parse(c.choices?.[0]?.message?.content ?? "{}");
+    if (!p || typeof p.name !== "string" || !p.name.trim()) return null;
+    return {
+      name: p.name.trim().slice(0, 100),
+      kind: typeof p.kind === "string" ? p.kind.slice(0, 60) : "",
+      category: CATEGORIES.includes(p.category) ? p.category : "other",
+      location: typeof p.location === "string" ? p.location.slice(0, 120) : "",
+      tags: Array.isArray(p.tags) ? p.tags.filter((t: unknown) => typeof t === "string").slice(0, 12).map((t: string) => t.slice(0, 30)) : [],
+    };
+  } catch (_) { return null; }
+}
+
+export async function resolvePlace(name: string, hint: string): Promise<
+  { name: string; location: string; category: string | null } | null
+> {
+  const gkey = Deno.env.get("GOOGLE_PLACES_API_KEY");
+  if (!gkey || !name) return null;
+  try {
+    const q = encodeURIComponent([name, hint].filter(Boolean).join(" "));
+    const r = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?query=${q}&key=${gkey}`);
+    if (!r.ok) return null;
+    const d = await r.json();
+    const hit = (d.results || [])[0];
+    if (!hit) return null;
+    const types: string[] = hit.types || [];
+    let category: string | null = null;
+    if (types.some((t) => ["restaurant","cafe","bar","bakery","food","meal_takeaway"].includes(t))) category = "dining";
+    else if (types.some((t) => ["lodging","travel_agency","airport","tourist_attraction","natural_feature","ski_resort"].includes(t))) category = "travel";
+    else if (types.some((t) => ["doctor","hospital","dentist","pharmacy","physiotherapist","health"].includes(t))) category = "healthcare";
+    else if (types.some((t) => ["museum","art_gallery","movie_theater","library","church","synagogue"].includes(t))) category = "culture";
+    else if (types.some((t) => ["gym","park","stadium","campground"].includes(t))) category = "hobbies";
+    else if (types.some((t) => ["plumber","electrician","painter","roofing_contractor","locksmith","moving_company"].includes(t))) category = "home";
+    return { name: hit.name || name, location: hit.formatted_address || "", category };
+  } catch (_) { return null; }
+}
+
+export async function embed(key: string, text: string): Promise<number[] | null> {
+  try {
+    const r = await fetch("https://api.openai.com/v1/embeddings", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: EMB_MODEL, dimensions: 1536, input: text.slice(0, 8000) }),
+    });
+    if (!r.ok) return null;
+    const e = await r.json();
+    return e.data?.[0]?.embedding ?? null;
+  } catch (_) { return null; }
+}
+
+export async function enrichOne(key: string, input: {
+  name: string; note: string; location: string; query_text: string; circle_name: string;
+}): Promise<Enriched> {
+  const ai = key ? await aiEnrich(key, input) : null;
+  let name = ai?.name || input.name;
+  // Never let a sentence become an entity; fall back to the question's subject
+  // when the answer text is testimony rather than a name.
+  if (looksLikeSentence(name)) name = (ai?.name && !looksLikeSentence(ai.name)) ? ai.name : input.name;
+
+  let location = ai?.location || input.location || "";
+  let category = ai?.category || "other";
+  const kind = ai?.kind || "";
+  const tags = ai?.tags || [];
+  let resolved = false;
+
+  const place = await resolvePlace(name, [kind, location].filter(Boolean).join(" "));
+  if (place) {
+    resolved = true;
+    name = place.name || name;
+    location = place.location || location;
+    if (place.category) category = place.category;
+  }
+
+  const search_doc = buildSearchDoc({
+    name, location, category, kind, tags,
+    note: input.note || "", query_text: input.query_text || "", circle_name: input.circle_name || "",
+  });
+  return { name, location, category, tags, search_doc, resolved, kind };
+}
+
