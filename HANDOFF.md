@@ -316,3 +316,43 @@ ilike '%circle:%';  → must be 0.
 - Shared-canonical display dedupe (Silverton showed twice) — product call.
 - Migrations 0002–0009 still absent from the repo.
 - Test-account debris: 5 doc-less canonicals under test users — harmless.
+
+# ═══ 5 AUG 2026 — v0.38.0 · GROUPED CARDS (one card per place) ═══
+
+## THE IDEA (dan)
+Silverton answered three questions from three circles ("similar to la grave in
+the USA", "most extreme freeride resort in the USA", "a resort with no groomed
+and marked runs"). Typing Silverton must show ONE card carrying all three
+reasons. Three people answering three questions with one place is the PRODUCT,
+not a duplicate — the schema always intended it (canonicals = the thing,
+recommendations = someone's take, each with its own note/circle/query/rater;
+no unique constraint on canonical+owner).
+
+## RULES AS BUILT
+- One card per CANONICAL. The lead recommendation supplies note/rating/status.
+- LEAD: reranker ruled -> highest-ranked (f.filtered is already in rank order,
+  so first occurrence = the question that MATCHED). No ranking -> most recent
+  by created_at. NOT rec_date: import days tie, and a label that flips between
+  refreshes is maddening to debug.
+- CIRCLE LABEL: most recent take's circle, rendered "travel +2" when the group
+  spans others. The +N exists so a self-changing label never reads as data loss.
+- QUESTION LINE: the lead's question, plus "answered N more questions".
+- DETAIL VIEW: every distinct question, newest first, each with its own note
+  and attribution. Uses allRecsForCanon — computed since v0.17, never used;
+  the detail view had been showing whichever card you happened to tap.
+- COUNT: cards, phrased "2 items · 4 recommendations" when they differ, so a
+  smaller number is explained rather than alarming.
+- Circle filter narrows the group: the ski view shows Silverton once with a
+  bare "ski" label and NO phantom +N.
+
+## DEFAULTS I CHOSE (dan didn't rule; each is one line to reverse)
+count=cards · grouping across all circles always · detail newest-first.
+
+## TESTS
+grouped-sim.js — 23 checks on dan's exact Silverton fixture. Both negative
+tests proven: reverting to per-rec cards fails 3 checks (3 Silverton
+occurrences); breaking the recency rule fails the lead checks.
+Suites: 28, checks 489, all green.
+
+## NOT DEPLOYED YET at time of writing — needs the usual: extract, verify
+v0.38.0 on disk, commit, push, hard-refresh.
