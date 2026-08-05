@@ -405,3 +405,107 @@ name-only key both fail. Suites 29, checks 516, all green.
 ## NEXT: migrations 0002–0009 into the repo (schema cannot be rebuilt from
 source today: source_label and shared_to_network exist in the DB but in NO
 migration file). Then beta readiness → first 3–5 connectors.
+
+# ═══ 5 AUG 2026 — v0.40.0 · SCHEMA RECONCILIATION (0002–0009 gap closed) ═══
+
+## CORRECTION to an earlier claim in this handoff
+I previously wrote that source_label exists in the DB but in NO migration.
+WRONG — it is in 0012_collection_provenance.sql, which lived in supabase/sql/
+rather than supabase/migrations/. I checked one folder and generalised. The gap
+was real but the example was not.
+
+## WHAT WAS ACTUALLY MISSING (diffed information_schema vs every migration)
+THREE TABLES no migration created: public_lists, circle_invite_links,
+category_corrections. NOTE: none are referenced by ANY code in the repo — they
+look like abandoned features. Reconstructed for fidelity; consider dropping.
+FIFTEEN COLUMNS: canonicals(primary_category, ai_tags, embedding,
+classified_at, class_source) · invites(invite_type, circle_id, inviter_name,
+circle_name, clicked, clicked_at) · queries(resolved_at, chosen_response_id) ·
+recommendations(shared_to_network) · users(handle, share_by_default).
+canonicals.embedding is the one that mattered: search_library_hybrid reads it
+directly, so a rebuild produced a database where semantic search could not
+work at all.
+
+## A REAL ORDERING BUG THE NEW SIM FOUND
+0014 declares vector(1536) in search_library_hybrid's signature, but pgvector
+was only ever enabled BY HAND in the dashboard. A fresh rebuild died at 0014
+with "type vector does not exist". Fixed by hoisting
+`create extension if not exists vector;` into 0001 beside pgcrypto/pg_trgm.
+Idempotent, so a no-op live. This is the class of failure the whole exercise
+existed to find, and it was invisible until something tried to rebuild.
+
+## AS BUILT
+- 0018_schema_reconciliation.sql: all three tables + all fifteen columns, every
+  statement `if not exists` — SAFE to run live, where it does nothing. It
+  exists so a FRESH database can be built from source.
+- supabase/sql/ MERGED into supabase/migrations/. One folder, one sequence.
+- schema-sim.js (29 checks): every live table and column must be creatable from
+  migrations; the AI/search columns get named checks; extension ordering is
+  verified; and no code reference may point at an uncreatable column.
+  Negative-tested three ways (drop embedding, un-hoist the extension, rename a
+  table) — all three fail as they should.
+
+## STILL NOT CAPTURED — READ BEFORE TRUSTING THIS FOR DISASTER RECOVERY
+RLS POLICIES. The information_schema dump did not include pg_policies, so a
+rebuilt database has these tables with RLS unconfigured. Capture with:
+  select schemaname, tablename, policyname, cmd, qual, with_check
+  from pg_policies where schemaname = 'public';
+Foreign keys and CHECK constraints in 0018 are INFERRED from column names and
+0001's conventions, not read from the live DB. Probably right; not verified.
+
+## SUITES: 30, checks 545, all green.
+## NEXT: beta. Every technical blocker is cleared. The gate is dan's decision:
+## first 3–5 connectors, a start date, a feedback channel.
+
+# ═══ 5 AUG 2026 — v0.40.0 · SCHEMA RECONCILIATION (0002–0009 gap closed) ═══
+
+## THE GAP WAS WORSE THAN THE HEADLINE
+Migrations 0002–0009 were run by hand in the dashboard and never committed.
+Diffing information_schema.columns against every committed migration found
+THREE TABLES and FIFTEEN COLUMNS existing only in production:
+  tables : public_lists · circle_invite_links · category_corrections
+  columns: canonicals.{primary_category, ai_tags, embedding, classified_at,
+           class_source} · invites.{invite_type, circle_id, inviter_name,
+           circle_name, clicked, clicked_at} · queries.{resolved_at,
+           chosen_response_id} · recommendations.shared_to_network ·
+           users.{handle, share_by_default}
+canonicals.embedding is the vector column search_library_hybrid reads directly:
+a rebuild produced a database where semantic search could not function at all.
+
+## CORRECTION TO AN EARLIER CLAIM IN THIS HANDOFF
+I stated source_label existed in the DB but in NO migration. WRONG — it is in
+0012_collection_provenance.sql, which lives in supabase/sql/ rather than
+supabase/migrations/. I checked one folder and generalised. shared_to_network
+IS genuinely missing; source_label never was.
+
+## A REBUILD-BLOCKING BUG THE NEW SIM CAUGHT
+Nothing ever created the pgvector extension. 0014 declares vector(1536) and
+would ABORT on an empty database with "type vector does not exist", killing
+every later migration. Fixed by 0009_extensions.sql — numbered 0009, not 0018,
+because ORDER is the point: correct SQL in the wrong slot still cannot rebuild.
+
+## RLS: DELIBERATELY NOT RECONSTRUCTED
+An earlier draft of 0018 INVENTED policies by inference. That was wrong and
+dangerous — `drop policy if exists` + a guessed `create policy` would silently
+replace a working production policy, either locking users out or exposing data.
+0018 now only ENABLES RLS on the three new tables and stops: a no-op live, and
+FAILS CLOSED on a rebuild. TO FINISH, run against prod and paste back:
+  select schemaname, tablename, policyname, cmd, qual, with_check
+  from pg_policies where schemaname='public' order by tablename, policyname;
+public_lists especially needs a SELECT policy letting non-owners read published
+lists (is_public = true), or sharing breaks entirely.
+
+## STRUCTURE
+supabase/sql/ MERGED into supabase/migrations/ — one folder, one sequence
+(0001, 0009, 0010–0018). All statements are `if not exists`: 0018 is SAFE to
+run against production, where it is a no-op.
+
+## TESTS
+schema-sim.js — 30 checks: every live table and column must be creatable from
+migrations; extension ordering (with SQL comments STRIPPED — a check that
+explanatory prose can break gets deleted the first time it cries wolf); no code
+reference to an uncreatable column. Negative tests proven: deleting 0009, 0018,
+or re-splitting the folder each fail. Suites 30, checks 546, all green.
+
+## NEXT: beta. Every technical blocker is now cleared. The remaining gate is a
+decision only dan can make — first 3–5 connectors, start date, feedback channel.
