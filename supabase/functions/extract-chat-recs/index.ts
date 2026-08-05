@@ -5,7 +5,7 @@
 //    for recommendations → { items:[{name,category,location,note,phone}...] }
 //  { mode:"save", items, circle_id|null, source, collection_title }
 //    → inserts canonicals+recommendations (dedup by name), optional collection
-//    → { saved, skipped, collection_token? }
+//    → { saved, skipped, reused, collection_token? }
 // Privacy rules enforced in the prompt: no member names in notes, minors
 // excluded, only service-provider phone numbers kept.
 // OBSERVABILITY DOCTRINE: provider failures are logged VERBATIM.
@@ -108,47 +108,92 @@ Deno.serve(async (req: Request) => {
       if (!circ || circ.owner_id !== userId) return err("circle_not_found_or_not_yours", 403);
     }
 
+    // ═══ DEDUP (v0.39.0) ══════════════════════════════════════════════════════
+    // TWO different questions, previously conflated into one exact-match name
+    // set — which a single hyphen defeated ("שושן שמוליק" vs "שושן-שמוליק"
+    // produced duplicate pairs on 2 Aug 2026):
+    //
+    //   1. "Does this THING already exist?"  -> match_canonical (trigram, >0.45)
+    //      Reuse the canonical. The old code NEVER did this: it minted a fresh
+    //      canonical for every import, fragmenting the entity graph. Since
+    //      v0.38.0 groups cards BY CANONICAL, two canonicals for one place =
+    //      two cards that no grouping can merge.
+    //
+    //   2. "Do I already have THIS NOTE from THIS CHAT?" -> the triple key
+    //      below. A second person's take on the same place is a SECOND
+    //      RECOMMENDATION, not a duplicate (the schema has always allowed it).
+    //      Keyed on canonical + source + note (dan's call, 5 Aug): re-importing
+    //      the same chat skips verbatim repeats, while a NEW message about the
+    //      same place in the same group still gets through. Skipping a real
+    //      recommendation is a silent loss; a visible duplicate can be deleted.
     const { data: mine } = await admin
-      .from("recommendations").select("canonical_id, canonicals(name)").eq("owner_id", userId);
-    const have = new Set((mine ?? []).map((r: any) => (r.canonicals?.name || "").toLowerCase().trim()).filter(Boolean));
+      .from("recommendations").select("canonical_id, source_label, note").eq("owner_id", userId);
+    const dedupKey = (canId: string, src: string, note: string) =>
+      canId + "\u0000" + (src || "").toLowerCase().trim() + "\u0000" + (note || "").toLowerCase().trim();
+    const have = new Set((mine ?? [])
+      .filter((r: any) => r.canonical_id)
+      .map((r: any) => dedupKey(r.canonical_id, r.source_label, r.note)));
 
     const today = new Date().toISOString().slice(0, 10);
     const sourceLabel = "\u05e7\u05d1\u05d5\u05e6\u05ea \u05d5\u05d5\u05d0\u05d8\u05e1\u05d0\u05e4 \u00b7 " + source;
     let saved = 0, skipped = 0;
     const recIds: string[] = [];
 
+    let reused = 0;
     for (const it of items) {
-      const norm = it.name.toLowerCase().trim();
-      if (!norm) continue;
-      if (have.has(norm)) { skipped++; continue; }
-
-      // The search document is written AT BIRTH. Before 4 Aug 2026 chat-import
-      // items had category+tags but no document — findable-looking, unfindable.
-      const noteForDoc = it.note + (it.phone ? (it.note ? " \u00b7 " : "") + it.phone : "");
-      const searchDoc = buildSearchDoc({
-        name: it.name, location: it.location || "",
-        category: CATEGORIES.includes(it.category) ? it.category : "other",
-        kind: "", tags: [], note: noteForDoc, query_text: "",
-      });
-      const key = Deno.env.get("OPENAI_API_KEY");
-      const vec = key ? await embed(key, searchDoc) : null;
-      const canInsert: Record<string, unknown> = {
-        type: "place", name: it.name, category: "", location: it.location || "",
-        image_emoji: "\u{1F4CC}", created_by: userId,
-        primary_category: CATEGORIES.includes(it.category) ? it.category : "other",
-        class_source: "ai", classified_at: new Date().toISOString(),
-        search_doc: searchDoc, search_doc_at: new Date().toISOString(),
-        website_url: null, image_url: null,
-      };
-      if (vec) canInsert.embedding = vec;
-      const { data: canRow, error: canErr } = await admin.from("canonicals").insert(canInsert).select("id").single();
-      if (canErr || !canRow) {
-        console.error("save_canonical_error", it.name, canErr?.message);
-        return err("save_failed_at_" + it.name.slice(0, 30) + ": " + (canErr?.message || "unknown"), 500);
-      }
+      if (!it.name || !it.name.trim()) continue;
       const note = it.note + (it.phone ? (it.note ? " \u00b7 " : "") + it.phone : "");
+
+      // ── 1. does this THING already exist? (same RPC receive-response uses) ──
+      // Trigram similarity > 0.45. Modelled against dan's real duplicate pairs:
+      // שושן שמוליק/שושן-שמוליק 0.64, Eli מיזוג/מזוג 0.58, ד"ר X/דר X 0.69 —
+      // all caught. Basta/Habasta 0.40 and K2/K2 Sender 0.30 correctly stay
+      // separate: a boot brand and a ski model are different things, and search
+      // already links them via exact_bonus without merging them.
+      let canonicalId: string | null = null;
+      const { data: matchId } = await admin.rpc("match_canonical", {
+        p_name: it.name.trim(),
+        p_location: (it.location || "").trim() || null,
+      });
+      if (matchId) { canonicalId = matchId as string; reused++; }
+
+      // ── 2. do I already have THIS note from THIS chat about it? ────────────
+      if (canonicalId && have.has(dedupKey(canonicalId, sourceLabel, note))) {
+        skipped++;
+        continue;
+      }
+
+      if (!canonicalId) {
+        // The search document is written AT BIRTH. Before 4 Aug 2026 chat-import
+        // items had category+tags but no document — findable-looking, unfindable.
+        const noteForDoc = note;
+        const searchDoc = buildSearchDoc({
+          name: it.name, location: it.location || "",
+          kind: "", tags: [], note: noteForDoc, query_text: "",
+        });
+        const key = Deno.env.get("OPENAI_API_KEY");
+        const vec = key ? await embed(key, searchDoc) : null;
+        const canInsert: Record<string, unknown> = {
+          type: "place", name: it.name, category: "", location: it.location || "",
+          image_emoji: "\u{1F4CC}", created_by: userId,
+          primary_category: CATEGORIES.includes(it.category) ? it.category : "other",
+          class_source: "ai", classified_at: new Date().toISOString(),
+          search_doc: searchDoc, search_doc_at: new Date().toISOString(),
+          website_url: null, image_url: null,
+        };
+        if (vec) canInsert.embedding = vec;
+        const { data: canRow, error: canErr } = await admin.from("canonicals").insert(canInsert).select("id").single();
+        if (canErr || !canRow) {
+          console.error("save_canonical_error", it.name, canErr?.message);
+          return err("save_failed_at_" + it.name.slice(0, 30) + ": " + (canErr?.message || "unknown"), 500);
+        }
+        canonicalId = canRow.id as string;
+        // Inserted NOW, so a variant spelling later in this same batch will be
+        // caught by match_canonical on its own turn — no local map needed.
+      }
+
       const { data: recRow, error: recErr } = await admin.from("recommendations").insert({
-        owner_id: userId, canonical_id: canRow.id, circle_id: circleId,
+        owner_id: userId, canonical_id: canonicalId, circle_id: circleId,
         recommended_by_user_id: userId, note, rating: null,
         status: "saved", is_anonymous: false, degree: 1,
         shared_to_network: false, rec_date: today, source_label: sourceLabel,
@@ -157,7 +202,7 @@ Deno.serve(async (req: Request) => {
         console.error("save_rec_error", it.name, recErr?.message);
         return err("save_failed_at_" + it.name.slice(0, 30) + ": " + (recErr?.message || "unknown"), 500);
       }
-      have.add(norm);
+      have.add(dedupKey(canonicalId, sourceLabel, note));
       recIds.push(recRow.id);
       saved++;
     }
@@ -179,7 +224,10 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    return json({ engine: ENGINE, saved, skipped, collection_token: collectionToken });
+    // `reused` = items attached to an EXISTING canonical instead of minting a
+    // new one. Worth surfacing: a re-import should show high reuse, and a first
+    // import of a new chat near zero. Cheap signal that dedup is working.
+    return json({ engine: ENGINE, saved, skipped, reused, collection_token: collectionToken });
   }
 
   return err("unknown_mode");

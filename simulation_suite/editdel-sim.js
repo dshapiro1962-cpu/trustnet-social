@@ -29,7 +29,7 @@ vm.runInContext('renderApp=function(){};showView=function(v){globalThis.__view=v
  +'CURRENT_UID="me";',ctx);
 ctx.__toasts=[];ctx.__saved={circles:0,members:0,recs:0,cans:0};
 const X=ctx.__x;
-ck('APP_VERSION is v0.38.0', X.APP_VERSION==='v0.38.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.39.0', X.APP_VERSION==='v0.39.0 · live', X.APP_VERSION);
 
 // Seed state: circle, members (wa+email+app), canonical (no location — the k2 case), rec
 X.AppState.isDemoMode=false;

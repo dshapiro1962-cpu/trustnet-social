@@ -356,3 +356,52 @@ Suites: 28, checks 489, all green.
 
 ## NOT DEPLOYED YET at time of writing — needs the usual: extract, verify
 v0.38.0 on disk, commit, push, hard-refresh.
+
+# ═══ 5 AUG 2026 — v0.39.0 · CHAT-IMPORT DEDUP ═══
+
+## TWO FAULTS, ONE OF THEM WORSE THAN THE REPORTED ONE
+1. Dedup was an EXACT name match (lowercase+trim). One hyphen defeated it —
+   "שושן שמוליק" vs "שושן-שמוליק" — producing the 2 Aug duplicate pairs.
+2. THE DEEPER ONE: chat-import NEVER called match_canonical. It minted a fresh
+   canonical for EVERY import, fragmenting the entity graph. Since v0.38.0
+   groups cards BY CANONICAL, two canonicals for one place = two cards no
+   grouping can merge. This was not in the original bug report.
+
+CORRECTION to an earlier claim in this handoff: `have.add(norm)` WAS inside the
+loop, so within-batch identical-spelling repeats were already handled. The real
+gaps were variant spellings and the missing canonical reuse.
+
+## AS BUILT
+- match_canonical (trigram > 0.45) is called FIRST — same RPC receive-response
+  has always used. Matched -> reuse the canonical. Only an unmatched name mints
+  a new one, and it is inserted immediately, so a variant spelling later in the
+  SAME batch is caught by match_canonical on its own turn (no local map).
+- Rec-level skip key = canonical_id + source_label + note (dan's call).
+  A: re-import same chat, same note -> skipped.
+  B: different group, same place -> second take KEPT (a second person's take is
+     a second RECOMMENDATION, not a duplicate — the schema always allowed it).
+  C: same group, NEW note -> KEPT. Rationale: skipping a real recommendation is
+     a SILENT loss; a visible duplicate can be deleted.
+- Response now returns `reused` — a re-import should show high reuse, a fresh
+  chat near zero. Cheap signal that dedup is alive.
+- Still writes search_doc at birth (v0.36.0) and stays circle-blind (v0.37.0).
+
+## THRESHOLD EVIDENCE (modelled, not measured — no DB in the build container)
+Caught: שושן שמוליק/שושן-שמוליק 0.64 · Eli מיזוג/מזוג 0.58 · ד"ר X/דר X 0.69 ·
+Tony Vespa/tony vespa 1.00. Correctly separate: Basta/Habasta 0.40 ·
+K2/K2 Sender 0.30 · unrelated butchers 0.00. All far from the 0.45 boundary.
+
+## K2 / K2 SENDER — RESOLVED WITHOUT CODE
+A boot brand and a ski model are DIFFERENT things and must stay separate
+canonicals. dan verified on live search: "K2" returns both; "ski boot" returns
+only K2. exact_bonus (doc contains query -> 1.0, name overlap -> 0.9) links
+them at retrieval time without merging them at data level. No change needed.
+
+## TESTS
+importdedup-sim.js — 27 checks incl. dan's real duplicate pairs and the three
+scenarios. Negative tests proven: removing canonical reuse and reverting to the
+name-only key both fail. Suites 29, checks 516, all green.
+
+## NEXT: migrations 0002–0009 into the repo (schema cannot be rebuilt from
+source today: source_label and shared_to_network exist in the DB but in NO
+migration file). Then beta readiness → first 3–5 connectors.
