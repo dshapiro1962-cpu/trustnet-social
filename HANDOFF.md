@@ -509,3 +509,26 @@ or re-splitting the folder each fail. Suites 30, checks 546, all green.
 
 ## NEXT: beta. Every technical blocker is now cleared. The remaining gate is a
 decision only dan can make — first 3–5 connectors, start date, feedback channel.
+
+# ═══ v0.40.1 · RLS TRANSCRIBED (completes 0018) ═══
+
+dan dumped pg_policies. Only THREE of eighteen production policies were missing
+from the migrations: cil_owner (circle_invite_links), public_lists_owner,
+notif_select. Now in 0019_rls_policies.sql, transcribed verbatim.
+
+## THE INFERENCE WAS WRONG IN THE DANGEROUS DIRECTION — KEEP THIS LESSON
+The earlier 0018 draft guessed public_lists needed a SELECT policy letting
+anyone read a list with is_public = true. Production has NO such policy:
+public_lists is OWNER-ONLY. Shared lists reach non-owners through the
+get-collection edge function, which uses the SERVICE ROLE and bypasses RLS.
+Shipping the guess would have opened direct client reads the product does not
+grant. Guarded now: schema-sim fails if any public_lists policy mentions
+is_public. NEVER reconstruct security rules by inference — dump them.
+
+## category_corrections IS DEAD, DELIBERATELY DOCUMENTED
+Table exists, RLS enabled, ZERO policies — and zero references in the app or
+any of the 19 edge functions. RLS with no policy denies everything, so it is
+dead weight, not a hole. DECISION (not urgent): wire it to the category-
+correction flow so class_source='user' gets its audit trail, or drop it.
+
+## STATE: suites 30, checks 550. Migrations 0001, 0009, 0010–0019 in ONE folder.

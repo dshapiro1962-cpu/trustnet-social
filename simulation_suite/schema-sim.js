@@ -23,8 +23,39 @@ ck('the sequence is gapless from 0010 up',
 ck('0018 is idempotent — safe to run against the LIVE database',
    !/\balter table (?!.*if not exists)[^\n]*add column (?!if not exists)/i.test(
       fs.readFileSync(path.join(MIG, '0018_schema_reconciliation.sql'), 'utf8')));
-ck('0018 documents that RLS policies are NOT captured',
+ck('0018 documents that it does not reconstruct RLS policies',
    /RLS POLICIES ARE NOT CAPTURED/.test(sql));
+
+// ── RLS: every production policy must be reproducible ───────────────────────
+// Transcribed from pg_policies on 5 Aug 2026. A rebuilt database with the
+// tables but not the policies either locks users out or, worse, is opened up
+// by a well-meaning guess. 0019 carries the real ones.
+const PROD_POLICIES = [
+  ['canonicals','canonicals_insert'], ['canonicals','canonicals_read'],
+  ['canonicals','canonicals_update_creator'], ['circle_invite_links','cil_owner'],
+  ['circles','circles_owner'], ['collection_items','ci_owner_all'],
+  ['collections','col_owner_all'], ['invites','invites_owner'],
+  ['members','members_owner'], ['notifications','notif_owner'],
+  ['notifications','notif_select'], ['public_lists','public_lists_owner'],
+  ['queries','queries_owner'], ['query_responses','qr_read_by_query_owner'],
+  ['recommendations','recs_owner'], ['taste_match_profiles','tmp_owner_read'],
+  ['taste_matches','tm_owner_read'], ['users','users_self'],
+];
+const missingPol = PROD_POLICIES.filter(([t, n]) =>
+  !new RegExp('create policy ' + n + '\\s+on\\s+(?:public\\.)?' + t + '\\b', 'i').test(sql));
+ck('every production RLS policy is created by a migration',
+   missingPol.length === 0, missingPol.map(x => x.join('.')).join(', '));
+
+// public_lists is OWNER-ONLY on production. An inferred "anyone may read a
+// published list" policy would WIDEN access beyond what the product grants —
+// shared lists are served by get-collection under the service role instead.
+const plBlock = (sql.match(/create policy public_lists[\s\S]{0,200}/) || [''])[0];
+ck('public_lists policy stays owner-only (no invented public read)',
+   !/is_public/.test(plBlock), plBlock.slice(0, 120));
+ck('policies are transcribed, and say so',
+   /TRANSCRIPT, not an inference/.test(sql));
+ck('the dead category_corrections table is documented, not silently left',
+   /INTENTIONALLY POLICY-LESS/.test(sql));
 
 // ── the live schema must be fully reconstructible ───────────────────────────
 // Every table+column observed in production on 5 Aug 2026.
