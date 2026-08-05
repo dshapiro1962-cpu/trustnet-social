@@ -582,3 +582,28 @@ Suites 31, checks 580, all green.
 ## DEPLOY: run 0020 in the SQL editor AFTER pushing. It ends with a verification
 query — expect cols=2, match_fn=1, and phones_recovered = however many numbers
 were rescued from notes.
+
+# ═══ v0.41.1 · match_canonical OVERLOAD FIX (0021) ═══
+
+0020's verification query returned pg_proc = 2, not 1. CREATE OR REPLACE only
+replaces a function of the SAME SIGNATURE; adding p_phone created a SECOND
+overloaded match_canonical rather than widening the original.
+
+WHY IT MATTERED: Supabase RPC resolves by parameter NAME. receive-response calls
+with two named args and PostgreSQL prefers exact arity — so it would have
+silently kept using the OLD no-phone function while extract-chat-recs (three
+args) used the new one. Two callers, two identity rules, no error raised. 0021
+drops the 2-arg orphan; the 3-arg version is a strict superset (p_phone defaults
+null, name/location branch byte-identical).
+
+LESSON: 0020's comment claimed "signature EXTENDED, not replaced" — true in a
+sense I had not thought through. It extended by ADDING a function. Any migration
+that changes a function's argument list must DROP the old signature explicitly.
+Guarded: contact-sim fails if the 2-arg drop is missing.
+
+RUN ORDER CORRECTION: 0020/0021 must run BEFORE pushing the edge functions. The
+new chat-import passes p_phone; if the function is deployed first, imports fail
+on a signature mismatch. The CLIENT is safe either way (a missing column reads
+as empty).
+
+STATE: suites 31, checks 583. Migrations 0001, 0009, 0010–0021.
