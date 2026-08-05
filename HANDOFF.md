@@ -532,3 +532,53 @@ dead weight, not a hole. DECISION (not urgent): wire it to the category-
 correction flow so class_source='user' gets its audit trail, or drop it.
 
 ## STATE: suites 30, checks 550. Migrations 0001, 0009, 0010–0019 in ONE folder.
+
+# ═══ 5 AUG 2026 — v0.41.0 · CONTACT AS A FIELD (parked HARD-THINK item closed) ═══
+
+## THE PROBLEM, SHARPER THAN THE ORIGINAL NOTE
+canonicals had google_url, website_url, linkedin_url — and NO phone. The only
+phone columns in the database belonged to users and wa_otp (people who sign in).
+So chat-import appended the provider's number to the NOTE as prose:
+  "מעולה, אמין, מקצועי, אחראי. 050-5303690"
+Three costs, the third unnoticed until now:
+  1. NOT ACTIONABLE — read, select, copy, switch app, paste
+  2. NOT QUERYABLE — "which recs are contactable" was unanswerable
+  3. NOT AN IDENTITY ANCHOR — match_canonical compared NAME SIMILARITY only,
+     so the strongest signal in the data sat unused inside a sentence.
+
+## WHY BEFORE BETA (dan's correction, and he was right)
+I proposed measuring current volume first. Wrong frame: volume-sizing is for
+REPAIRING existing damage, not for structural capability before growth. This is
+a schema-shape error — equally wrong at 6 rows and 6,000 — and the backfill is
+trivial today and miserable later. Beta multiplies exactly the shape that needs
+it (handymen, doctors, babysitters). Recorded because the instinct to measure
+first is usually right and misfired here.
+
+## AS BUILT (0020_canonical_contact.sql + code)
+- canonicals.phone (raw, as written) + canonicals.phone_key GENERATED ALWAYS AS
+  (phone_key(phone)) STORED — reuses 0017's immutable function, so there is ONE
+  normalisation rule and no code path can write an inconsistent key. Indexed.
+- match_canonical(p_name, p_location, p_phone DEFAULT NULL): PHONE IS CHECKED
+  FIRST and returns immediately. A matching number is proof; a similar name is a
+  guess. Two providers named "שי" with different numbers now stay separate; one
+  provider written "שושן שמוליק"/"שושן-שמוליק" merges on the number even if the
+  names drift past the 0.45 trigram threshold. Signature EXTENDED not replaced —
+  receive-response and every other caller keep working untouched.
+- Backfill lifts numbers already trapped in notes. Non-destructive: notes keep
+  their text, and an existing phone is never overwritten.
+- chat-import writes the phone as a COLUMN, passes it to match_canonical, and
+  fills a REUSED canonical that has no number (never overwrites one). The search
+  DOCUMENT still contains the number — searching a phone must find the provider.
+  Retrieval text and stored fields are different concerns.
+- Rec detail: tel: and WhatsApp buttons, FIRST in the link row — pressing beats
+  searching. Uses normalizeIlPhone, the same rule as everywhere else.
+
+## TESTS
+contact-sim.js — 30 checks incl. five written forms of one number collapsing to
+one 9-digit key, and dan's real "שי" ambiguity. Negative tests proven: removing
+the phone short-circuit and re-gluing the phone into the note both fail.
+Suites 31, checks 580, all green.
+
+## DEPLOY: run 0020 in the SQL editor AFTER pushing. It ends with a verification
+query — expect cols=2, match_fn=1, and phones_recovered = however many numbers
+were rescued from notes.

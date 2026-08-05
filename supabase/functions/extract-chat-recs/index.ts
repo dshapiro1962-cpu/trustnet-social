@@ -142,7 +142,10 @@ Deno.serve(async (req: Request) => {
     let reused = 0;
     for (const it of items) {
       if (!it.name || !it.name.trim()) continue;
-      const note = it.note + (it.phone ? (it.note ? " \u00b7 " : "") + it.phone : "");
+      // The phone is a FIELD now, not prose. Appending it to the note made a
+      // number you had to read, select, copy and paste into a dialler — and
+      // made it invisible to dedup. The note keeps only what a person wrote.
+      const note = it.note;
 
       // ── 1. does this THING already exist? (same RPC receive-response uses) ──
       // Trigram similarity > 0.45. Modelled against dan's real duplicate pairs:
@@ -151,11 +154,26 @@ Deno.serve(async (req: Request) => {
       // separate: a boot brand and a ski model are different things, and search
       // already links them via exact_bonus without merging them.
       let canonicalId: string | null = null;
+      // Phone BEATS name (0020): a matching number is proof, a similar name is
+      // a guess. Two providers both called "שי" with different numbers stay
+      // separate; one written "שושן שמוליק" and "שושן-שמוליק" merges on the
+      // number even if the names drifted past the 0.45 trigram threshold.
       const { data: matchId } = await admin.rpc("match_canonical", {
         p_name: it.name.trim(),
         p_location: (it.location || "").trim() || null,
+        p_phone: (it.phone || "").trim() || null,
       });
-      if (matchId) { canonicalId = matchId as string; reused++; }
+      if (matchId) {
+        canonicalId = matchId as string; reused++;
+        // A reused canonical that lacks a number, when THIS message has one:
+        // fill it. Never overwrite an existing number — the first recorded
+        // contact is the one that has been in use.
+        if ((it.phone || "").trim()) {
+          await admin.from("canonicals")
+            .update({ phone: it.phone.trim() })
+            .eq("id", canonicalId).is("phone", null);
+        }
+      }
 
       // ── 2. do I already have THIS note from THIS chat about it? ────────────
       if (canonicalId && have.has(dedupKey(canonicalId, sourceLabel, note))) {
@@ -166,7 +184,9 @@ Deno.serve(async (req: Request) => {
       if (!canonicalId) {
         // The search document is written AT BIRTH. Before 4 Aug 2026 chat-import
         // items had category+tags but no document — findable-looking, unfindable.
-        const noteForDoc = note;
+        // The document DOES keep the number: searching a phone should find the
+        // provider. Retrieval text and stored fields are different concerns.
+        const noteForDoc = note + (it.phone ? (note ? " \u00b7 " : "") + it.phone : "");
         const searchDoc = buildSearchDoc({
           name: it.name, location: it.location || "",
           kind: "", tags: [], note: noteForDoc, query_text: "",
@@ -180,6 +200,7 @@ Deno.serve(async (req: Request) => {
           class_source: "ai", classified_at: new Date().toISOString(),
           search_doc: searchDoc, search_doc_at: new Date().toISOString(),
           website_url: null, image_url: null,
+          phone: (it.phone || "").trim() || null,   // phone_key is GENERATED
         };
         if (vec) canInsert.embedding = vec;
         const { data: canRow, error: canErr } = await admin.from("canonicals").insert(canInsert).select("id").single();

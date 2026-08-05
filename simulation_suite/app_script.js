@@ -233,6 +233,7 @@ async function loadUserData() {
     location:c.location||'', description:c.description||'', imageEmoji:c.image_emoji||'📌', googleUrl:c.google_url,
     websiteUrl:c.website_url, linkedinUrl:c.linkedin_url,
     primaryCategory:c.primary_category||'', aiTags:c.ai_tags||[], imageUrl:c.image_url||'',
+    phone:c.phone||'',
     hasSearchDoc:!!c.search_doc,
     createdBy:c.created_by||null }; });
 
@@ -420,7 +421,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.40.1 · live';
+const APP_VERSION = 'v0.41.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3181,6 +3182,16 @@ function renderRecDetail() {
 
   let linksHtml = '';
   // Links stored on the canonical itself (when known)
+  // A recommendation you cannot act on is not a recommendation. Until v0.41.0
+  // the number lived inside the note as prose: read it, select it, copy it,
+  // switch apps, paste. These go FIRST — pressing beats searching.
+  if (can.phone) {
+    const e164 = normalizeIlPhone(can.phone);
+    linksHtml += '<a href="tel:' + esc(can.phone) + '" class="btn btn-primary btn-sm" style="text-decoration:none;">\u260E\uFE0F ' + esc(can.phone) + '</a>';
+    if (e164) {
+      linksHtml += '<a href="https://wa.me/' + esc(e164.replace(/\D/g, '')) + '" target="tn_ext" rel="noopener" class="btn btn-secondary btn-sm" style="text-decoration:none;">WhatsApp</a>';
+    }
+  }
   if (can.websiteUrl) linksHtml += extLink(can.websiteUrl, '🌐 Website');
   if (can.googleUrl) linksHtml += extLink(can.googleUrl, 'Google Maps');
   if (can.linkedinUrl) linksHtml += extLink(can.linkedinUrl, 'LinkedIn');
