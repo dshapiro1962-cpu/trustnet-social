@@ -607,3 +607,52 @@ on a signature mismatch. The CLIENT is safe either way (a missing column reads
 as empty).
 
 STATE: suites 31, checks 583. Migrations 0001, 0009, 0010–0021.
+
+# ═══ 5 AUG 2026 — v0.41.2 · THE REBUILD ACTUALLY WORKS NOW ═══
+
+## THE CONTAINER HAS POSTGRES. USE IT.
+`apt-get update && apt-get install -y postgresql postgresql-contrib
+postgresql-16-pgvector`, then initdb + pg_ctl -o '-k /tmp'. NOTE: the container
+STOPS the server between tool calls — restart it before each batch, and never
+read a connection-refused as a code failure.
+Earlier sessions claimed "no DB available" after ONE apt-get failure that was
+really a stale package index. Two sessions of SQL shipped with static string
+checks standing in for execution, and 0020 broke the answer loop as a result.
+
+## A SECOND ORDERING BUG, FOUND BY BUILDING NOT READING
+0014/0015 SELECT c.primary_category, c.ai_tags, c.embedding — but 0018 added
+those columns, i.e. AFTER. A rebuild from source died at 0014 and every later
+migration silently never ran. Identical trap to the pgvector one. Columns moved
+0018 -> 0009. FULL SEQUENCE NOW APPLIES CLEAN: 14 files, 17 tables, one
+match_canonical with 3 args. **This is the first time the repo could actually
+rebuild the database** — every static check had said it could for two versions.
+
+## schema-sim NOW CHECKS ORDER, NOT JUST PRESENCE
+Per migration it extracts the columns ADDED (create-table bodies + add column)
+and the `c.<col>` references USED, and fails if anything is referenced before an
+EARLIER file creates it. Names the exact file pair. Presence checks passed twice
+while the database could not be built; this catches the class, not the instance.
+Suites 31, checks 587.
+
+## EVAL CORPUS (dan's 20 questions) — SEPARATE FROM THE BUILD
+eval_corpus_seed.sql / trustnet_eval_scoresheet.md / eval_corpus_teardown.sql
+live in outputs, NOT in the repo. Rows only: no schema, no code, no UI change.
+Two guards, both tested: unknown email refuses; an account with >40
+recommendations refuses ("must run on a TEST account") so it cannot be pointed
+at dan's real library by accident. Teardown verified on a real database — 34 in,
+34 out, a simulated 50-item real library untouched.
+The old 26/29 score is NOT reproducible (this corpus is 20 questions / 34 items,
+so 29 counted something unrecorded). The scoresheet establishes a NEW baseline
+instead of inventing a comparison.
+RESIDUAL RISK: canonicals is a GLOBAL table with no owner filter, so while the
+corpus exists a real save could match_canonical onto it. Run teardown promptly.
+Perfect isolation needs a second Supabase project — now feasible precisely
+because the migrations finally rebuild.
+
+## SESSION RULES (dan) — 4 IS NEW
+1. Analysis first, attack it, WAIT for go.
+2. Build → test → debug → submit. Test the deliverable; negative-test guards.
+3. No patching where structure is wrong — rewrite.
+4. EVERY command given IN FULL, EVERY time. Literal paths (no <placeholders>,
+   no %USERPROFILE% in PowerShell), complete sequences (git add AND commit AND
+   push), even if identical to two minutes ago. Never send dan back up the chat.

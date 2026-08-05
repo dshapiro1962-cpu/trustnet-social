@@ -139,4 +139,55 @@ const unknown = [...referenced].filter(c => known.has(c) && !(
 ));
 ck('no code reference points at an uncreatable column', unknown.length === 0, unknown.join(', '));
 
+
+// ── ORDER, not just presence (v0.41.2) ──────────────────────────────────────
+// THE CHECK THIS SUITE WAS MISSING. It verified every column EXISTS somewhere
+// in the migrations, and passed — while a rebuild from source still died at
+// 0014, because 0018 added canonicals.primary_category and .embedding AFTER
+// 0014 selected them. Twice: the same trap hid the pgvector extension.
+// Presence is not enough. A migration may only reference what an EARLIER
+// migration created.
+const migFiles = fs.existsSync(MIG)
+  ? fs.readdirSync(MIG).filter(f => f.endsWith('.sql')).sort() : [];
+const strip = (t) => t.replace(/--.*$/gm, '');
+const addedBy = {};          // column -> index of the file that first adds it
+const usesAt = [];           // [fileIndex, fileName, Set(columns referenced)]
+migFiles.forEach((f, i) => {
+  const t = strip(fs.readFileSync(path.join(MIG, f), 'utf8'));
+  const adds = new Set();
+  (t.match(/add column (?:if not exists )?(\w+)/gi) || [])
+    .forEach(m => adds.add(m.split(/\s+/).pop().toLowerCase()));
+  const ctRe = /create table (?:if not exists )?(?:public\.)?(\w+)\s*\(([\s\S]*?)\n\);/gi;
+  let m;
+  while ((m = ctRe.exec(t)) !== null) {
+    m[2].split('\n').forEach(line => {
+      const c = line.match(/^\s*(\w+)\s+\w/);
+      if (c && !['primary','foreign','unique','constraint','check'].includes(c[1].toLowerCase()))
+        adds.add(c[1].toLowerCase());
+    });
+  }
+  adds.forEach(c => { if (addedBy[c] === undefined) addedBy[c] = i; });
+  const uses = new Set();
+  (t.match(/\bc\.(\w+)/g) || []).forEach(u => uses.add(u.slice(2).toLowerCase()));
+  usesAt.push([i, f, uses]);
+});
+const tooEarly = [];
+usesAt.forEach(([i, f, uses]) => {
+  uses.forEach(c => {
+    if (addedBy[c] === undefined) return;      // not a column we track
+    if (addedBy[c] > i) tooEarly.push(f + ' uses c.' + c + ' but ' + migFiles[addedBy[c]] + ' creates it');
+  });
+});
+ck('no migration references a column an EARLIER one has not created yet',
+   tooEarly.length === 0, tooEarly.join(' | '));
+
+// the specific columns that broke the rebuild, pinned by name
+['primary_category', 'embedding', 'ai_tags'].forEach(c => {
+  const iAdd = addedBy[c];
+  const iUse = usesAt.find(([, , u]) => u.has(c));
+  ck('canonicals.' + c + ' is created before 0014 uses it',
+     iAdd !== undefined && iUse !== undefined && iAdd <= iUse[0],
+     'added by ' + (migFiles[iAdd] || '?') + ', used by ' + (iUse ? iUse[1] : '?'));
+});
+
 console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');

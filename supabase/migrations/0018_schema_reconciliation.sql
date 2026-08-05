@@ -74,16 +74,11 @@ create index if not exists idx_catcorr_canonical on public.category_corrections 
 
 -- ── 2. MISSING COLUMNS ──────────────────────────────────────────────────────
 
--- canonicals: the AI catalogue layer. WITHOUT `embedding` THERE IS NO SEMANTIC
--- SEARCH — search_library_hybrid (0015) selects it directly.
--- pgvector is created in 0009_extensions.sql, which MUST run before 0014.
--- (An earlier draft of this file claimed 0014 created the extension. It does
--- not — nothing did. schema-sim caught it: a rebuild aborted at 0014.)
-alter table public.canonicals add column if not exists primary_category text;
-alter table public.canonicals add column if not exists ai_tags text[] not null default '{}'::text[];
-alter table public.canonicals add column if not exists embedding vector(1536);
-alter table public.canonicals add column if not exists classified_at timestamptz;
-alter table public.canonicals add column if not exists class_source text;
+-- canonicals AI columns moved to 0009 (see there). 0014 and 0015 REFERENCE
+-- c.primary_category and c.embedding, so adding them here — after 0014 — meant
+-- a rebuild from source still died at 0014 with "column does not exist".
+-- Found by actually rebuilding the database from these files, not by reading
+-- them. Ordering bugs are invisible to every static check.
 
 -- invites: grew from bare tokens into circle-aware invitations with click
 -- tracking (the "has it been opened yet" signal on the invite screen).
