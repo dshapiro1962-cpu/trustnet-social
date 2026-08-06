@@ -656,3 +656,62 @@ because the migrations finally rebuild.
 4. EVERY command given IN FULL, EVERY time. Literal paths (no <placeholders>,
    no %USERPROFILE% in PowerShell), complete sequences (git add AND commit AND
    push), even if identical to two minutes ago. Never send dan back up the chat.
+
+# ═══ 5 AUG 2026 — v0.42.0 · WEB GROUNDING (evidence before writing) ═══
+
+## THE BUG THAT FORCED IT
+The eval (19/19 findable, 20/20 with the advice question) had ONE anomaly, and
+it was not a search failure. The librarian had enriched the Hebrew food writer
+"לימור לניאדו תירוש" as kind = "מתכון לקארי hair removal machine". It read the
+question correctly (מתכון = recipe), wrote the Hebrew half right, then invented
+an English half. temperature is 0 — confident and repeatable, not random.
+Search then worked perfectly on a document describing the wrong thing.
+
+TWO STRUCTURAL CAUSES:
+1. The prompt DEMANDED name/kind/category/location/tags with NO way to decline.
+   An unrecognised name HAD to be filled with something.
+2. The only grounding was resolvePlace -> Google Places, which indexes
+   BUSINESSES WITH LOCATIONS. An author, a product, a writer is not checkable
+   by it, so the guess stood unchallenged. The order was enrich-THEN-verify:
+   the model guessed and hoped to be corrected.
+dan's point, and it was the right one: "the word מתכון should have given it
+context, and a web search for the name would have found her food website."
+
+## AS BUILT
+- webGround() in _shared/enrich_core.ts: gpt-4o-mini-search-preview via the
+  SAME OPENAI_API_KEY (no new vendor, no new secret; GROUNDING_MODEL env
+  overrides). Asks what the entity is, forbids speculation, may answer
+  NOT FOUND. Evidence capped at 600 chars.
+- ORDER REVERSED: enrichOne now grounds FIRST and passes the evidence into
+  aiEnrich. The model reads before it writes.
+- The prompt now says evidence OUTRANKS recollection, and that with no evidence
+  it must return kind:"" — "an EMPTY field is correct; a plausible guess is
+  not". The "hair removal machine" example is named IN the prompt so the lesson
+  cannot be edited away by accident.
+- resolvePlace RETAINED — better than web search for real venues (exact
+  addresses). Either source sets resolved.
+- GROUNDING IS NOW PERSISTED: canonicals.verified (present and unused since
+  0001) is written on BOTH commit and backfill. Previously enrichOne computed
+  `resolved`, returned it, and everything threw it away — a Google-confirmed
+  restaurant and an invented occupation were indistinguishable downstream.
+- Grounding is NOT a new single point of failure: HTTP error, exception or
+  missing key all degrade to empty evidence; enrichment continues and the item
+  is honestly marked unverified.
+- dan's decisions: always search (not only on Places miss) · persist the flag ·
+  gpt-4o-mini-search-preview.
+
+## TESTS
+grounding-sim.js — 21 static checks. Plus 22 behavioural checks run under Deno
+against a mocked OpenAI (11 on webGround incl. NOT FOUND, HTTP failure, network
+failure, truncation; 11 end-to-end incl. ordering, evidence reaching the
+enricher, empty-kind accepted, and a grounding outage still enriching).
+Negative tests proven: restoring enrich-then-verify order fails; dropping the
+backfill persistence fails. Suites 32, checks 608.
+
+## UNVERIFIABLE HERE — MUST BE CHECKED ON DEPLOY
+The container cannot reach OpenAI. Structure, prompt shape and failure paths are
+proven; that the search actually returns good evidence FOR A HEBREW NAME is NOT.
+First real test: re-enrich one known-hard item and read the kind.
+
+## NEW COST: one extra API call per enrichment. Backfilling ~75 items = ~75
+search calls. gpt-4o-mini-search-preview + per-tool-call fee.

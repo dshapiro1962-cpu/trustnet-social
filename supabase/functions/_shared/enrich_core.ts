@@ -56,8 +56,51 @@ export function buildSearchDoc(e: {
   ].filter(Boolean).join(" · ").slice(0, 2000);
 }
 
+// ═══ WEB GROUNDING (v0.42.0) ════════════════════════════════════════════════
+// WHY THIS EXISTS: the librarian enriched the Hebrew food writer
+// "לימור לניאדו תירוש" as kind = "מתכון לקארי hair removal machine". It had
+// read the question correctly (מתכון = recipe) and then invented an English
+// half from nothing. Not randomness — temperature is 0, so it was confident
+// and repeatable. The cause was structural: the prompt DEMANDED a kind and
+// offered no way to decline, so an unrecognised name had to be filled with
+// something.
+//
+// The old order was enrich-THEN-verify: the model guessed, and resolvePlace
+// (Google Places) got one chance to correct it. Places only indexes BUSINESSES
+// WITH LOCATIONS, so an author, a product or a writer was never checkable and
+// its guess stood. This reverses the order — evidence FIRST, then write.
+//
+// Uses gpt-4o-mini-search-preview: same OPENAI_API_KEY, no new vendor, no new
+// secret. Kept as a SEPARATE call from aiEnrich so the enrichment call keeps
+// temperature:0 and response_format:json_object, which the search-preview
+// models restrict.
+export async function webGround(key: string, name: string, hint: string): Promise<string> {
+  if (!key || !name) return "";
+  try {
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: Deno.env.get("GROUNDING_MODEL") ?? "gpt-4o-mini-search-preview",
+        web_search_options: {},
+        messages: [{ role: "user", content:
+          "Search the web and say what this is, in at most two sentences: \"" + name + "\"" +
+          (hint ? " (context: " + hint.slice(0, 120) + ")" : "") + ". " +
+          "State only what the search results support: what kind of thing or person it is, " +
+          "and where, if the results say. Do not speculate and do not fill gaps. " +
+          "If the search results do not identify it, reply with exactly: NOT FOUND" }],
+      }),
+    });
+    if (!r.ok) return "";
+    const c = await r.json();
+    const txt = String(c.choices?.[0]?.message?.content ?? "").trim();
+    if (!txt || /^NOT FOUND/i.test(txt)) return "";
+    return txt.slice(0, 600);
+  } catch (_) { return ""; }
+}
+
 export async function aiEnrich(key: string, input: {
-  name: string; note: string; location: string; query_text: string;
+  name: string; note: string; location: string; query_text: string; evidence?: string;
 }): Promise<{ name: string; kind: string; category: string; tags: string[]; location: string } | null> {
   try {
     const r = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -82,10 +125,20 @@ export async function aiEnrich(key: string, input: {
             "Derive tags ONLY from the item itself, its note, the question asked and the answers "+
             "given. NEVER from which circle or folder it was saved in \u2014 a restaurant discussed "+
             "in a ski circle is just a restaurant (circles are the user's filing, not content). "+
+            "EVIDENCE, when present, is from a live web search and OUTRANKS your own "+
+            "recollection: use it for kind, category and location. When there is NO "+
+            "evidence and you do not actually recognise the item, return kind:\"\" and "+
+            "only tags you can justify from the note and the question. An EMPTY field is "+
+            "correct; a plausible guess is not. Never blend a guess with real context — "+
+            "\"מתכון לקארי hair removal machine\" is the failure this rule exists to stop. "+
             "Words implied by the CONTENT do belong: an item praised for children must carry "+
             "\"family\" and \"kids\". Include both Hebrew and English forms of key words when the "+
             "content is Hebrew. Tags are what makes it findable later." },
-          { role: "user", content: JSON.stringify(input) },
+          { role: "user", content: JSON.stringify({
+              name: input.name, note: input.note, location: input.location,
+              question: input.query_text,
+              EVIDENCE: input.evidence || "(no web evidence found for this item)",
+            }) },
         ],
       }),
     });
@@ -143,7 +196,11 @@ export async function embed(key: string, text: string): Promise<number[] | null>
 export async function enrichOne(key: string, input: {
   name: string; note: string; location: string; query_text: string;
 }): Promise<Enriched> {
-  const ai = key ? await aiEnrich(key, input) : null;
+  // EVIDENCE BEFORE WRITING. The old order let the model guess and hoped a
+  // later Places lookup would correct it; Places cannot see anything that is
+  // not a business with an address.
+  const evidence = key ? await webGround(key, input.name, [input.query_text, input.note].filter(Boolean).join(" ")) : "";
+  const ai = key ? await aiEnrich(key, { ...input, evidence }) : null;
   let name = ai?.name || input.name;
   // Never let a sentence become an entity; fall back to the question's subject
   // when the answer text is testimony rather than a name.
@@ -153,7 +210,11 @@ export async function enrichOne(key: string, input: {
   let category = ai?.category || "other";
   const kind = ai?.kind || "";
   const tags = ai?.tags || [];
-  let resolved = false;
+  // `resolved` = a real-world source confirmed this entity exists, by EITHER
+  // route. Previously computed, returned, and then thrown away — nothing
+  // persisted it, so a Google-confirmed restaurant and an invented occupation
+  // were indistinguishable downstream. v0.42.0 writes it to canonicals.verified.
+  let resolved = !!evidence;
 
   const place = await resolvePlace(name, [kind, location].filter(Boolean).join(" "));
   if (place) {

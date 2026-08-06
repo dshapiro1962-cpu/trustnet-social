@@ -82,6 +82,7 @@ Deno.serve(async (req: Request) => {
       const patch: Record<string, unknown> = {
         name: e.name, location: e.location, primary_category: e.category,
         ai_tags: e.tags, search_doc: e.search_doc, search_doc_at: new Date().toISOString(),
+        verified: e.resolved === true,   // v0.42.0 — same grounding flag as commit
       };
       if (vec) patch.embedding = vec;
       const { error } = await admin.from("canonicals").update(patch).eq("id", cn.id);
@@ -126,6 +127,12 @@ Deno.serve(async (req: Request) => {
       name: e.name, location: e.location, primary_category: e.category, ai_tags: e.tags,
       search_doc: e.search_doc, search_doc_at: new Date().toISOString(),
       class_source: "ai", classified_at: new Date().toISOString(),
+      // v0.42.0: PERSIST the grounding. enrichOne has always computed whether a
+      // real source (web search or Google Places) confirmed this entity exists,
+      // and the value was thrown away — so a confirmed restaurant and an
+      // invented occupation looked identical downstream. canonicals.verified
+      // has existed unused since 0001. Now it means something.
+      verified: e.resolved === true,
     };
     if (vec) patch.embedding = vec;
     const { error } = await admin.from("canonicals").update(patch).eq("id", body.canonical_id as string);
