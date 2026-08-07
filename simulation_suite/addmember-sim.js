@@ -63,7 +63,11 @@ ck('declining the merge adds NOTHING', /Nothing added\. Use a different contact 
 ck('an existing person is reused rather than duplicated', /existingPersonId = resolved\.person_id;/.test(web));
 ck('a new contact creates a person row', /sb\.from\('people'\)\.insert\(/.test(web));
 ck('...and its contact row', /sb\.from\('person_contacts'\)\.insert\(/.test(web));
-ck('person_id is persisted with the membership', /person_id:m\.personId\|\|null/.test(web));
+// v0.46.0: the hand-written save list is GONE. person_id now travels via the
+// single MEMBER_FIELDS map, so it CANNOT reach save without also reaching load
+// — which is precisely the asymmetry that nulled 14 person links.
+ck('person_id is persisted via the shared field map',
+   /\['person_id',\s*'personId'/.test(web) && /const rows = arr\.map\(memberToRow\);/.test(web));
 ck('a failure to create the person aborts instead of saving a stranger',
    /Could not save this contact: /.test(web));
 

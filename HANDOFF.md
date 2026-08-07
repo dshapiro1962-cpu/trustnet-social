@@ -885,3 +885,79 @@ Suites 36, checks 694.
 Rendering, focus, the confirm dialog's appearance, and the search-as-you-type
 feel are UNVERIFIED. First real test: open a circle, tap Add, type a name you
 already have in another circle, and check it appears with contacts and status.
+
+# ═══ 6 AUG 2026 — v0.46.0 · THE SAVE BUG, AND A REAL TESTING METHOD ═══
+
+## WHAT I SHIPPED THAT DESTROYED DATA
+v0.45.0 added person_id to saveMembers' field list and NOT to loadUserData's.
+m.personId was therefore ALWAYS undefined, so every save wrote person_id = NULL
+— and because saveMembers upserts the WHOLE table, ONE member edit nulled
+person_id for EVERY member. 14 of dan's 21 links from 0022 were destroyed.
+Consequence he hit: resolve_contact returns 'in_circle' only when
+members.person_id matches. With the links gone it fell through to
+'found_person' — "this contact belongs to dan test2" — he confirmed, and a
+DUPLICATE was created. The app announced someone was already there and added
+them anyway. In TWO accounts.
+
+## WHY NO TEST CAUGHT IT — the actual lesson
+Every write test mocked the database with `upsert: async () => ({error:null})`
+— a no-op that ALWAYS SUCCEEDS. They asserted THE CALL WAS MADE, never THE DATA
+SURVIVED. Under that mock a save that silently nulls a column is
+indistinguishable from a correct one. 694 checks, all green, total data loss.
+Static string checks cannot see it either: both sides looked plausible in
+isolation. The bug lived in the RELATIONSHIP between two lists.
+
+## THE FIX IS STRUCTURAL, NOT A PATCH (rule 3)
+Two hand-maintained field lists that must agree cannot be kept in agreement by
+discipline. There is now ONE list — MEMBER_FIELDS — and BOTH directions are
+DERIVED from it (memberFromRow / memberToRow). A new column is now physically
+incapable of reaching one side only. Read-only columns (created_at) are marked
+and never written back.
+
+## THE TESTING METHOD, REDESIGNED
+roundtrip-sim.js — NO MOCKS IN THE PERSISTENCE PATH. Takes a real DB row, runs
+the real mapping BOTH WAYS, asserts nothing was lost. Critically it iterates
+EVERY writable column rather than the ones I happened to think of, so a future
+field cannot be forgotten. Negative test proven: reintroducing v0.45.0's exact
+asymmetry fails with "person_id survives a load->save round trip: got null".
+STANDING RULE: a test that mocks a write and asserts the call was made proves
+nothing. Assert the DATA, after a round trip.
+
+## REPAIR — repair_person_links.sql (run AFTER deploying v0.46.0)
+Rebuilds person_id from the CONTACT exactly as 0022 did; anything contactless
+gets its own person (never name-grouped); duplicate memberships collapse with
+answers RE-POINTED before deletion. Tested against a database carrying the exact
+damage: 14 broken links restored, duplicate collapsed, 0 orphaned answers.
+ON v0.45.0 THE NEXT SAVE WIPES IT AGAIN — deploy first, repair second.
+
+Suites 37, checks 709.
+
+## v0.46.0 ADDENDUM — the class check, and how I got it wrong TWICE
+dan asked: "are you sure it's fixed, and what did you miss last time?" Two more
+mistakes surfaced from that question, both worth recording:
+
+MISTAKE 1 — I fixed the INSTANCE and called it the class. saveMembers was
+repaired; saveRecs, saveCircles and saveCanonicals were never examined. Checking
+them by hand found no other case, but a hand check rots.
+
+MISTAKE 2 — my first automated class check tested THE WRONG INVARIANT. It
+compared DB COLUMN names on both sides. The bug was never about columns:
+  saveMembers wrote   person_id: m.personId || null
+  and the loader NEVER PRODUCED A KEY CALLED personId.
+A planted test (source_label: r.sourceLabelTypo) PASSED, because the COLUMN
+source_label is read back — while the FIELD was undefined and would write null
+forever. The check looked right and proved nothing. Only the negative test
+exposed it.
+
+THE CORRECT INVARIANT, now enforced for every save function:
+  every JS FIELD a save READS FROM must be a JS KEY the loader PRODUCES.
+Failure message names the field: "ALWAYS UNDEFINED -> writes null: <field>".
+Both variants negative-tested: ghost field in saveRecs, and the original
+person_id asymmetry. saveMembers is exempt from the scan because it now derives
+BOTH directions from MEMBER_FIELDS — a stronger guarantee than any scan.
+
+Note on WHY the bug nulled data: PostgREST upsert only updates columns you
+PROVIDE, so omitting one is harmless. The killer is providing an EXPLICIT value
+from a field that is always undefined.
+
+Suites 37, checks 719.

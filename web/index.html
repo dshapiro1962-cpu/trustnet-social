@@ -968,7 +968,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.45.0 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.46.0 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1210,6 +1210,59 @@ function mapResponse(r) {
     savedToLibrary: !!r.saved_to_library, respondedAt: r.responded_at };
 }
 
+// ═══ MEMBER FIELD MAP — ONE LIST, BOTH DIRECTIONS (v0.46.0) ═════════════════
+// WHY THIS EXISTS: loadUserData and saveMembers each kept their OWN hand-written
+// field list. v0.45.0 added person_id to the SAVE list and not the LOAD list, so
+// m.personId was always undefined and every save wrote person_id = NULL — for
+// EVERY member, because saveMembers upserts the whole table. One save destroyed
+// 14 of 21 person links created by 0022. resolve_contact could then never return
+// 'in_circle' (that check needs members.person_id), so it fell through to
+// 'found_person', the user confirmed, and a duplicate was created. Exactly the
+// "it said he's already here and added him anyway" that dan hit.
+//
+// Two lists that must agree cannot be kept in agreement by discipline. Now there
+// is ONE list and both directions are DERIVED from it, so a new column is
+// physically incapable of reaching one side only. Guarded by fieldmap-sim.
+//   [ db_column, js_key, fallback_on_load, fallback_on_save ]
+const MEMBER_FIELDS = [
+  ['id',                'id',               null,        null],
+  ['circle_id',         'circleId',         null,        null],
+  ['name',              'name',             '',          null],
+  ['avatar',            'avatar',           null,        null],
+  ['avatar_color',      'avatarColor',      null,        null],
+  ['trust_basis',       'trustBasis',       '',          null],
+  ['contact_method',    'contactMethod',    'app',       'app'],
+  ['contact_value',     'contactValue',     '',          null],
+  ['response_rate',     'responseRate',     'unknown',   'unknown'],
+  ['is_external_source','isExternalSource', false,       false],
+  ['source_type',       'sourceType',       null,        null],
+  ['source_url',        'sourceUrl',        null,        null],
+  ['linked_user_id',    'linkedUserId',     null,        null],
+  ['person_id',         'personId',         null,        null],
+  ['created_at',        'addedAt',          null,        undefined]   // read-only
+];
+
+function memberFromRow(r) {
+  const m = {};
+  MEMBER_FIELDS.forEach(function(f) {
+    const v = r[f[0]];
+    m[f[1]] = (v === null || v === undefined) ? f[2] : v;
+  });
+  m.isExternalSource = !!m.isExternalSource;
+  return m;
+}
+
+function memberToRow(m) {
+  const r = { owner_id: CURRENT_UID };
+  MEMBER_FIELDS.forEach(function(f) {
+    if (f[3] === undefined) return;            // read-only column, never written
+    const v = m[f[1]];
+    r[f[0]] = (v === null || v === undefined || v === '') ? f[3] : v;
+  });
+  r.is_external_source = !!m.isExternalSource;
+  return r;
+}
+
 async function loadUserData() {
   // profile
   const prof = await sb.from('users').select('*').eq('id', CURRENT_UID).maybeSingle();
@@ -1229,10 +1282,7 @@ async function loadUserData() {
   // circles + members
   const cs = await sb.from('circles').select('*').eq('owner_id', CURRENT_UID).order('created_at');
   const ms = await sb.from('members').select('*').eq('owner_id', CURRENT_UID);
-  AppState.userMembers = (ms.data || []).map(function(m){ return { id:m.id, circleId:m.circle_id, name:m.name,
-    avatar:m.avatar, avatarColor:m.avatar_color, trustBasis:m.trust_basis||'', contactMethod:m.contact_method||'app',
-    contactValue:m.contact_value||'', responseRate:m.response_rate||'unknown', isExternalSource:!!m.is_external_source,
-    sourceType:m.source_type, sourceUrl:m.source_url, linkedUserId:m.linked_user_id, addedAt:m.created_at }; });
+  AppState.userMembers = (ms.data || []).map(memberFromRow);
   AppState.userCircles = (cs.data || []).map(function(c){ return { id:c.id, ownerId:'me', name:c.name, domain:c.domain,
     description:c.description||'', color:c.color||'#217A4B', location:c.location||'', isOwn:true, createdAt:c.created_at,
     memberIds: AppState.userMembers.filter(function(m){return m.circleId===c.id;}).map(function(m){return m.id;}) }; });
@@ -1296,11 +1346,7 @@ async function saveMembers() {
   if (!CURRENT_UID) return;
   const arr = AppState.userMembers;
   if (arr.length) {
-    const rows = arr.map(function(m){ return { id:m.id, owner_id:CURRENT_UID, circle_id:m.circleId, name:m.name,
-      avatar:m.avatar||null, avatar_color:m.avatarColor||null, trust_basis:m.trustBasis||null,
-      contact_method:m.contactMethod||'app', contact_value:m.contactValue||null, response_rate:m.responseRate||'unknown',
-      is_external_source:!!m.isExternalSource, source_type:m.sourceType||null, source_url:m.sourceUrl||null,
-      linked_user_id:m.linkedUserId||null, person_id:m.personId||null }; });
+    const rows = arr.map(memberToRow);
     const r = await sb.from('members').upsert(rows);
     if (r.error) { console.error('saveMembers', r.error); toast('Could not save members.', 'warn'); return; }
     await sb.from('members').delete().eq('owner_id', CURRENT_UID)
@@ -1447,7 +1493,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.45.0 · live';
+const APP_VERSION = 'v0.46.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
