@@ -715,3 +715,67 @@ First real test: re-enrich one known-hard item and read the kind.
 
 ## NEW COST: one extra API call per enrichment. Backfilling ~75 items = ~75
 search calls. gpt-4o-mini-search-preview + per-tool-call fee.
+
+# ═══ 6 AUG 2026 — v0.43.0 · PEOPLE ARE FIRST-CLASS (schema only) ═══
+
+## dan's RULES (product law — the name NEVER decides)
+1. The phone / email / linkedin IS the identity. Not the name — you can have
+   three Marks and five Bobs.
+2. Typing a name is a CONVENIENCE for FINDING someone; it must never contradict
+   the contact-exact rule. Search my circles, show every match WITH details, let
+   me choose. If a contact already belongs to someone: ASK, never merge silently.
+3. One person may hold several contacts. The app ASKS before assuming.
+
+## WHAT WAS BROKEN
+members.circle_id is NOT NULL, so a member row belongs to ONE circle: "shapiro"
+in ski and in leros were unrelated rows. The duplicate guard's final test was
+`norm(x.name) === norm(name)`. On dan's real data: 14 member rows were really
+5 people; one person held 7 memberships across 7 circles as 7 strangers.
+
+## AS BUILT — 0022_people.sql, 0023_dedupe_memberships.sql
+- people (owner-scoped) + person_contacts (MANY per person, method in
+  email/whatsapp/linkedin). UNIQUE (owner_id, method, key) — rule 1 enforced by
+  the DATABASE, applied AFTER the backfill so real data could be resolved first.
+- contact_key() REUSES phone_key() from 0017. One normalisation rule, not two —
+  a second implementation of one rule caused the classify-rec and
+  match_canonical bugs earlier this week.
+- ADDITIVE: members REMAINS a table and keeps every id. It gains person_id.
+  NOT a view — query_responses.member_id has an FK to members(id), 8 edge
+  functions and 45 client references read it, and saveMembers() UPSERTs (views
+  are not writable without INSTEAD OF triggers). Schema and UI ship separately.
+- Backfill groups by CONTACT. Contactless members each get their OWN person:
+  grouping those by name would be the exact guess this migration removes.
+  Deliberately UNDER-merges — under-merging is fixable by hand, a wrong merge
+  silently fuses two humans.
+- 0023 dedupes same-circle rows. Survivor: name='shapiro' (dan's rule) > most
+  query_responses > oldest. ANSWERS ARE RE-POINTED BEFORE DELETION — deleting a
+  member that answered would orphan the answer, and answers are the product.
+
+## TESTED ON A REAL POSTGRES, WITH DAN'S ACTUAL 14 ROWS
+5 people · 5 contacts · 0 unassigned · 1 same-circle duplicate — exactly as
+predicted from the data. Grouping verified by name/contact/circle listing.
+Dedupe tested BOTH branches: survivor holds the history (re-pointed 0), and
+survivor is the named row while another held the answers (re-pointed 2, zero
+orphans). Full 16-migration rebuild still clean.
+people-sim.js: 24 checks. Negative tests proven — grouping by name fails,
+applying the unique constraint before the backfill fails.
+Suites 33, checks 632.
+
+## NOT YET DONE — THE UI IS UNCHANGED
+This release is SCHEMA ONLY. The add-member dialog still writes the old way and
+still buckets by a stale in-memory linkedUserId. Next: search-first add-member
+(type a name -> show every match with contacts + status -> choose), the
+"this contact belongs to X, same person?" prompt, server-side duplicate checks,
+and an invite dialog that re-reads from the server instead of trusting cache.
+
+## ALSO FOUND, NOT FIXED — see TODO
+- DEGREE 2 IS A DEAD CONTROL: the UI offers it, shows a "+D2 anonymous" chip,
+  then sends `degree: 1` HARDCODED. send-query supports degree 2 fully.
+- users.degree2_enabled exists, defaults true, is read NOWHERE.
+- recommendations.shared_to_network is written and, as far as I can find, never
+  read — no gating anywhere in client or functions. NEEDS CONFIRMING.
+- link_member_to_existing_user queries auth.users.phone — THAT COLUMN DOES NOT
+  EXIST. Every whatsapp-method link throws; the client catches and logs it, so a
+  crash and "not a user" are indistinguishable. Errors must not be swallowed.
+- dshario8@ vs dshapiro8@ — one letter apart, both real accounts. Correct by
+  rule 1 (different contact = different person), likely a typo worth fixing.
