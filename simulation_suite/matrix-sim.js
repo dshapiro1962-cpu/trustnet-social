@@ -14,7 +14,14 @@ const ctx={console:{log(){},error(){},warn(){}},setTimeout:()=>0,clearTimeout(){
  fetch:async()=>({ok:true,json:async()=>({})}),crypto:{randomUUID:()=>'u',subtle:{digest:async()=>new ArrayBuffer(32)}},
  URLSearchParams,TextEncoder,AbortController,confirm:()=>true,alert(){},prompt(){},history:{replaceState(){},pushState(){}}};
 ctx.__opened=[];ctx.__copied='';ctx.__rpcCalls=[];
-ctx.supabase={createClient:()=>({from:()=>({}),auth:{onAuthStateChange(){},getSession:async()=>({data:{session:null}})},
+ctx.__inserts=[];
+// v0.45.0: a brand-new contact now creates a people row + a person_contacts
+// row before the membership. The old empty from() mock made that chain throw.
+ctx.supabase={createClient:()=>({from:(t)=>({insert:(row)=>{ctx.__inserts.push([t,row]);
+    return {select:()=>({single:async()=>({data:{id:'p-'+t},error:null})})};},
+  upsert:async()=>({error:null}),delete:()=>({eq:()=>({not:async()=>({error:null})})}),
+  select:()=>({eq:()=>({single:async()=>({data:null,error:null})})})}),
+  auth:{onAuthStateChange(){},getSession:async()=>({data:{session:null}})},
   rpc:async(n,a)=>{ctx.__rpcCalls.push([n,a]); return ctx.__rpcImpl(n,a);},channel:()=>({})})};
 ctx.window.supabase=ctx.supabase; ctx.globalThis=ctx; vm.createContext(ctx);
 let pass=0,fail=0; const ck=(n,c,x)=>{ if(c){pass++;console.log('  ✓',n);}else{fail++;console.log('  ✗',n,x||'');} };
@@ -23,14 +30,19 @@ vm.runInContext(src,ctx,{filename:'app.js'});
 vm.runInContext('renderApp=function(){};showView=function(){};openModal=function(n,p){globalThis.__opened_modal=[n,p];};'
  +'closeModal=function(){};toast=function(m,t){globalThis.__toasts.push([m,t||"ok"]);};uid=function(){return "new"+(++globalThis.__u);};'
  +'saveMembers=async function(){};saveCircles=async function(){};CURRENT_UID="me";',ctx);
-ctx.__toasts=[];ctx.__u=0;ctx.__rpcImpl=async()=>({data:false});
+ctx.__toasts=[];ctx.__u=0;
+// v0.45.0: identity moved SERVER-SIDE. resolve_contact returns a STATE row,
+// not the old bare boolean. Default: nobody holds this contact, no account.
+ctx.__resolve={state:'free',person_id:null,person_name:null,membership_id:null,on_trustnet:false};
+ctx.__rpcImpl=async(n)=>(n==='resolve_contact' ? {data:[ctx.__resolve],error:null} : {data:false});
 const X=ctx.__x;
 const lastToast=()=>ctx.__toasts.length?String(ctx.__toasts[ctx.__toasts.length-1][0]):'';
-ck('APP_VERSION is v0.44.0', X.APP_VERSION==='v0.44.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.45.0', X.APP_VERSION==='v0.45.0 · live', X.APP_VERSION);
 
 function reset() {
   byId['inv-new-msg']=el(); byId['inv-err']=el();
   ctx.__toasts=[]; ctx.__opened=[]; ctx.__rpcCalls=[];
+  ctx.__resolve={state:'free',person_id:null,person_name:null,membership_id:null,on_trustnet:false};
   X.AppState.isDemoMode=false;
   X.AppState._authEmail='me@example.com';
   X.AppState._authPhone='+972500000000';
@@ -65,21 +77,32 @@ ck('2. unlinked members trigger the "who is already on Trustnet" re-check',
    im.indexOf('recheck-trustnet')>=0);
 
 // ── adding: every combination ──
-reset(); form({name:'Rina', method:'whatsapp', contact:'+972501111111'});
+reset(); ctx.__resolve={state:'in_circle',person_id:'p1',person_name:'Rina',membership_id:'m1',on_trustnet:true};
+form({name:'Rina', method:'whatsapp', contact:'+972501111111'});
 await X.handleSaveMember();
 ck('5. adding someone ALREADY in this circle -> refused, no duplicate',
    lastToast().indexOf('already in this circle')>=0 && X.AppState.userMembers.length===4);
 
-reset(); form({name:'Rina Cohen', method:'whatsapp', contact:'0501111111'});  // same number, different format
+// The SERVER normalises (+972 vs 0) — proven against real Postgres in
+// resolver-sim. Here we assert the CLIENT honours the answer it is given.
+reset(); ctx.__resolve={state:'in_circle',person_id:'p1',person_name:'Rina',membership_id:'m1',on_trustnet:true};
+form({name:'Rina Cohen', method:'whatsapp', contact:'0501111111'});
 await X.handleSaveMember();
 ck('5b. duplicate caught across phone FORMATS (+972 vs 0)',
    lastToast().indexOf('already in this circle')>=0 && X.AppState.userMembers.length===4);
 
-reset(); form({name:'Tal', method:'whatsapp', contact:'+972504444444'});
+reset(); ctx.__resolve={state:'found_person',person_id:'p9',person_name:'Tal',membership_id:null,on_trustnet:true}; form({name:'Tal', method:'whatsapp', contact:'+972504444444'});
 await X.handleSaveMember();
 const added=X.AppState.userMembers.find(function(m){return m.circleId==='c1' && m.name==='Tal';});
-ck('6. someone from ANOTHER circle -> added here AND keeps their linked status',
-   !!added && added.linkedUserId==='u4' && ctx.__toasts.some(function(t){return String(t[0]).indexOf('also in Food')>=0;}));
+// v0.45.0: the "also in Food" toast is GONE — the app now ASKS (dan's rule:
+// one contact is one person, but the human confirms) and then REUSES that
+// person instead of minting a second one. Reuse is the point; the toast was
+// only ever a consolation for not having a person model.
+ck('6. someone from ANOTHER circle -> reuses the SAME person, no new people row',
+   !!added && added.personId==='p9' && !!added.linkedUserId
+   && !ctx.__inserts.some(function(i){return i[0]==='people';}),
+   JSON.stringify({p:added&&added.personId, l:added&&added.linkedUserId,
+                   ins:ctx.__inserts.map(function(i){return i[0];})}));
 
 reset(); form({name:'Me', method:'email', contact:'me@example.com'});
 await X.handleSaveMember();
@@ -90,13 +113,14 @@ await X.handleSaveMember();
 ck('8. adding YOURSELF by PHONE -> refused (was unguarded)',
    lastToast().indexOf('your own number')>=0 && X.AppState.userMembers.length===4);
 
-reset(); ctx.__rpcImpl=async()=>({data:true}); form({name:'Newbie', method:'email', contact:'new@x.com'});
+reset(); ctx.__resolve={state:'free',person_id:null,person_name:null,membership_id:null,on_trustnet:true};
+form({name:'Newbie', method:'email', contact:'new@x.com'});
 await X.handleSaveMember();
-ck('9. brand-new contact who HAS an account -> linked + user told',
-   ctx.__rpcCalls.some(function(c){return c[0]==='link_member_to_existing_user';}) &&
-   ctx.__toasts.some(function(t){return String(t[0]).indexOf('already on Trustnet')>=0;}));
+ck('9. brand-new contact who HAS an account -> resolved server-side and linked',
+   ctx.__rpcCalls.some(function(c){return c[0]==='resolve_contact';}) &&
+   X.AppState.userMembers.some(function(m){return m.contactValue==='new@x.com' && m.linkedUserId;}));
 
-reset(); ctx.__rpcImpl=async()=>({data:false}); form({name:'Stranger', method:'email', contact:'nobody@x.com'});
+reset(); form({name:'Stranger', method:'email', contact:'nobody@x.com'});
 await X.handleSaveMember();
 ck('10. brand-new contact with NO account -> added quietly, no false claim',
    X.AppState.userMembers.length===5 && !ctx.__toasts.some(function(t){return String(t[0]).indexOf('already on Trustnet')>=0;}));

@@ -1,0 +1,75 @@
+// addmember-sim.js — SEARCH FIRST, CONTACT DECIDES (v0.45.0).
+//
+// THE MESS dan REPORTED: added shapiro (already on Trustnet) -> app said it
+// couldn't add him, filed him under "not on Trustnet", offered an invite
+// toggle, and the invite email said he had JOINED. Added dan by phone+email ->
+// member created with EMPTY details.
+// CAUSES: (a) the dialog was FORM-FIRST, so problems surfaced after typing;
+// (b) its default method "In-app" stored NO CONTACT AT ALL — the friendliest
+// option made an unusable record; (c) duplicates were decided from
+// AppState.userMembers, a browser cache, ending in `norm(x.name)===norm(name)`
+// — name equality, which dan's rule forbids; (d) the link RPC threw on every
+// phone lookup and the client swallowed it, so a CRASH looked like "stranger".
+const fs = require('fs');
+const web = fs.readFileSync('/home/claude/app/index.html', 'utf8');
+let pass = 0, fail = 0;
+const ck = (n, c, x) => { if (c) { pass++; console.log('  ✓', n); } else { fail++; console.log('  ✗', n, x || ''); } };
+
+// ── search-first ────────────────────────────────────────────────────────────
+ck('the dialog opens on a SEARCH pane, not a form', /id="nm-search-pane"/.test(web));
+ck('the form is hidden until needed when adding',
+   /id="nm-form-pane" style="display:' \+ \(editId \? 'block' : 'none'\)/.test(web));
+ck('editing skips the search and goes straight to the form',
+   /const searchPane = editId \? '' :/.test(web));
+ck('there is an explicit "add someone new" escape', /data-action="add-new-person"/.test(web));
+ck('what you typed carries into the name field', /if \(nameEl && typed && !nameEl\.value\) nameEl\.value = typed;/.test(web));
+ck('the Add button stays hidden until the form shows',
+   /id="nm-save-btn"[\s\S]{0,120}display:' \+ \(editId \? 'inline-flex' : 'none'\)/.test(web));
+
+// ── results show DETAILS so the human chooses ───────────────────────────────
+ck('each result shows every contact', /function contactLine\(contacts\)/.test(web));
+ck('a person with no contact is flagged, not hidden',
+   /no contact \\u2014 add one to invite/.test(web));
+ck('results show Trustnet status', /on Trustnet<\/span>/.test(web));
+ck('results show which circles they are in', /in ' \+ esc\(circleNames\)/.test(web));
+ck('someone already in THIS circle is shown but not selectable',
+   /inThis \? ' disabled' : ''/.test(web));
+ck('picking a known person needs no form at all', /data-action="pick-person"/.test(web));
+
+// ── the contactless option is gone ──────────────────────────────────────────
+ck('"In-app" is no longer an offered contact method',
+   !/\{ value: 'app',\s+icon/.test(web));
+ck('the default method is a real contact, not In-app', /: 'whatsapp'\);/.test(web));
+ck('the contact field is always shown (a contact IS the identity)',
+   /const emContactVisible = !em \|\| !em\.isExternalSource;/.test(web));
+
+// ── identity decided by the SERVER, on the CONTACT ──────────────────────────
+ck('the stale in-memory duplicate scan is gone',
+   !/return norm\(x\.name\) === norm\(name\);/.test(web));
+ck('resolveContact is called before creating anything',
+   /resolved = await resolveContact\(method, contact, circleId\)/.test(web));
+ck('it uses sb.rpc, not a non-existent edge function',
+   /sb\.rpc\('resolve_contact'/.test(web) && !/fnPost\('rpc:/.test(web));
+ck('an RPC error is THROWN, not turned into a falsy answer',
+   /if \(r\.error\) throw new Error\(r\.error\.message \|\| 'resolve_contact failed'\)/.test(web));
+ck('a resolution failure ABORTS the add — never "assume stranger"',
+   /Couldn't check whether they're already known\. Nothing was added/.test(web));
+ck('in_circle is reported and stops the add', /if \(resolved\.state === 'in_circle'\)/.test(web));
+ck('found_person ASKS before merging (dan\'s rule)',
+   /if \(resolved\.state === 'found_person'\)[\s\S]{0,400}confirm\(/.test(web));
+ck('declining the merge adds NOTHING', /Nothing added\. Use a different contact for a different person/.test(web));
+
+// ── the person model is actually used ───────────────────────────────────────
+ck('an existing person is reused rather than duplicated', /existingPersonId = resolved\.person_id;/.test(web));
+ck('a new contact creates a person row', /sb\.from\('people'\)\.insert\(/.test(web));
+ck('...and its contact row', /sb\.from\('person_contacts'\)\.insert\(/.test(web));
+ck('person_id is persisted with the membership', /person_id:m\.personId\|\|null/.test(web));
+ck('a failure to create the person aborts instead of saving a stranger',
+   /Could not save this contact: /.test(web));
+
+// ── errors surface everywhere, never silently ───────────────────────────────
+ck('search failure shows a message instead of an empty list',
+   /Could not search your people\. Check your connection/.test(web));
+ck('adding an existing person surfaces its error', /Could not add them: /.test(web));
+
+console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');

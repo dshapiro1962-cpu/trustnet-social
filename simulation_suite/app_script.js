@@ -274,7 +274,7 @@ async function saveMembers() {
       avatar:m.avatar||null, avatar_color:m.avatarColor||null, trust_basis:m.trustBasis||null,
       contact_method:m.contactMethod||'app', contact_value:m.contactValue||null, response_rate:m.responseRate||'unknown',
       is_external_source:!!m.isExternalSource, source_type:m.sourceType||null, source_url:m.sourceUrl||null,
-      linked_user_id:m.linkedUserId||null }; });
+      linked_user_id:m.linkedUserId||null, person_id:m.personId||null }; });
     const r = await sb.from('members').upsert(rows);
     if (r.error) { console.error('saveMembers', r.error); toast('Could not save members.', 'warn'); return; }
     await sb.from('members').delete().eq('owner_id', CURRENT_UID)
@@ -421,7 +421,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.44.0 · live';
+const APP_VERSION = 'v0.45.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3556,13 +3556,96 @@ function modalAddCircle() {
     + '</div>';
 }
 
+// ═══ IDENTITY, SERVER-SIDE (v0.45.0) ════════════════════════════════════════
+// dan's rules: the phone/email/linkedin IS the identity, never the name — you
+// can have three Marks and five Bobs. Typing a name is a CONVENIENCE for
+// FINDING someone; it must never decide anything.
+//
+// Everything here asks the SERVER. The old code decided from
+// AppState.userMembers — a browser cache of unknown age — and its last resort
+// was `norm(x.name) === norm(name)`. That cache is why adding shapiro four
+// times produced four rows, and why the invite dialog showed a linked person
+// as a stranger.
+async function resolveContact(method, value, circleId) {
+  const r = await sb.rpc('resolve_contact', {
+    p_method: method, p_value: value, p_circle: circleId || null });
+  // The error is THROWN, never turned into a falsy "not a user". The old code
+  // caught it and carried on, so a crash looked exactly like a stranger.
+  if (r.error) throw new Error(r.error.message || 'resolve_contact failed');
+  const row = Array.isArray(r.data) ? r.data[0] : r.data;
+  if (!row) throw new Error('resolve_contact returned nothing');
+  return row;   // { state, person_id, person_name, membership_id, on_trustnet }
+}
+
+async function searchMyPeople(q) {
+  const r = await sb.rpc('search_my_people', { p_q: q || '' });
+  if (r.error) throw new Error(r.error.message || 'search_my_people failed');
+  return Array.isArray(r.data) ? r.data : [];
+}
+
+function contactLine(contacts) {
+  if (!contacts || !contacts.length) {
+    return '<span style="color:#B4553F;">no contact \u2014 add one to invite</span>';
+  }
+  return contacts.map(function(c) {
+    const icon = c.method === 'whatsapp' ? '\u{1F4F1}' : (c.method === 'linkedin' ? '\u{1F517}' : '\u2709\uFE0F');
+    return icon + ' ' + esc(c.value);
+  }).join(' \u00b7 ');
+}
+
+// One row per PERSON, showing every contact and every circle, so the human
+// chooses. Never auto-selects: two people called Itamar are two people.
+function personResultHtml(p, circleId) {
+  const inThis = (p.circles || []).some(function(c) { return c.id === circleId; });
+  const circleNames = (p.circles || []).map(function(c) { return c.name; }).join(', ');
+  return '<button type="button" data-action="pick-person" data-person-id="' + esc(p.person_id) + '"'
+    + (inThis ? ' disabled' : '')
+    + ' style="display:block;width:100%;text-align:left;background:' + (inThis ? '#F4F7F5' : '#fff')
+    + ';border:1px solid #E5EDE8;border-radius:10px;padding:10px 12px;margin-bottom:8px;'
+    + 'cursor:' + (inThis ? 'default' : 'pointer') + ';">'
+    + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;">'
+    + '<span style="font-weight:700;font-size:14px;color:#0D2B1F;" dir="auto">' + esc(p.name) + '</span>'
+    + (p.on_trustnet ? '<span class="chip chip-green" style="font-size:9px;">on Trustnet</span>'
+                     : '<span style="font-size:9px;color:#7A9086;">circle member</span>')
+    + '</div>'
+    + '<div style="font-size:11px;color:#56695F;margin-top:3px;" dir="auto">' + contactLine(p.contacts) + '</div>'
+    + (circleNames ? '<div style="font-size:10px;color:#7A9086;margin-top:2px;" dir="auto">in ' + esc(circleNames) + '</div>' : '')
+    + (inThis ? '<div style="font-size:10px;color:#B4553F;margin-top:3px;">already in this circle</div>' : '')
+    + '</button>';
+}
+
+async function refreshPeopleSearch() {
+  const box = document.getElementById('nm-search-results');
+  if (!box) return;
+  const q = (document.getElementById('nm-search') || {}).value || '';
+  const circleId = (document.querySelector('.modal-body') || { dataset: {} }).dataset.circleId || '';
+  try {
+    const people = await searchMyPeople(q);
+    if (!people.length) {
+      box.innerHTML = '<div style="font-size:12px;color:#7A9086;padding:6px 0;">'
+        + (q ? 'Nobody of yours matches \u201c' + esc(q) + '\u201d.' : 'You have not added anyone yet.')
+        + '</div>';
+      return;
+    }
+    box.innerHTML = people.map(function(p) { return personResultHtml(p, circleId); }).join('');
+  } catch (e) {
+    // NEVER silently show an empty list on failure — that is how a crash came
+    // to look identical to "this person is not on Trustnet".
+    box.innerHTML = '<div style="font-size:12px;color:#B4553F;padding:6px 0;">'
+      + 'Could not search your people. Check your connection and try again.</div>';
+    console.error('searchMyPeople failed:', e);
+  }
+}
+
 function modalAddMember(params) {
   const circleId = params && params.circleId ? params.circleId : (AppState.viewParams.circleId || '');
   const circle = AppState.circleById(circleId);
   const editId = params && params.editMemberId ? params.editMemberId : '';
   const em = editId ? AppState.userMembers.find(function(x) { return x.id === editId; }) : null;
   const emMethod = em ? (em.contactMethod || 'app') : 'app';
-  const emContactVisible = !!em && !em.isExternalSource && (emMethod === 'email' || emMethod === 'whatsapp' || emMethod === 'linkedin');
+  // Always visible: every person MUST have a contact, because the contact IS
+  // the identity. A member with none can never be matched or invited.
+  const emContactVisible = !em || !em.isExternalSource;
   const emContactLabel = emMethod === 'whatsapp' ? 'THEIR WHATSAPP NUMBER' : (emMethod === 'linkedin' ? 'THEIR LINKEDIN URL' : 'THEIR EMAIL');
   const emContactPh = emMethod === 'whatsapp' ? '+972 50 123 4567 (with country code)' : (emMethod === 'linkedin' ? 'linkedin.com/in/their-name' : 'name@example.com');
 
@@ -3584,12 +3667,14 @@ function modalAddMember(params) {
       + '<input type="hidden" id="' + id + '" value="' + esc(defaultVal) + '">';
   }
 
+  // 'In-app' REMOVED (v0.45.0): it stored NO contact at all, so a person added
+  // that way had no identity under dan's rule — unmatchable, uninvitable, and
+  // it was the DEFAULT. That is why his member came out with empty details.
   const methodPicker = segmentedPicker('nm-method', [
-    { value: 'app',       icon: '💬', label: 'In-app'    },
     { value: 'whatsapp',  icon: '📱', label: 'WhatsApp'  },
     { value: 'email',     icon: '✉️',  label: 'Email'     },
     { value: 'linkedin',  icon: '🔗', label: 'LinkedIn'  }
-  ], (em && !em.isExternalSource) ? emMethod : 'app');
+  ], (em && !em.isExternalSource && emMethod !== 'app') ? emMethod : 'whatsapp');
 
   const ratePicker = segmentedPicker('nm-rate', [
     { value: 'high',   label: '🟢 High'   },
@@ -3641,17 +3726,34 @@ function modalAddMember(params) {
     + '</div>'
     + '</div>';
 
+  // ── STEP 1: FIND, don't fill in a form (v0.45.0) ──────────────────────────
+  // The old dialog was form-first: pick a method, type a name, type a contact,
+  // save — and only THEN discover the person was already known. dan's flow is
+  // search-first: type a name, see every match WITH contacts and status, choose.
+  // The name only helps you FIND; the contact decides identity.
+  const searchPane = editId ? '' : ('<div id="nm-search-pane" style="display:flex;flex-direction:column;gap:10px;">'
+    + '<div class="field"><div class="field-label">WHO DO YOU WANT TO ADD?</div>'
+    + '<input class="field-input" id="nm-search" data-action="search-people" placeholder="Start typing a name\u2026" autocomplete="off"></div>'
+    + '<div id="nm-search-results"></div>'
+    + '<button type="button" class="btn btn-secondary btn-sm" data-action="add-new-person" style="align-self:flex-start;">'
+    + '+ Add someone new</button>'
+    + '</div>');
+
   return '<div class="modal"><div class="modal-header">'
     + '<div><div class="modal-title">' + (em ? 'Edit ' + esc(em.name) : 'Add to ' + esc(circle ? circle.name : 'Circle')) + '</div>'
     + '<div style="font-size:11px;color:#7A9086;margin-top:2px;">' + (em ? 'Update their details' : 'A trusted contact or an external source you rely on') + '</div></div>'
     + '<button class="btn btn-ghost btn-icon" data-action="close-modal">✕</button>'
     + '</div>'
     + '<div class="modal-body" data-circle-id="' + esc(circleId) + '" data-edit-id="' + esc(editId) + '">'
+    + searchPane
+    + '<div id="nm-form-pane" style="display:' + (editId ? 'block' : 'none') + ';">'
     + (em ? typeToggleFinal : '<div class="field"><div class="field-label">TYPE</div>' + typeToggleFinal + '</div>')
     + personFields
     + sourceFields
     + '</div>'
-    + '<div class="modal-footer"><button class="btn btn-secondary" data-action="close-modal">Cancel</button><button class="btn btn-primary" data-action="save-member">' + (em ? 'Save changes' : 'Add') + '</button></div>'
+    + '</div>'
+    + '<div class="modal-footer"><button class="btn btn-secondary" data-action="close-modal">Cancel</button>'
+    + '<button class="btn btn-primary" id="nm-save-btn" data-action="save-member" style="display:' + (editId ? 'inline-flex' : 'none') + ';">' + (em ? 'Save changes' : 'Add') + '</button></div>'
     + '</div>';
 }
 
@@ -4316,6 +4418,35 @@ async function handleSaveCircle() {
   showView('circle-detail', { circleId: newCircle.id });
 }
 
+// Adding someone you ALREADY KNOW to another circle: no form, no retyping, no
+// duplicate row. This is the path that did not exist — which is why one person
+// in seven circles was seven unrelated member rows.
+async function handleAddExistingPerson(btn) {
+  const personId = btn.dataset.personId;
+  const body = document.querySelector('.modal-body');
+  const circleId = body ? body.dataset.circleId : '';
+  if (!personId || !circleId) return;
+  btn.disabled = true;
+  try {
+    const r = await sb.from('members').insert({
+      person_id: personId, circle_id: circleId,
+      owner_id: AppState.userProfile.id,
+      name: (btn.querySelector('span') || {}).textContent || 'Member',
+      response_rate: 'unknown'
+    }).select('*').single();
+    if (r.error) throw new Error(r.error.message);
+    await loadUserData();
+    closeModal();
+    renderApp();
+    toast('Added to this circle.');
+  } catch (e) {
+    btn.disabled = false;
+    // Surfaced, never swallowed.
+    toast('Could not add them: ' + (e.message || 'unknown error'), 'warn');
+    console.error('handleAddExistingPerson failed:', e);
+  }
+}
+
 async function handleSaveMember() {
   const mb = document.querySelector('.modal-body[data-circle-id]');
   const circleId = mb ? mb.dataset.circleId : AppState.viewParams.circleId;
@@ -4378,6 +4509,7 @@ async function handleSaveMember() {
     const norm = function(v) { return String(v || '').replace(/[\s()+-]/g, '').toLowerCase(); };
     const tail = function(v) { const d = String(v || '').replace(/\D/g, ''); return d.slice(-9); };
     let reuseLinked = null;
+    let existingPersonId = null;
     if (!editId) {
       // (#8) you are not your own member — by phone as well as by email
       if (method === 'whatsapp' && contact) {
@@ -4389,32 +4521,39 @@ async function handleSaveMember() {
           return;
         }
       }
-      // (#5) already in THIS circle
-      const dup = AppState.userMembers.find(function(x) {
-        if (x.circleId !== circleId) return false;
-        if (contact && x.contactValue && norm(x.contactValue) === norm(contact)) return true;
-        if (contact && x.contactValue && method === 'whatsapp' && x.contactMethod === 'whatsapp'
-            && tail(x.contactValue) && tail(x.contactValue) === tail(contact)) return true;
-        return norm(x.name) === norm(name);
-      });
-      if (dup) {
-        toast(dup.name + ' is already in this circle.', 'warn');
+      // ── IDENTITY IS DECIDED BY THE SERVER, ON THE CONTACT (v0.45.0) ───────
+      // What was here: a scan of AppState.userMembers — a browser cache of
+      // unknown age — ending in `norm(x.name) === norm(name)`. Name equality
+      // is exactly what dan's rule forbids (three Marks, five Bobs), and the
+      // stale cache is why adding shapiro four times produced four rows.
+      let resolved;
+      try {
+        resolved = await resolveContact(method, contact, circleId);
+      } catch (e) {
+        // A failure must NEVER read as "this person is a stranger". That
+        // conflation is the whole bug: link_member_to_existing_user threw on
+        // every phone lookup and the client quietly treated it as "not a user".
+        console.error('resolveContact failed:', e);
+        toast("Couldn't check whether they're already known. Nothing was added \u2014 please try again.", 'warn');
         return;
       }
-      // (#6) known from ANOTHER of your circles — reuse what we already know
-      const elsewhere = AppState.userMembers.find(function(x) {
-        if (x.circleId === circleId || x.isExternalSource) return false;
-        if (contact && x.contactValue && norm(x.contactValue) === norm(contact)) return true;
-        if (contact && x.contactValue && method === 'whatsapp' && x.contactMethod === 'whatsapp'
-            && tail(x.contactValue) && tail(x.contactValue) === tail(contact)) return true;
-        return false;
-      });
-      if (elsewhere) {
-        reuseLinked = elsewhere.linkedUserId || null;
-        const c2 = AppState.circleById(elsewhere.circleId);
-        toast(elsewhere.name + ' is also in ' + (c2 ? c2.name : 'another circle')
-          + (reuseLinked ? ' \u2014 already on Trustnet.' : '.'));
+      if (resolved.state === 'in_circle') {
+        toast((resolved.person_name || name) + ' is already in this circle.', 'warn');
+        return;
       }
+      if (resolved.state === 'found_person') {
+        // dan's rule: ASK, never merge silently. One contact belongs to one
+        // person, so this IS them — but the human confirms.
+        const same = confirm('This ' + (method === 'whatsapp' ? 'number' : 'contact')
+          + ' already belongs to "' + (resolved.person_name || 'someone you know')
+          + '". Add that same person to this circle?');
+        if (!same) {
+          toast('Nothing added. Use a different contact for a different person.', 'warn');
+          return;
+        }
+        existingPersonId = resolved.person_id;
+      }
+      if (resolved.on_trustnet) reuseLinked = true;
     }
     newMember = {
       id: uid(), name: name,
@@ -4424,6 +4563,36 @@ async function handleSaveMember() {
       circleId: circleId, addedAt: new Date().toISOString()
     };
     if (reuseLinked) newMember.linkedUserId = reuseLinked;
+    // Carry the resolved person through, so this membership joins the EXISTING
+    // person rather than minting a new one (0022). Without this the schema is
+    // right and the app keeps creating strangers anyway.
+    if (existingPersonId) newMember.personId = existingPersonId;
+    // A brand-new contact needs a PERSON to belong to. Without this the schema
+    // from 0022 is correct and the app keeps creating unlinked member rows —
+    // right model, same old behaviour.
+    if (!existingPersonId && !editId) {
+      try {
+        const pr = await sb.from('people').insert({
+          owner_id: CURRENT_UID, name: name,
+          avatar: initials(name), avatar_color: color,
+          response_rate: rate
+        }).select('id').single();
+        if (pr.error) throw new Error(pr.error.message);
+        newMember.personId = pr.data.id;
+        const cr = await sb.from('person_contacts').insert({
+          person_id: pr.data.id, owner_id: CURRENT_UID,
+          method: method, value: contact,
+          key: method === 'whatsapp'
+            ? String(contact).replace(/\D/g, '').slice(-9)
+            : String(contact).trim().toLowerCase()
+        });
+        if (cr.error) throw new Error(cr.error.message);
+      } catch (e) {
+        console.error('create person failed:', e);
+        toast('Could not save this contact: ' + (e.message || 'unknown error'), 'warn');
+        return;
+      }
+    }
     if (!editId) toast(name + ' added to circle.');
   }
 
@@ -5026,6 +5195,25 @@ document.addEventListener('click', function(e) {
       renderApp();
       toast(rm.name + ' removed.');
     }
+  }
+  else if (action === 'search-people') {
+    refreshPeopleSearch();
+  }
+  else if (action === 'add-new-person') {
+    const sp = document.getElementById('nm-search-pane');
+    const fp = document.getElementById('nm-form-pane');
+    const sb2 = document.getElementById('nm-save-btn');
+    if (sp) sp.style.display = 'none';
+    if (fp) fp.style.display = 'block';
+    if (sb2) sb2.style.display = 'inline-flex';
+    // carry whatever they typed into the name field — they already typed it once
+    const typed = (document.getElementById('nm-search') || {}).value || '';
+    const nameEl = document.getElementById('nm-name');
+    if (nameEl && typed && !nameEl.value) nameEl.value = typed;
+    if (nameEl) nameEl.focus();
+  }
+  else if (action === 'pick-person') {
+    handleAddExistingPerson(target);
   }
   else if (action === 'pick-segment') {
     // Generic segmented button picker — updates hidden input and visual state

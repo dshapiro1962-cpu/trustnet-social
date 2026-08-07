@@ -830,3 +830,58 @@ still checks duplicates in browser memory. dan's flow — type a name, see every
 match with contacts and status, choose; only then a form; "this email belongs to
 X, same person?" — is the NEXT piece. Built in two commits deliberately: the
 resolver is testable here, the dialog is not (no browser in the container).
+
+# ═══ 6 AUG 2026 — v0.45.0 · ADD-MEMBER REBUILT (search first, contact decides) ═══
+
+## THE MESS dan REPORTED, ROOT-CAUSED
+Added shapiro (already on Trustnet) -> app said it couldn't add him, filed him
+under "not on Trustnet", offered an invite toggle, and the email said he had
+JOINED. Added dan by phone+email -> member created with EMPTY DETAILS.
+Four causes, all now fixed:
+ (a) FORM-FIRST: pick a method, type a name, type a contact, save — and only
+     THEN discover the person was already known.
+ (b) The DEFAULT method was "In-app", which stored NO CONTACT AT ALL. The
+     friendliest-looking option produced a record with no identity — unmatchable
+     and uninvitable. That is the empty-details member.
+ (c) Duplicates were decided from AppState.userMembers (a browser cache of
+     unknown age) ending in `norm(x.name) === norm(name)`. Name equality is
+     exactly what dan's rule forbids, and the stale cache is why four shapiro
+     rows appeared.
+ (d) The link RPC threw on EVERY phone lookup (auth.users.phone does not exist);
+     the client caught it and continued as if the person were a stranger.
+
+## AS BUILT
+- SEARCH-FIRST dialog: "Who do you want to add?" -> searches YOUR people via
+  search_my_people -> each result shows every contact, Trustnet status, and
+  which circles they are in. Already in this circle = shown but disabled.
+  Picking one adds the membership with NO FORM (handleAddExistingPerson).
+- "+ Add someone new" reveals the form and carries the typed name into it.
+- "In-app" REMOVED as a contact method; default is now WhatsApp. The contact
+  field is always visible: a contact IS the identity.
+- handleSaveMember calls resolve_contact (0024) BEFORE creating anything:
+    in_circle    -> refuse, say so
+    found_person -> CONFIRM ("this contact belongs to X — same person?"),
+                    then REUSE that person. dan's rule: ask, never merge silently.
+    free         -> create people + person_contacts + membership
+  ANY resolver failure ABORTS with "Couldn't check … nothing was added". A crash
+  can no longer read as "stranger".
+- person_id is now persisted by saveMembers, so memberships actually join the
+  person model from 0022 instead of the schema being right and the app still
+  minting strangers.
+
+## TESTS
+addmember-sim.js 30 static checks · addmember-behav-sim.js 10 BEHAVIOURAL checks
+running handleSaveMember against a mocked Supabase: free->creates person+contact
+with normalised key · in_circle->creates nothing and says so · found_person+yes->
+reuses person, no new people row · found_person+no->creates nothing and explains
+· resolver error->creates NOTHING and admits it couldn't check.
+Negative test proven: swallowing the resolver error and assuming 'free' fails.
+matrix-sim UPDATED (5, 5b, 6, 9, 10) — it encoded the OLD in-memory doctrine and
+its from() mock was an empty object, so the new people-insert chain threw. Case 6
+now asserts PERSON REUSE rather than the removed "also in Food" toast.
+Suites 36, checks 694.
+
+## NOT TESTED HERE — no browser in the container
+Rendering, focus, the confirm dialog's appearance, and the search-as-you-type
+feel are UNVERIFIED. First real test: open a circle, tap Add, type a name you
+already have in another circle, and check it appears with contacts and status.
