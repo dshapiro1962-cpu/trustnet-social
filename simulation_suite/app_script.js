@@ -467,7 +467,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.46.0 · live';
+const APP_VERSION = 'v0.46.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -4525,7 +4525,7 @@ async function handleSaveMember() {
     };
     if (!editId) toast('"' + srcName + '" added as an external source.');
   } else {
-    const name  = (document.getElementById('nm-name') || {}).value.trim();
+    let name  = (document.getElementById('nm-name') || {}).value.trim();
     const trust = (document.getElementById('nm-trust') || {}).value.trim();
     const method= (document.getElementById('nm-method') || {}).value || 'app';
     const rate  = (document.getElementById('nm-rate') || {}).value || 'high';
@@ -4583,20 +4583,35 @@ async function handleSaveMember() {
         toast("Couldn't check whether they're already known. Nothing was added \u2014 please try again.", 'warn');
         return;
       }
+      // The message must name the CONTACT, not just the person. dan typed
+      // "yoram", got told "dan test2 already exists", and had no way to see the
+      // connection: it is the EMAIL that is taken. State the chain —
+      // contact -> who holds it -> what that means.
       if (resolved.state === 'in_circle') {
-        toast((resolved.person_name || name) + ' is already in this circle.', 'warn');
+        toast(contact + ' is already in use by ' + (resolved.person_name || 'someone')
+          + ', who is already in this circle. Nothing was added.', 'warn');
         return;
       }
       if (resolved.state === 'found_person') {
         // dan's rule: ASK, never merge silently. One contact belongs to one
         // person, so this IS them — but the human confirms.
-        const same = confirm('This ' + (method === 'whatsapp' ? 'number' : 'contact')
-          + ' already belongs to "' + (resolved.person_name || 'someone you know')
-          + '". Add that same person to this circle?');
+        // Be explicit that the TYPED NAME IS IGNORED. The contact decides who
+        // this is (dan's rule), so adding "yoram" with dan test2's email adds
+        // DAN TEST2 — not yoram. Saying only "same person?" let the user walk
+        // away believing they had added the name they typed.
+        const holder = resolved.person_name || 'someone you already know';
+        const same = confirm(
+          contact + ' is already in use by "' + holder + '".\n\n'
+          + 'Adding it here adds ' + holder + ' to this circle'
+          + (norm(holder) === norm(name) ? '' : ' \u2014 not "' + name + '"')
+          + ', because the contact decides who someone is.\n\nGo ahead?');
         if (!same) {
-          toast('Nothing added. Use a different contact for a different person.', 'warn');
+          toast('Nothing added. Use a different ' + (method === 'whatsapp' ? 'number' : 'contact')
+            + ' if this is a different person.', 'warn');
           return;
         }
+        // The contact wins: keep the holder's name, not the typed one.
+        name = holder;
         existingPersonId = resolved.person_id;
       }
       if (resolved.on_trustnet) reuseLinked = true;

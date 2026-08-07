@@ -18,7 +18,7 @@ let pass=0,fail=0; const ck=(n,c,x)=>{ if(c){pass++;console.log('  ✓',n);}else
 vm.runInContext(app,ctx,{filename:'app.js'});
 vm.runInContext('renderApp=function(){};showView=function(){};toast=function(){};CURRENT_UID="me";',ctx);
 const X=ctx.__x;
-ck('APP_VERSION is v0.46.0', X.APP_VERSION==='v0.46.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.46.1', X.APP_VERSION==='v0.46.1 · live', X.APP_VERSION);
 
 // ---- GAP 1: the FUNCTION knows about comparison + reference ----
 ck('classifier offers comparison + reference (source)', src.indexOf('"comparison"')>0 && src.indexOf('"reference"')>0);

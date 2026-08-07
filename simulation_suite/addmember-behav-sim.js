@@ -50,11 +50,33 @@ X.AppState.userProfile={id:'me',name:'Dan'}; X.AppState.userMembers=[]; X.AppSta
   // 4. FOUND_PERSON + confirm NO -> nothing at all
   inserted.length=0;toasts.length=0;confirmAns=false; X.AppState.userMembers=[]; await X.handleSaveMember();
   ck('declining the merge creates nothing', inserted.length===0);
-  ck('...and explains why', toasts.some(t=>/different contact for a different person/i.test(t)), toasts.join('|'));
+  ck('...and explains why', toasts.some(t=>/if this is a different person/i.test(t)), toasts.join('|'));
   // 5. RPC ERROR -> abort, never "assume stranger"
   rpcReply=async()=>({data:null,error:{message:'boom'}});
   inserted.length=0;toasts.length=0;confirmAns=true; X.AppState.userMembers=[]; await X.handleSaveMember();
   ck('a resolver failure creates NOTHING', inserted.length===0);
   ck('...and tells the user it could not check', toasts.some(t=>/Couldn't check/i.test(t)), toasts.join('|'));
+
+  // ── dan's report: typed "yoram", was told "dan test2 already exists", with
+  // no way to see that the EMAIL was the reason. And under his own rule the
+  // contact decides identity — so that add creates DAN TEST2, not yoram. The
+  // old message never said so.
+  fields['nm-name']='yoram'; fields['nm-contact']='dshapiro1962@gmail.com';
+  rpcReply=async()=>({data:[{state:'in_circle',person_id:'p2',person_name:'dan test2',membership_id:'m2',on_trustnet:true}],error:null});
+  inserted.length=0;toasts.length=0; X.AppState.userMembers=[]; await X.handleSaveMember();
+  ck('in_circle message names the CONTACT that is taken',
+     toasts.some(t=>String(t).indexOf('dshapiro1962@gmail.com')>=0), toasts.join('|'));
+  ck('...and who holds it', toasts.some(t=>String(t).indexOf('dan test2')>=0));
+  ck('...and says nothing was added', toasts.some(t=>/Nothing was added/i.test(String(t))));
+  ck('...and creates nothing', inserted.length===0);
+
+  // found_person: the typed name must be REPLACED by the contact holder's
+  rpcReply=async()=>({data:[{state:'found_person',person_id:'p2',person_name:'dan test2',membership_id:null,on_trustnet:true}],error:null});
+  inserted.length=0;toasts.length=0;confirmAns=true; X.AppState.userMembers=[]; await X.handleSaveMember();
+  const saved = X.AppState.userMembers[X.AppState.userMembers.length-1];
+  ck('the CONTACT decides the name, not what was typed',
+     !!saved && saved.name==='dan test2', saved && saved.name);
+  ck('...and the existing person is reused, not duplicated',
+     !!saved && saved.personId==='p2' && !inserted.some(i=>i.t==='people'));
   console.log('\nRESULT: '+pass+' passed, '+fail+' failed');
 })();

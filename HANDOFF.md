@@ -961,3 +961,28 @@ PROVIDE, so omitting one is harmless. The killer is providing an EXPLICIT value
 from a field that is always undefined.
 
 Suites 37, checks 719.
+
+# ═══ v0.46.1 · THE MESSAGE MUST NAME THE CONTACT ═══
+
+dan: added "yoram" to karate using dshapiro1962@gmail.com (dan test2's address)
+and got "dan test2 already exists". The mechanism was RIGHT — no duplicate was
+created — but the message was wrong twice over:
+ 1. It never said WHY. The email is what is taken; the user typed a name and was
+    told about a stranger, with no visible connection.
+ 2. It hid a consequence. Under dan's own rule the CONTACT decides identity, so
+    that add would have created DAN TEST2, not yoram. "Same person?" let the
+    user walk away believing they had added the name they typed.
+
+NOW:
+ in_circle    -> "<contact> is already in use by <holder>, who is already in
+                 this circle. Nothing was added."
+ found_person -> "<contact> is already in use by "<holder>". Adding it here adds
+                 <holder> to this circle — not "<typed>" — because the contact
+                 decides who someone is. Go ahead?"
+ And on confirm the holder's name REPLACES the typed one (`name = holder`), so
+ the record matches what actually happened. `name` changed from const to let.
+
+Tested behaviourally: the in_circle toast names the contact, names the holder,
+says nothing was added, and creates nothing; on found_person the saved member
+carries the HOLDER's name and reuses the existing person with no new people row.
+Suites 37, checks 728.

@@ -56,8 +56,15 @@ ck('a resolution failure ABORTS the add — never "assume stranger"',
    /Couldn't check whether they're already known\. Nothing was added/.test(web));
 ck('in_circle is reported and stops the add', /if \(resolved\.state === 'in_circle'\)/.test(web));
 ck('found_person ASKS before merging (dan\'s rule)',
-   /if \(resolved\.state === 'found_person'\)[\s\S]{0,400}confirm\(/.test(web));
-ck('declining the merge adds NOTHING', /Nothing added\. Use a different contact for a different person/.test(web));
+   /if \(resolved\.state === 'found_person'\)[\s\S]{0,900}confirm\(/.test(web));
+// v0.46.1: the prompt must name the CONTACT and state that the TYPED NAME LOSES.
+// dan typed "yoram" with dan test2's email and was told only "dan test2 already
+// exists" — no way to see the email was the reason, and no warning that the add
+// would create dan test2 rather than yoram.
+ck('the prompt names the contact that is taken', /contact \+ ' is already in use by/.test(web));
+ck('the prompt says the contact decides who someone is', /because the contact decides who someone is/.test(web));
+ck('the contact holder\'s name overrides what was typed', /name = holder;/.test(web));
+ck('declining the merge adds NOTHING', /Nothing added\. Use a different /.test(web));
 
 // ── the person model is actually used ───────────────────────────────────────
 ck('an existing person is reused rather than duplicated', /existingPersonId = resolved\.person_id;/.test(web));
