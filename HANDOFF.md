@@ -779,3 +779,54 @@ and an invite dialog that re-reads from the server instead of trusting cache.
   crash and "not a user" are indistinguishable. Errors must not be swallowed.
 - dshario8@ vs dshapiro8@ — one letter apart, both real accounts. Correct by
   rule 1 (different contact = different person), likely a typo worth fixing.
+
+# ═══ 6 AUG 2026 — v0.44.0 · IDENTITY RESOLVER (server-side, three states) ═══
+
+## WHY — the add-member mess, root-caused
+- link_member_to_existing_user queried auth.users.phone — A COLUMN THAT DOES
+  NOT EXIST. EVERY whatsapp lookup threw. The client caught the exception and
+  logged it to a console nobody reads, then continued as if the person were not
+  a Trustnet user. A CRASH AND A GENUINE "NO" WERE INDISTINGUISHABLE.
+- It checked only the method the member was added with: added by email meant the
+  phone was never consulted.
+- It returned a BARE BOOLEAN, so no caller could tell "not a user" from
+  "could not check".
+- The client then decided duplicates from AppState.userMembers — a browser cache
+  of unknown age — with a final fallback of `norm(x.name) === norm(name)`.
+  Name equality, which is exactly what dan's rule forbids.
+- The dialog's DEFAULT method is "In-app", which stores NO CONTACT AT ALL. That
+  is why dan's member came out with empty details: the friendliest-looking
+  option creates a record that can never be matched or invited.
+
+## AS BUILT — 0024_resolve_contact.sql
+resolve_contact(method, value, circle) returns a STATE:
+  found_person — one of YOUR people already holds this contact (ASK, per dan's
+                 rule the app must never merge silently)
+  in_circle    — that person is already in THIS circle
+  on_trustnet  — nobody of yours holds it, but a Trustnet ACCOUNT does
+  free         — nobody holds it
+Bad input RAISES (bad_method / empty_contact / not_authenticated) instead of
+returning a quiet false. Reuses contact_key() (0022) which reuses phone_key()
+(0017) — ONE normalisation rule, no second implementation.
+search_my_people(q) — name search is a CONVENIENCE for finding, never for
+deciding. Returns every contact and circle per person so the HUMAN chooses.
+
+PRIVACY: a stranger match returns on_trustnet=true with NO id and NO name — you
+learn a contact is registered, never who. Name search is scoped to the caller
+and capped at 25. Execute granted to `authenticated` only.
+
+## TESTED ON A REAL POSTGRES, with dan's actual member rows
+All four states correct. Messy input (" DShapiro8@HotMail.com ") resolves the
+same. THE PHONE BRANCH NOW WORKS — '050-123-4567' and '+972 50 123 4567' both
+resolve; that call threw on every invocation before. Cross-owner: another owner
+sees `free` for my contact and 0 of my people by name. Bad input raises.
+resolver-sim.js 22 checks; negative test proven (restoring auth.users.phone
+fails two checks). Full 17-migration rebuild clean. Suites 34, checks 654.
+
+## STILL NOT DONE — THE DIALOG ITSELF
+This is the correctness layer only. The add-member UI is UNCHANGED and still
+form-first, still offers "In-app" (no contact), still one method per person,
+still checks duplicates in browser memory. dan's flow — type a name, see every
+match with contacts and status, choose; only then a form; "this email belongs to
+X, same person?" — is the NEXT piece. Built in two commits deliberately: the
+resolver is testable here, the dialog is not (no browser in the container).
