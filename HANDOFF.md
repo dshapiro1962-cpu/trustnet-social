@@ -986,3 +986,61 @@ Tested behaviourally: the in_circle toast names the contact, names the holder,
 says nothing was added, and creates nothing; on found_person the saved member
 carries the HOLDER's name and reuses the existing person with no new people row.
 Suites 37, checks 728.
+
+# ═══ 6 AUG 2026 — v0.47.0 · ITEMS 4 & 5, AND WHAT CHECKING AGAIN FOUND ═══
+
+dan asked "check again you haven't overlooked something" BEFORE I built. I had.
+Three corrections to earlier entries in this handoff:
+
+CORRECTION 1 — category_corrections is NOT dead. I claimed "zero references in
+the app or any of the 19 edge functions". I grepped the TABLE name and missed
+the FUNCTION: correct_category writes to it and the app calls that RPC.
+
+CORRECTION 2 — shared_to_network IS read. network_feed filters on it. My earlier
+"written and never read" was wrong.
+
+CORRECTION 3, THE BIG ONE — SEVEN FUNCTIONS EXISTED ONLY IN PRODUCTION:
+correct_category · get_or_create_circle_link · revoke_circle_link ·
+join_circle_via_link · my_answered_queries · network_feed · resolve_query.
+0018 reconciled TABLES and COLUMNS and never looked at FUNCTIONS; schema-sim
+checked tables and columns and shared the blind spot. So "the repo can rebuild
+the database", proven by 17 tables applying cleanly, was TRUE AND MISLEADING —
+a rebuilt database had every table and failed the moment you opened the inbox,
+followed a shared link, or corrected a category. Recovered VERBATIM from
+pg_get_functiondef in 0025_recover_functions.sql. A rebuild now applies 19
+migrations and has all 7. schema-sim now derives the RPC list FROM THE APP and
+fails if any lacks a migration — negative-tested, it names all seven.
+
+## ITEM 4 — the broken function retired
+link_member_to_existing_user queried auth.users.phone, A COLUMN THAT DOES NOT
+EXIST, so every whatsapp lookup threw. Both callers swallowed it:
+ * the "Check who's already on Trustnet" button reported the crash to the user
+   as "None of them have Trustnet accounts yet"
+ * handleSaveMember called it AGAIN after resolve_contact had already answered
+Both now use resolve_contact. The sweep counts failures SEPARATELY and says
+"N could not be checked — please try again" instead of claiming nobody has an
+account. That conflation is the whole family of bugs in this area.
+
+## ITEM 5 — the invite dialog no longer renders from stale memory
+modalInvite is SYNCHRONOUS and bucketed purely from AppState.userMembers with
+zero server calls — it showed whatever the browser last loaded. That is how a
+LINKED person appeared under "not on Trustnet" and was emailed an invite saying
+he had joined a circle he was already in. Making modalInvite async would be the
+wrong fix (it renders inline; it would flash empty or block). Instead
+openInviteFresh() awaits loadUserData() and THEN renders. All entry points route
+through it; exactly one openModal('invite') remains, inside the opener. A
+refresh failure still opens the dialog but warns the statuses may be stale.
+COST: a brief pause when opening. Correct-and-slower beats instant-and-wrong on
+the screen that sent a wrong email.
+
+## TESTS
+staleness-sim.js 12 checks; negative-tested both ways (restoring the broken RPC,
+and bypassing the refresh at one entry point). matrix-sim cases 14/15 updated —
+they asserted the OLD rpc by name, and the reopen is now a tick later because it
+awaits a fresh load. Suites 38, checks 750.
+
+## STILL OPEN
+Degree 2 is a dead control (UI offers it, sends degree:1 hardcoded).
+degree2_enabled read nowhere. my_answered_queries matches on lowercased EMAIL —
+a THIRD identity rule alongside phone_key (0017) and contact_key (0022); worth
+unifying. The pre-beta test plan is still unrun.

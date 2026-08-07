@@ -190,4 +190,33 @@ ck('no migration references a column an EARLIER one has not created yet',
      'added by ' + (migFiles[iAdd] || '?') + ', used by ' + (iUse ? iUse[1] : '?'));
 });
 
+
+// ── FUNCTIONS, NOT JUST TABLES AND COLUMNS (v0.47.0) ────────────────────────
+// THE BLIND SPOT: 0018 reconciled tables and columns, this suite checked tables
+// and columns, and both declared the rebuild sound. SEVEN functions the app
+// calls every day existed only in production. A rebuilt database had every
+// table and failed the moment you opened the inbox. Verifying what you thought
+// to verify is not verification.
+//
+// Every RPC the CLIENT calls must be defined by SOME migration. Derived from
+// the app source, so a new sb.rpc() call with no migration trips this.
+const APP = fs.readFileSync('/home/claude/app/index.html', 'utf8');
+const calledRpcs = [...new Set((APP.match(/sb\.rpc\('([a-z_]+)'/g) || [])
+  .map(m => m.replace(/sb\.rpc\('/, '').replace(/'/, '')))];
+ck('found the RPCs the client calls', calledRpcs.length >= 10, calledRpcs.length + ' found');
+const undefinedRpcs = calledRpcs.filter(fn =>
+  !new RegExp('function\\s+(public\\.)?' + fn + '\\s*\\(', 'i').test(sql));
+ck('EVERY RPC the client calls is defined by a migration',
+   undefinedRpcs.length === 0,
+   undefinedRpcs.length ? 'NO SOURCE — a rebuild breaks these: ' + undefinedRpcs.join(', ') : '');
+
+// The seven recovered by 0025, pinned by name so their loss is loud.
+['correct_category','get_or_create_circle_link','revoke_circle_link',
+ 'join_circle_via_link','my_answered_queries','network_feed','resolve_query'
+].forEach(fn => ck('recovered function present: ' + fn,
+   new RegExp('FUNCTION public\\.' + fn + '\\s*\\(', 'i').test(sql)));
+
+ck('0025 states it is a transcript, not a reconstruction',
+   /Transcribed VERBATIM from pg_get_functiondef/.test(sql));
+
 console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');

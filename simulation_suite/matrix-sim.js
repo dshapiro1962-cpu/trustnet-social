@@ -37,7 +37,7 @@ ctx.__resolve={state:'free',person_id:null,person_name:null,membership_id:null,o
 ctx.__rpcImpl=async(n)=>(n==='resolve_contact' ? {data:[ctx.__resolve],error:null} : {data:false});
 const X=ctx.__x;
 const lastToast=()=>ctx.__toasts.length?String(ctx.__toasts[ctx.__toasts.length-1][0]):'';
-ck('APP_VERSION is v0.46.1', X.APP_VERSION==='v0.46.1 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.47.0', X.APP_VERSION==='v0.47.0 · live', X.APP_VERSION);
 
 function reset() {
   byId['inv-new-msg']=el(); byId['inv-err']=el();
@@ -143,12 +143,25 @@ ck('13. inviting an unlinked EMAIL member -> mailto with the join link',
 
 // ── the re-check sweep ──
 reset();
-let calls=0; ctx.__rpcImpl=async(n)=>{ if(n==='link_member_to_existing_user'){calls++; return {data:calls===1};} return {data:'tok'}; };
+// v0.47.0: the sweep now calls resolve_contact. link_member_to_existing_user
+// queried auth.users.phone — A COLUMN THAT DOES NOT EXIST — so it threw on every
+// whatsapp member and the caller reported the crash as "no account".
+vm.runInContext('loadUserData = async function(){};', ctx);
+let calls=0; ctx.__rpcImpl=async(n)=>{
+  if(n==='resolve_contact'){calls++; return {data:[{state:'free',person_id:null,person_name:null,membership_id:null,on_trustnet:calls===1}],error:null};}
+  return {data:'tok'}; };
 await X.handleRecheckTrustnet(el({dataset:{circleId:'c1'},disabled:false,textContent:''}));
 ck('14. re-check asks only about UNLINKED members with contacts (m2 only)',
-   calls===1 && ctx.__rpcCalls.filter(function(c){return c[0]==='link_member_to_existing_user';}).length===1);
+   calls===1 && ctx.__rpcCalls.filter(function(c){return c[0]==='resolve_contact';}).length===1,
+   'calls='+calls);
+// v0.47.0: the reopen goes through openInviteFresh, which AWAITS a fresh load
+// before rendering — the invite dialog must never bucket from stale memory
+// (that is how a linked person was shown as a stranger and emailed an invite).
+// So the reopen completes a tick later than it used to.
+await new Promise(function(r){ setTimeout(r, 0); });
 ck('15. re-check reports what it found and reopens the list',
-   lastToast().indexOf('already on Trustnet')>=0 && ctx.__opened_modal && ctx.__opened_modal[0]==='invite');
+   lastToast().indexOf('already on Trustnet')>=0 && ctx.__opened_modal && ctx.__opened_modal[0]==='invite',
+   lastToast() + ' | opened=' + JSON.stringify(ctx.__opened_modal));
 // ── inviting someone who is NOT a member yet (restored in v0.33.1) ──
 reset(); ctx.__rpcImpl=async()=>({data:'tok'});
 const im3=X.modalInvite({circleId:'c1',circleName:'Ski'});

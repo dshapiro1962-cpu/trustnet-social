@@ -467,7 +467,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.46.1 · live';
+const APP_VERSION = 'v0.47.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3537,6 +3537,30 @@ function attachScrollAffordance() {
   }, 60);
 }
 
+// ═══ THE INVITE DIALOG MUST NOT RENDER FROM STALE MEMORY (v0.47.0) ══════════
+// modalInvite is SYNCHRONOUS and buckets purely from AppState.userMembers:
+//   onTrustnet = members.filter(m => m.linkedUserId)
+//   notYet     = members.filter(m => !m.linkedUserId && m.contactValue)
+// It made ZERO server calls, so it showed whatever the browser last loaded.
+// That is exactly how a LINKED person appeared under "not on Trustnet" and was
+// sent an invite email saying he had joined a circle he was already in.
+//
+// Making modalInvite async would be the wrong fix: it is called from the render
+// path, so the dialog would flash empty or block. Instead the OPENER refreshes
+// first and then renders synchronously — one round trip when the dialog opens,
+// not one per keystroke, and the render stays simple.
+async function openInviteFresh(params) {
+  try {
+    await loadUserData();
+  } catch (e) {
+    // Show it anyway rather than blocking the user, but say the data may be old
+    // — silence here is what let a stale flag send a wrong email.
+    console.error('invite refresh failed:', e);
+    toast('Could not refresh — statuses below may be out of date.', 'warn');
+  }
+  openModal('invite', params);
+}
+
 function openModal(name, params) {
   let html = '';
   if (name === 'add-circle') html = modalAddCircle();
@@ -3967,7 +3991,7 @@ function modalInvite(params) {
     refreshCircleLinks(circleId).then(function() {
       const root = document.getElementById('modal-root');
       if (root && root.innerHTML.indexOf('Invite to') >= 0) {
-        openModal('invite', { circleId: circleId, circleName: circleName });
+        openInviteFresh({ circleId: circleId, circleName: circleName });
       }
     });
   }
@@ -4186,19 +4210,30 @@ async function handleRecheckTrustnet(btn) {
   });
   if (!targets.length) { toast('Everyone here is already checked.'); return; }
   btn.disabled = true; btn.textContent = 'Checking\u2026';
-  let found = 0;
+  let found = 0, failed = 0;
   for (const m of targets) {
     try {
-      const r = await sb.rpc('link_member_to_existing_user', { p_member_id: m.id });
-      if (r && r.data === true) { m.linkedUserId = 'linked'; found++; }
-    } catch (e) { console.error('recheck failed for', m.name, e); }
+      // link_member_to_existing_user queried auth.users.phone — A COLUMN THAT
+      // DOES NOT EXIST — so every whatsapp-method member threw here and the
+      // catch below reported them as "no account". resolve_contact checks BOTH
+      // methods against public.users and RAISES rather than lying.
+      const r = await resolveContact(m.contactMethod, m.contactValue, m.circleId);
+      if (r && r.on_trustnet) { m.linkedUserId = r.person_id || 'linked'; found++; }
+    } catch (e) {
+      failed++;
+      console.error('recheck failed for', m.name, e);
+    }
   }
   btn.disabled = false; btn.textContent = 'Check who\'s already on Trustnet';
-  toast(found
-    ? found + ' of them ' + (found === 1 ? 'is' : 'are') + ' already on Trustnet.'
-    : 'None of them have Trustnet accounts yet.');
+  // NEVER report "none have accounts" when the check itself failed. That
+  // conflation is the whole family of bugs in this area.
+  toast(failed
+    ? (found ? found + ' found, but ' : '') + failed + ' could not be checked \u2014 please try again.'
+    : (found
+        ? found + ' of them ' + (found === 1 ? 'is' : 'are') + ' already on Trustnet.'
+        : 'None of them have Trustnet accounts yet.'), failed ? 'warn' : undefined);
   closeModal();
-  openModal('invite', { circleId: circleId, circleName: (AppState.circleById(circleId) || {}).name || 'your' });
+  openInviteFresh({ circleId: circleId, circleName: (AppState.circleById(circleId) || {}).name || 'your' });
 }
 
 // Invite a person who is NOT yet a member: type their contact, we open the
@@ -4680,19 +4715,11 @@ async function handleSaveMember() {
   // Is this person already on Trustnet? Linking used to happen ONLY at signup,
   // so adding an EXISTING user left them unlinked — no in-app doorway for them,
   // no indication for you. Ask the server; it answers only yes/no.
-  const contactChanged = !!(editId && newMember.contactValue
-    && (!AppState._editMemberPrevContact || AppState._editMemberPrevContact !== newMember.contactValue));
-  if ((!editId || contactChanged) && !newMember.isExternalSource && newMember.contactValue
-      && !newMember.linkedUserId && !AppState.isDemoMode) {
-    try {
-      const lr = await sb.rpc('link_member_to_existing_user', { p_member_id: newMember.id });
-      if (lr && lr.data === true) {
-        const m2 = AppState.userMembers.find(function(x) { return x.id === newMember.id; });
-        if (m2) m2.linkedUserId = 'linked';
-        toast(newMember.name + ' is already on Trustnet \u2014 your questions reach them in the app.');
-      }
-    } catch (e) { console.error('link_member_to_existing_user failed:', e); }
-  }
+  // v0.47.0: the second lookup is GONE. resolve_contact already ran BEFORE this
+  // member was created and its answer set linkedUserId. Calling the old broken
+  // function again was redundant on the good path and silently throwing on
+  // every whatsapp contact. One identity lookup per save, and it happens before
+  // anything is written rather than after.
 
   closeModal();
   renderApp();
@@ -5540,7 +5567,7 @@ document.addEventListener('click', function(e) {
     openModal('share-list');
   }
   else if (action === 'open-invite') {
-    openModal('invite', { circleId: target.dataset.circleId, circleName: target.dataset.circleName });
+    openInviteFresh({ circleId: target.dataset.circleId, circleName: target.dataset.circleName });
   }
   else if (action === 'copy-share-link') {
     toast('Link copied to clipboard.');
