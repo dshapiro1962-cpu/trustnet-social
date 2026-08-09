@@ -1044,3 +1044,73 @@ Degree 2 is a dead control (UI offers it, sends degree:1 hardcoded).
 degree2_enabled read nowhere. my_answered_queries matches on lowercased EMAIL —
 a THIRD identity rule alongside phone_key (0017) and contact_key (0022); worth
 unifying. The pre-beta test plan is still unrun.
+
+# ═══ 8 AUG 2026 — v0.48.0 · SHARED-INTEREST GROUNDWORK (schema + vocabulary) ═══
+
+## THE FEATURE, AND WHAT IT IS NOT
+PASSIVE (this): X is already in a circle of mine. He answers a query in ANY
+circle of his, or saves an item. If it is a book and a circle of mine is about
+books, it appears in my INBOX as a suggestion. AUTOMATIC — neither of us does
+anything. X opts OUT per item via the existing "shared to your network — click
+to unshare", which now appears on the ANSWER dialog as well as the save card.
+
+DEGREE 2 (NOT this): I have a question my circle cannot answer, so I press
+"degree 2+ contacts of contacts (anonymous)" ON THE QUERY DIALOG. Active,
+per-question, opt-IN, default degree 1. Unrelated.
+They were tangled because they shared a toggle. They no longer do:
+  passive = ON by default, opt OUT per item
+  degree 2 = OFF by default, opt IN per question
+
+## SHIPPED IN THIS RELEASE (schema + vocabulary only — NOTHING USER-VISIBLE)
+- canonicals.kind PERSISTED. The enricher has always produced it ("novel",
+  "children's book", "ski resort", "iron lattice monument"), written it into
+  search_doc as text, and stored it in NO COLUMN. THIRD TIME THIS PATTERN HAS
+  APPEARED (resolved -> v0.42.0; seven functions -> v0.47.0). It is the only
+  signal precise enough to tell a book from a museum — primary_category puts
+  both in 'culture'. Written on BOTH commit and backfill.
+- query_responses.shared_to_network, default TRUE. The opt-out toggle on the
+  ANSWER screen had nowhere to store its state (shared_to_network lives on
+  recommendations).
+- circle_interests table. Only CONFIRMED interests ever match; 'declined'
+  is stored so a silent circle differs from an unasked one. A circle may hold
+  SEVERAL interests (unique on circle+interest) — dining could be restaurants
+  AND wine; a match on any one counts.
+- users.degree2_enabled DROPPED. Default true, read by nothing, needed by
+  neither feature. A flag that looks meaningful and is not.
+- interestsForKind() in _shared/enrich_core.ts: a CONTROLLED VOCABULARY
+  (book, restaurant, bar, cafe, hotel, destination, ski, doctor, tradesperson,
+  shop, product, service). Chosen over semantic similarity because every trust
+  decision here must be explainable in ONE SENTENCE: "Rina answered this, she's
+  in your reading circle, and it's a book" is checkable; "0.83 similarity" is
+  not. Unmapped kinds return [] and NEVER match — silence beats a wrong guess.
+  ski also yields destination, so one item can match either circle.
+
+## MATCHING IS WHOLE-WORD, AND THAT IS THE WHOLE POINT
+Substring matching is EXACTLY the bug that put a dermatologist on the "ski"
+results screen for a week ("skin" contains "ski"). Negative-tested: reverting to
+indexOf(t) makes "skin doctor" -> ski, "barber" -> bar, "bookkeeper" -> book.
+Guarded permanently by interest-sim.
+
+## A DISCOVERY THAT MAKES THIS CHEAPER
+receive-response ALREADY calls match_canonical on every answer, so an answer
+becomes a canonical on arrival. There is NO separate raw-text path and NO new
+per-answer web lookup — existing enrichment covers it.
+
+## THRESHOLDS — dan had no view, so they were made NOT TO MATTER
+Stage 1 asks "is this circle about books?" only to be POLITE; the owner's answer
+is the truth. Floor lowered to 3 items and top kind >=50%, PLUS a manual "set
+interest" on every circle. A wrong threshold therefore costs a missed prompt,
+never a wrong outcome. NO dismissal learning (dan's call).
+
+## TESTS: interest-sim 29 checks incl. real kinds from this database, Hebrew,
+and the substring traps. Both negative tests proven. 20 migrations rebuild
+clean. Suites 39, checks 779.
+
+## NOT BUILT YET (steps 3-6 of the spec)
+Stage 1 derive-and-confirm card · the matcher · the Inbox surface · wording
+changes on both toggles · network_feed still enforces the OLD promise (circle
+DOMAIN matching) and must be brought in line or the app says one thing and does
+another.
+NOTE: repair_person_links.sql sits in the migrations folder and therefore runs
+on every rebuild. Idempotent and harmless, but it is a one-off repair, not a
+migration — move it to a scripts folder when convenient.

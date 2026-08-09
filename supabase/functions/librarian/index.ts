@@ -83,6 +83,7 @@ Deno.serve(async (req: Request) => {
         name: e.name, location: e.location, primary_category: e.category,
         ai_tags: e.tags, search_doc: e.search_doc, search_doc_at: new Date().toISOString(),
         verified: e.resolved === true,   // v0.42.0 — same grounding flag as commit
+        kind: e.kind || null,            // v0.48.0 — backfill must persist it too
       };
       if (vec) patch.embedding = vec;
       const { error } = await admin.from("canonicals").update(patch).eq("id", cn.id);
@@ -125,6 +126,11 @@ Deno.serve(async (req: Request) => {
     const vec = await embed(key, e.search_doc);
     const patch: Record<string, unknown> = {
       name: e.name, location: e.location, primary_category: e.category, ai_tags: e.tags,
+      // v0.48.0: PERSIST kind. It has always been produced — "novel",
+      // "children's book", "ski resort" — written into search_doc as text and
+      // stored in no column. It is the only signal precise enough to tell a
+      // book from a museum; primary_category puts both in 'culture'.
+      kind: e.kind || null,
       search_doc: e.search_doc, search_doc_at: new Date().toISOString(),
       class_source: "ai", classified_at: new Date().toISOString(),
       // v0.42.0: PERSIST the grounding. enrichOne has always computed whether a

@@ -74,6 +74,75 @@ export function buildSearchDoc(e: {
 // secret. Kept as a SEPARATE call from aiEnrich so the enrichment call keeps
 // temperature:0 and response_format:json_object, which the search-preview
 // models restrict.
+// ═══ THE INTEREST VOCABULARY (v0.48.0) ══════════════════════════════════════
+// Shared-interest suggestions need ONE comparable value on both sides: what X's
+// item IS, and what my circle is ABOUT. The enricher's `kind` is precise —
+// "novel", "children's book", "ski resort" — but too free-form to compare
+// directly. This maps it onto a small fixed list.
+//
+// WHY A CONTROLLED LIST AND NOT SEMANTIC SIMILARITY:
+// every trust decision in this product must be explainable in one sentence.
+// "Rina answered this, she's in your reading circle, and it's a book" is a
+// sentence a user can check. "0.83 similarity" is not, and the entire point of
+// Trustnet is that you can see WHY something reached you.
+//
+// Unmapped kinds return [] and therefore NEVER match. Silence beats a wrong
+// guess — the enricher once confidently produced "hair removal machine".
+export const INTERESTS = [
+  "book", "restaurant", "bar", "cafe", "hotel", "destination", "ski",
+  "doctor", "tradesperson", "shop", "product", "service",
+] as const;
+
+// Matched as WHOLE WORDS against the kind, longest phrase first. Hebrew terms
+// sit alongside English because the enricher is instructed to emit both.
+const KIND_MAP: Array<[string[], string[]]> = [
+  [["novel","book","novella","memoir","biography","textbook","cookbook",
+    "ספר","רומן"],                                   ["book"]],
+  [["ski resort","ski area","ski touring boot","ski boot","ski","skis",
+    "מסלול סקי","סקי"],                              ["ski"]],
+  [["restaurant","bistro","eatery","diner","steakhouse","pizzeria",
+    "מסעדה","פיצריה"],                               ["restaurant"]],
+  [["bar","pub","cocktail bar","wine bar","בר"],      ["bar"]],
+  [["cafe","coffee shop","coffeehouse","bakery","patisserie",
+    "בית קפה","מאפיה"],                              ["cafe"]],
+  [["hotel","guesthouse","hostel","lodge","bed and breakfast",
+    "מלון","אכסניה"],                                ["hotel"]],
+  [["island","city","town","region","beach","national park","landmark",
+    "monument","museum","gallery","אי","עיר","מוזיאון"], ["destination"]],
+  [["doctor","dermatologist","physician","dentist","clinic","surgeon",
+    "רופא","רופאה","מרפאה"],                         ["doctor"]],
+  [["plumber","electrician","handyman","technician","contractor","painter",
+    "framer","air conditioning","שיפוצניק","חשמלאי","טכנאי","מסגר"],
+                                                     ["tradesperson"]],
+  [["butcher","grocer","market","store","shop","boutique",
+    "חנות","קצביה","סופר"],                          ["shop"]],
+  [["grill","gas grill","appliance","equipment","gear","device","machine",
+    "מכשיר","ציוד"],                                 ["product"]],
+  [["babysitter","nanny","cleaner","tutor","dog sitter","accountant",
+    "lawyer","בייביסיטר","מטפלת","מנקה"],            ["service"]],
+];
+
+// A ski resort is BOTH a place you travel to and a ski thing. Returning both
+// lets one item match either a travel circle or a ski circle — a circle may
+// hold several interests, and a match on any one counts.
+const ALSO: Record<string, string[]> = { ski: ["destination"] };
+
+export function interestsForKind(kind: string): string[] {
+  const k = " " + String(kind || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim() + " ";
+  if (k.trim() === "") return [];
+  const hits = new Set<string>();
+  for (const [terms, out] of KIND_MAP) {
+    for (const t of terms) {
+      if (k.indexOf(" " + t + " ") >= 0) {           // WHOLE word, never substring:
+        out.forEach((o) => hits.add(o));             // "bar" must not match "barber",
+        break;                                       // "ski" must not match "skin".
+      }
+    }
+  }
+  for (const h of [...hits]) (ALSO[h] || []).forEach((a) => hits.add(a));
+  return [...hits];
+}
+
 export async function webGround(key: string, name: string, hint: string): Promise<string> {
   if (!key || !name) return "";
   try {
