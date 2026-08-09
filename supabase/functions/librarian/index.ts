@@ -40,6 +40,50 @@ Deno.serve(async (req: Request) => {
   const admin = adminClient();
 
   // ── BACKFILL: repair everything already in the caller's library ──────────
+  // ── interest_terms: expand a custom interest name into matchable terms ────
+  // "wine" -> winery, wine bar, wine shop, vineyard, יין
+  // The user SEES these and confirms before they take effect. Generation is
+  // fallible — this same model once produced "hair removal machine" — so the
+  // terms are proposed, never applied silently.
+  if (mode === "interest_terms") {
+    const label = String(body.label || "").trim().slice(0, 40);
+    if (!label) return err("label required");
+    try {
+      const r = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o-mini", temperature: 0,
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content:
+              "The user names an INTEREST. List the short noun phrases that would appear as the " +
+              "KIND of a thing belonging to that interest — what such a thing IS, not what it is " +
+              "about. For \"wine\": winery, wine bar, wine shop, vineyard. For \"gardening\": " +
+              "garden centre, nursery, landscaper. Return JSON only: {\"terms\":[\"...\"]}. " +
+              "6-12 terms, lowercase, 1-3 words each. Include Hebrew equivalents when the interest " +
+              "is likely to be used in Hebrew. NEVER return a term that is a substring of an " +
+              "unrelated common word." },
+            { role: "user", content: label },
+          ],
+        }),
+      });
+      if (!r.ok) return err("openai_" + r.status, 502);
+      const c = await r.json();
+      const parsed = JSON.parse(c.choices?.[0]?.message?.content ?? "{}");
+      const terms = Array.isArray(parsed.terms)
+        ? parsed.terms.filter((t: unknown) => typeof t === "string" && String(t).trim().length > 1)
+            .map((t: string) => t.toLowerCase().trim()).slice(0, 12)
+        : [];
+      if (!terms.length) return err("no_terms_generated", 502);
+      return json({ engine: ENGINE, mode, label, terms });
+    } catch (e) {
+      // Surfaced, never swallowed: the caller must be able to say "couldn't do
+      // that" rather than silently saving an interest that matches nothing.
+      return err("interest_terms_failed: " + String(e).slice(0, 120), 502);
+    }
+  }
+
   if (mode === "backfill") {
     const limit = Math.min(Number(body.limit) || 25, 50);
     const offset = Math.max(0, Number(body.offset) || 0);

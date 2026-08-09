@@ -139,4 +139,65 @@ ck('a declined circle is not nagged again', !/Is this circle about/.test(dec));
 ck('...and says it is not used for suggestions', /Not used for suggestions/.test(dec));
 ck('declined interests never count as confirmed', X.circleInterestsFor('c-read').length === 0);
 
+
+// ── CUSTOM INTERESTS (v0.50.0) ──────────────────────────────────────────────
+// The twelve built-ins were a closed list I invented, and dan's own data broke
+// it at once: "gas stove repair service" maps to nothing, and there is no wine,
+// music, film or gardening. A custom interest carries its OWN confirmed terms
+// and then matches exactly like a built-in — so the one-sentence explanation
+// survives ("it's a wine bar and your circle is about wine") where a similarity
+// score would not.
+const mig27 = fs.readFileSync('/home/claude/fx-out/supabase/migrations/0027_custom_interests.sql', 'utf8');
+const lib27 = fs.readFileSync('/home/claude/fx-out/supabase/functions/librarian/index.ts', 'utf8');
+
+ck('circle_interests carries its own terms', /add column if not exists terms text\[\]/.test(mig27));
+ck('...and is marked custom', /add column if not exists is_custom boolean/.test(mig27));
+// The FIRST version of this constraint read `array_length(terms,1) >= 1` and
+// SILENTLY ACCEPTED an empty-terms row: array_length('{}',1) is NULL, not 0,
+// and a CHECK passes unless it evaluates to FALSE. Caught only by inserting
+// against a real database. This check now demands the coalesce, because a
+// constraint that cannot fire is worse than none.
+ck('a custom interest with NO terms is REFUSED (coalesce is load-bearing)',
+   /coalesce\(array_length\(terms, 1\), 0\) >= 1/.test(mig27));
+ck('...and the NULL trap is explained where the next person will read it',
+   /array_length\('\{\}', 1\) returns NULL/.test(mig27));
+ck('the librarian can expand a name into terms', /mode === "interest_terms"/.test(lib27));
+ck('...and the user SEES them before they take effect',
+   /will match things described as/.test(web));
+ck('...and a generation failure is surfaced, not silently saved',
+   /Couldn't work that out/.test(web));
+ck('an interest already built in is rejected as a duplicate',
+   /is already in the list above/.test(web));
+ck('terms are carried through the save (losing them = matches nothing)',
+   /terms: prev \? \(prev\.terms \|\| \[\]\) : \[\]/.test(web));
+ck('the picker pre-selects what the counting found',
+   /!current\.length && guessed\.indexOf\(k\) >= 0/.test(web));
+ck('the title reads naturally', /What is the ' \+ esc\(circle \? circle\.name : 'this'\) \+ ' circle about\?/.test(web));
+
+// ── behaviour: custom terms must match, and must not over-match ─────────────
+X.AppState.circleInterests = [
+  { circle_id:'c-wine', interest:'wine', source:'confirmed', is_custom:true,
+    terms:['winery','wine bar','wine shop','vineyard','יין'] },
+];
+const km = ctx.__x.kindMatchesCircle || null;
+ck('kindMatchesCircle is available', typeof vm.runInContext('typeof kindMatchesCircle', ctx) === 'string');
+const matches = (k, cid) => vm.runInContext(
+  'kindMatchesCircle(' + JSON.stringify(k) + ',' + JSON.stringify(cid) + ')', ctx);
+ck('CUSTOM: "wine bar" matches a wine circle', matches('wine bar', 'c-wine'));
+ck('CUSTOM: Hebrew term matches', matches('חנות יין', 'c-wine'));
+ck('CUSTOM: an unrelated kind does NOT match', !matches('ski resort', 'c-wine'));
+ck('CUSTOM TRAP: matching is whole-word, so "winery" does not match "win"',
+   !matches('win', 'c-wine'));
+ck('a circle with NO confirmed interest matches nothing',
+   !matches('wine bar', 'c-none'));
+
+// built-ins still work through the shared vocabulary
+X.AppState.circleInterests = [{ circle_id:'c-read', interest:'book', source:'confirmed', is_custom:false, terms:[] }];
+ck('BUILT-IN still matches via the vocabulary', matches('novel', 'c-read'));
+ck('BUILT-IN does not match an unrelated kind', !matches('gas grill', 'c-read'));
+
+// declined must never match, custom or not
+X.AppState.circleInterests = [{ circle_id:'c-x', interest:'wine', source:'declined', is_custom:true, terms:['winery'] }];
+ck('a DECLINED custom interest matches nothing', !matches('winery', 'c-x'));
+
 console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');

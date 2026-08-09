@@ -968,7 +968,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.49.0 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.50.0 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1290,7 +1290,7 @@ async function loadUserData() {
   // 'declined' is stored too, so a circle the owner said "not now" to is
   // distinguishable from one never asked — we must not nag.
   try {
-    const ci = await sb.from('circle_interests').select('circle_id, interest, source');
+    const ci = await sb.from('circle_interests').select('circle_id, interest, source, terms, is_custom');
     AppState.circleInterests = ci.data || [];
   } catch (e) { AppState.circleInterests = []; console.error('circle_interests load failed:', e); }
 
@@ -1502,7 +1502,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.49.0 · live';
+const APP_VERSION = 'v0.50.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -1900,6 +1900,28 @@ function interestsForKind(kind) {
 // The thresholds below decide whether it is worth ASKING — never what is true.
 // A wrong threshold costs a missed prompt, not a wrong outcome, which is why
 // there is also a manual "set interest" on every circle.
+// Does an item of this KIND belong to this circle's interests?
+// Built-ins resolve through the shared vocabulary; a CUSTOM interest carries
+// its own confirmed terms. Both are matched WHOLE-WORD — substring matching is
+// what made "skin" match "ski".
+function kindMatchesCircle(kind, cid) {
+  const k = ' ' + String(kind || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim() + ' ';
+  if (k.trim() === '') return false;
+  const rows = (AppState.circleInterests || [])
+    .filter(function(r) { return r.circle_id === cid && r.source === 'confirmed'; });
+  if (!rows.length) return false;
+  const builtIn = interestsForKind(kind);
+  for (const r of rows) {
+    if (!r.is_custom && builtIn.indexOf(r.interest) >= 0) return true;
+    if (r.is_custom) {
+      for (const t of (r.terms || [])) {
+        if (k.indexOf(' ' + String(t).toLowerCase().trim() + ' ') >= 0) return true;
+      }
+    }
+  }
+  return false;
+}
+
 function circleInterestsFor(cid) {
   return (AppState.circleInterests || [])
     .filter(function(r) { return r.circle_id === cid && r.source === 'confirmed'; })
@@ -1937,18 +1959,45 @@ function modalInterests(params) {
   const cid = params && params.circleId;
   const circle = AppState.circleById(cid);
   const current = circleInterestsFor(cid);
+  // Pre-select what the counting found, so confirming is one tap rather than a
+  // hunt through twelve chips. Only when nothing is confirmed yet.
+  const g = circleInterestGuess(cid);
+  const guessed = [];
+  if (g.top && g.known >= 3) {
+    guessed.push(g.top);
+    if (g.second && g.secondN / g.known >= 0.3) guessed.push(g.second);
+  }
+  const customRows = (AppState.circleInterests || [])
+    .filter(function(r) { return r.circle_id === cid && r.is_custom; })
+    .map(function(r) {
+      const on = r.source === 'confirmed';
+      return '<button type="button" data-action="toggle-interest" data-interest="' + esc(r.interest) + '"'
+        + ' data-custom="1" class="btn btn-sm ' + (on ? 'btn-primary' : 'btn-secondary') + '"'
+        + ' data-on="' + (on ? '1' : '0') + '" title="' + esc((r.terms || []).join(', ')) + '">'
+        + esc(r.interest) + '</button>';
+    }).join('');
   return '<div class="modal"><div class="modal-header">'
-    + '<div><div class="modal-title">What is ' + esc(circle ? circle.name : 'this circle') + ' about?</div>'
+    + '<div><div class="modal-title">What is the ' + esc(circle ? circle.name : 'this') + ' circle about?</div>'
     + '<div class="modal-sub">Pick any that fit. People in this circle can send you these.</div></div>'
     + '<button class="btn btn-ghost btn-icon" data-action="close-modal">\u00d7</button></div>'
     + '<div class="modal-body" data-circle-id="' + esc(cid) + '">'
     + '<div style="display:flex;flex-wrap:wrap;gap:8px;">'
     + Object.keys(INTEREST_LABEL).map(function(k) {
-        const on = current.indexOf(k) >= 0;
+        const on = current.indexOf(k) >= 0 || (!current.length && guessed.indexOf(k) >= 0);
         return '<button type="button" data-action="toggle-interest" data-interest="' + esc(k) + '"'
           + ' class="btn btn-sm ' + (on ? 'btn-primary' : 'btn-secondary') + '"'
           + ' data-on="' + (on ? '1' : '0') + '">' + esc(INTEREST_LABEL[k]) + '</button>';
       }).join('')
+    + customRows
+    + '</div>'
+    + '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #E5EDE8;">'
+    + '<div style="font-size:11px;font-weight:700;color:#7A9086;letter-spacing:.04em;margin-bottom:6px;">'
+    + 'NOT LISTED? ADD YOUR OWN</div>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+    + '<input class="field-input" id="ci-custom" placeholder="wine, gardening, films\u2026" style="flex:1;min-width:160px;">'
+    + '<button class="btn btn-secondary btn-sm" data-action="add-custom-interest" data-circle-id="' + esc(cid) + '">Add</button>'
+    + '</div>'
+    + '<div id="ci-custom-msg" style="font-size:11px;color:#7A9086;margin-top:6px;line-height:1.5;"></div>'
     + '</div>'
     + '<div style="font-size:11px;color:#7A9086;margin-top:12px;line-height:1.5;">'
     + 'Choosing nothing means this circle is not used for suggestions.</div>'
@@ -5718,15 +5767,66 @@ async function handleAddExistingPerson(btn) {
 // Writing what a circle is about. Only CONFIRMED interests are ever matched;
 // 'declined' is recorded so we know not to ask again — a circle the owner
 // silenced must be distinguishable from one never asked.
+// Naming an interest the built-in list does not cover. The name is expanded
+// into the terms that identify such a thing ("wine" -> winery, wine bar,
+// vineyard), and THE USER SEES THEM before they take effect. Generation is
+// fallible — this same model once produced "hair removal machine" — so nothing
+// is applied silently. Infer, then ask.
+async function handleAddCustomInterest(btn) {
+  const cid = btn.dataset.circleId;
+  const input = document.getElementById('ci-custom');
+  const msg = document.getElementById('ci-custom-msg');
+  const label = ((input || {}).value || '').trim().toLowerCase();
+  if (!cid || !label) { if (msg) msg.textContent = 'Type an interest first.'; return; }
+  if (INTEREST_LABEL[label]) {
+    if (msg) msg.textContent = '"' + label + '" is already in the list above.';
+    return;
+  }
+  btn.disabled = true;
+  if (msg) msg.textContent = 'Working out what counts as ' + label + '\u2026';
+  try {
+    const r = await fnPost('librarian', { mode: 'interest_terms', label: label });
+    if (!r || r.error || !r.terms || !r.terms.length) {
+      throw new Error((r && r.error) || 'no terms');
+    }
+    const ok = confirm('"' + label + '" will match things described as:\n\n'
+      + r.terms.join(', ') + '\n\nUse this?');
+    if (!ok) { if (msg) msg.textContent = 'Not added.'; btn.disabled = false; return; }
+    const ins = await sb.from('circle_interests').insert({
+      circle_id: cid, owner_id: CURRENT_UID, interest: label,
+      source: 'confirmed', is_custom: true, terms: r.terms });
+    if (ins.error) throw new Error(ins.error.message);
+    await loadUserData();
+    closeModal();
+    renderApp();
+    toast('Added "' + label + '" to this circle.');
+  } catch (e) {
+    btn.disabled = false;
+    // Surfaced, never swallowed: an interest that matches nothing must not be
+    // saved silently.
+    console.error('handleAddCustomInterest failed:', e);
+    if (msg) msg.textContent = "Couldn't work that out \u2014 try a different word.";
+  }
+}
+
 async function handleSetInterests(cid, interests, source) {
   if (!cid || AppState.isDemoMode) return;
   try {
     const del = await sb.from('circle_interests').delete().eq('circle_id', cid);
     if (del.error) throw new Error(del.error.message);
+    // A custom interest carries its OWN terms; a built-in resolves through the
+    // shared vocabulary and needs none. Losing the terms would leave a custom
+    // interest that matches nothing — which the DB constraint now refuses.
+    const known = AppState.circleInterests || [];
     const rows = (source === 'declined')
-      ? [{ circle_id: cid, owner_id: CURRENT_UID, interest: '_none', source: 'declined' }]
+      ? [{ circle_id: cid, owner_id: CURRENT_UID, interest: '_none', source: 'declined',
+           terms: [], is_custom: false }]
       : interests.map(function(i) {
-          return { circle_id: cid, owner_id: CURRENT_UID, interest: i, source: 'confirmed' }; });
+          const prev = known.find(function(r) {
+            return r.circle_id === cid && r.interest === i && r.is_custom; });
+          return { circle_id: cid, owner_id: CURRENT_UID, interest: i, source: 'confirmed',
+                   is_custom: !!prev, terms: prev ? (prev.terms || []) : [] };
+        });
     if (rows.length) {
       const ins = await sb.from('circle_interests').insert(rows);
       if (ins.error) throw new Error(ins.error.message);
@@ -6500,6 +6600,9 @@ document.addEventListener('click', function(e) {
       renderApp();
       toast(rm.name + ' removed.');
     }
+  }
+  else if (action === 'add-custom-interest') {
+    handleAddCustomInterest(target);
   }
   else if (action === 'toggle-interest') {
     const on = target.dataset.on === '1';

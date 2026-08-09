@@ -1166,3 +1166,59 @@ Suites 40, checks 808.
 ## STILL NOT BUILT: the matcher (stages 2-3), the Inbox surface, the wording on
 both toggles, and network_feed still enforces the OLD promise (circle DOMAIN
 matching) — it must change or the app says one thing and does another.
+
+# ═══ 9 AUG 2026 — v0.50.0 · CUSTOM INTERESTS ═══
+
+dan, on seeing the picker: "there is no option to add a new category". Correct —
+the twelve built-ins were a CLOSED LIST I INVENTED, and his own data broke it
+immediately: "gas stove repair service" maps to nothing, and there is no wine,
+music, film, gardening or fitness.
+
+## WHY NOT THE TWO OBVIOUS ALTERNATIVES
+* NOT free text matched by MEANING. It handles everything and destroys the one
+  property this product cannot lose: every trust decision must be explainable in
+  ONE SENTENCE. "It's a wine bar and your circle is about wine" is checkable;
+  "0.83 similarity" is not.
+* NOT learned from what the circle already holds. dan's ski circle contains a
+  dermatologist, two barbecue grills and a butcher — learning from contents
+  would teach "skiing" that dermatologists count, which is precisely the bug
+  that put a dermatologist on the "ski" results screen.
+
+## AS BUILT
+Type "wine" -> librarian mode `interest_terms` expands it into the terms that
+identify such a thing (winery, wine bar, wine shop, vineyard, יין) -> THE USER
+SEES THEM AND CONFIRMS -> stored on circle_interests.terms with is_custom=true.
+Matching then works IDENTICALLY to a built-in, whole-word, so the one-sentence
+explanation survives. Generation is fallible (this same model once produced
+"hair removal machine"), so nothing is applied silently. Infer, then ask.
+Also: the picker now PRE-SELECTS what the counting found (one tap, not a hunt
+through twelve chips), and the title reads "What is the ski circle about?"
+rather than "What is ski about?".
+
+## A CONSTRAINT THAT COULD NOT FIRE — CAUGHT BY A REAL DATABASE
+The first version read:
+    check (is_custom = false or array_length(terms, 1) >= 1)
+and SILENTLY ACCEPTED an empty-terms row. array_length('{}', 1) returns NULL,
+not 0, and a CHECK PASSES unless it evaluates to FALSE. It was caught only by
+INSERTING against real Postgres and watching it succeed — the sim had checked
+that the constraint TEXT existed, which is the same "assert the string, not the
+behaviour" failure that let the person_id data loss through. Now coalesced, and
+the sim demands the coalesce.
+All three cases verified live: empty custom -> REFUSED; custom with terms ->
+accepted; BUILT-IN with no terms -> still accepted.
+
+## WHAT THE SKI CIRCLE REVEALED
+It holds 15 classifiable items: 5 ski (ski area x2, ski resort x2, ski boot
+brand), 3 restaurants, 2 grills, a bakery, a butchery, a dermatologist, an
+appliance technician, a hotel — plus 5 with no kind at all. Ski is 33%, so the
+strict-majority rule correctly stayed silent. THE ALGORITHM WAS RIGHT AND THE
+CIRCLE IS A DUMPING GROUND from weeks of testing.
+STILL OPEN: "gas stove repair service" maps to nothing — the built-in `service`
+list has specific jobs (babysitter, cleaner, accountant) but not repair,
+service or maintenance. Custom interests now cover this, but the built-in list
+could take those terms.
+
+## TESTS: interestui-sim 49 checks incl. custom terms matching, Hebrew terms,
+whole-word traps, declined-custom matching nothing, and built-ins still
+resolving through the shared vocabulary. Negative test proven (ignoring custom
+terms fails). 21 migrations rebuild clean. Suites 40, checks 828.
