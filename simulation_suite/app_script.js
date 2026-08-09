@@ -260,6 +260,14 @@ async function loadUserData() {
   AppState.userCircles = (cs.data || []).map(function(c){ return { id:c.id, ownerId:'me', name:c.name, domain:c.domain,
     description:c.description||'', color:c.color||'#217A4B', location:c.location||'', isOwn:true, createdAt:c.created_at,
     memberIds: AppState.userMembers.filter(function(m){return m.circleId===c.id;}).map(function(m){return m.id;}) }; });
+  // Confirmed interests decide what this circle accepts as a suggestion.
+  // 'declined' is stored too, so a circle the owner said "not now" to is
+  // distinguishable from one never asked — we must not nag.
+  try {
+    const ci = await sb.from('circle_interests').select('circle_id, interest, source');
+    AppState.circleInterests = ci.data || [];
+  } catch (e) { AppState.circleInterests = []; console.error('circle_interests load failed:', e); }
+
 
   // recs
   const rs = await sb.from('recommendations').select('*').eq('owner_id', CURRENT_UID).order('created_at');
@@ -284,6 +292,7 @@ async function loadUserData() {
     websiteUrl:c.website_url, linkedinUrl:c.linkedin_url,
     primaryCategory:c.primary_category||'', aiTags:c.ai_tags||[], imageUrl:c.image_url||'',
     phone:c.phone||'',
+    kind:c.kind||'',
     hasSearchDoc:!!c.search_doc,
     createdBy:c.created_by||null }; });
 
@@ -467,7 +476,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.48.0 · live';
+const APP_VERSION = 'v0.49.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -818,6 +827,154 @@ function circleCardHtml(c, isDemo) {
    VIEW: CIRCLE DETAIL
    ═══════════════════════════════════════════════ */
 
+// ═══ INTEREST VOCABULARY (client mirror of _shared/enrich_core.ts) ══════════
+// WHOLE-WORD matching, never substring. Substring is exactly what put a
+// dermatologist ("skin") on the "ski" results screen for a week. Guarded by
+// interest-sim, which runs the SERVER copy — this mirror exists only so the
+// confirm card can count without a round trip, and the two are checked against
+// each other by that sim.
+const INTEREST_MAP = [
+  [['novel','book','novella','memoir','biography','textbook','cookbook','ספר','רומן'], ['book']],
+  [['ski resort','ski area','ski touring boot','ski boot','ski','skis','מסלול סקי','סקי'], ['ski']],
+  [['restaurant','bistro','eatery','diner','steakhouse','pizzeria','מסעדה','פיצריה'], ['restaurant']],
+  [['bar','pub','cocktail bar','wine bar','בר'], ['bar']],
+  [['cafe','coffee shop','coffeehouse','bakery','patisserie','בית קפה','מאפיה'], ['cafe']],
+  [['hotel','guesthouse','hostel','lodge','bed and breakfast','מלון','אכסניה'], ['hotel']],
+  [['island','city','town','region','beach','national park','landmark','monument','museum','gallery','אי','עיר','מוזיאון'], ['destination']],
+  [['doctor','dermatologist','physician','dentist','clinic','surgeon','רופא','רופאה','מרפאה'], ['doctor']],
+  [['plumber','electrician','handyman','technician','contractor','painter','framer','air conditioning','שיפוצניק','חשמלאי','טכנאי','מסגר'], ['tradesperson']],
+  [['butcher','grocer','market','store','shop','boutique','חנות','קצביה','סופר'], ['shop']],
+  [['grill','gas grill','appliance','equipment','gear','device','machine','מכשיר','ציוד'], ['product']],
+  [['babysitter','nanny','cleaner','tutor','dog sitter','accountant','lawyer','בייביסיטר','מטפלת','מנקה'], ['service']],
+];
+const INTEREST_ALSO = { ski: ['destination'] };
+const INTEREST_LABEL = { book:'books', restaurant:'restaurants', bar:'bars', cafe:'cafes',
+  hotel:'hotels', destination:'places to go', ski:'skiing', doctor:'doctors',
+  tradesperson:'tradespeople', shop:'shops', product:'products', service:'services' };
+
+function interestsForKind(kind) {
+  const k = ' ' + String(kind || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim() + ' ';
+  if (k.trim() === '') return [];
+  const hits = [];
+  INTEREST_MAP.forEach(function(row) {
+    for (const t of row[0]) {
+      if (k.indexOf(' ' + t + ' ') >= 0) {
+        row[1].forEach(function(o) { if (hits.indexOf(o) < 0) hits.push(o); });
+        break;
+      }
+    }
+  });
+  hits.slice().forEach(function(h) {
+    (INTEREST_ALSO[h] || []).forEach(function(a) { if (hits.indexOf(a) < 0) hits.push(a); });
+  });
+  return hits;
+}
+
+// What does this circle look like it is about? Counts only; the OWNER decides.
+// The thresholds below decide whether it is worth ASKING — never what is true.
+// A wrong threshold costs a missed prompt, not a wrong outcome, which is why
+// there is also a manual "set interest" on every circle.
+function circleInterestsFor(cid) {
+  return (AppState.circleInterests || [])
+    .filter(function(r) { return r.circle_id === cid && r.source === 'confirmed'; })
+    .map(function(r) { return r.interest; });
+}
+function circleInterestDeclined(cid) {
+  return (AppState.circleInterests || [])
+    .some(function(r) { return r.circle_id === cid && r.source === 'declined'; });
+}
+
+function circleInterestGuess(cid) {
+  const recs = AppState.allRecs().filter(function(r) { return r.circleId === cid; });
+  const counts = {};
+  let known = 0;
+  recs.forEach(function(r) {
+    const can = AppState.canonicalById(r.canonicalId);
+    const list = can ? interestsForKind(can.kind) : [];
+    if (!list.length) return;
+    known++;
+    list.forEach(function(i) { counts[i] = (counts[i] || 0) + 1; });
+  });
+  const ranked = Object.keys(counts).sort(function(a, b) { return counts[b] - counts[a]; });
+  return { total: recs.length, known: known, counts: counts,
+           top: ranked[0] || null, topN: ranked[0] ? counts[ranked[0]] : 0,
+           second: ranked[1] || null, secondN: ranked[1] ? counts[ranked[1]] : 0 };
+}
+
+// The confirm card. Shown once per circle, only when there is something worth
+// asking about. Silence is the safe default: no confirmed interest means this
+// circle neither receives suggestions nor contributes any.
+// The manual path. It always exists, so the automatic prompt is a convenience
+// rather than a gate — if the 50%/3-item thresholds never fire for a mixed
+// circle, the owner can still say what it is about.
+function modalInterests(params) {
+  const cid = params && params.circleId;
+  const circle = AppState.circleById(cid);
+  const current = circleInterestsFor(cid);
+  return '<div class="modal"><div class="modal-header">'
+    + '<div><div class="modal-title">What is ' + esc(circle ? circle.name : 'this circle') + ' about?</div>'
+    + '<div class="modal-sub">Pick any that fit. People in this circle can send you these.</div></div>'
+    + '<button class="btn btn-ghost btn-icon" data-action="close-modal">\u00d7</button></div>'
+    + '<div class="modal-body" data-circle-id="' + esc(cid) + '">'
+    + '<div style="display:flex;flex-wrap:wrap;gap:8px;">'
+    + Object.keys(INTEREST_LABEL).map(function(k) {
+        const on = current.indexOf(k) >= 0;
+        return '<button type="button" data-action="toggle-interest" data-interest="' + esc(k) + '"'
+          + ' class="btn btn-sm ' + (on ? 'btn-primary' : 'btn-secondary') + '"'
+          + ' data-on="' + (on ? '1' : '0') + '">' + esc(INTEREST_LABEL[k]) + '</button>';
+      }).join('')
+    + '</div>'
+    + '<div style="font-size:11px;color:#7A9086;margin-top:12px;line-height:1.5;">'
+    + 'Choosing nothing means this circle is not used for suggestions.</div>'
+    + '</div>'
+    + '<div class="modal-footer"><button class="btn btn-secondary" data-action="close-modal">Cancel</button>'
+    + '<button class="btn btn-primary" data-action="save-interests" data-circle-id="' + esc(cid) + '">Save</button></div>'
+    + '</div>';
+}
+
+function circleInterestCardHtml(cid) {
+  if (AppState.isDemoMode) return '';
+  const confirmed = circleInterestsFor(cid);
+  if (confirmed.length) {
+    return '<div style="background:#F4F7F5;border:1px solid #E5EDE8;border-radius:10px;padding:10px 12px;margin-bottom:12px;">'
+      + '<div style="font-size:11px;font-weight:700;color:#7A9086;letter-spacing:.04em;">THIS CIRCLE IS ABOUT</div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px;">'
+      + confirmed.map(function(i) {
+          return '<span class="chip chip-green">' + esc(INTEREST_LABEL[i] || i) + '</span>'; }).join('')
+      + '<button class="btn btn-ghost btn-sm" data-action="edit-interests" data-circle-id="' + esc(cid) + '">change</button>'
+      + '</div></div>';
+  }
+  if (circleInterestDeclined(cid)) {
+    return '<div style="font-size:11px;color:#7A9086;margin-bottom:12px;">Not used for suggestions. '
+      + '<button class="btn btn-ghost btn-sm" data-action="edit-interests" data-circle-id="' + esc(cid) + '">set an interest</button></div>';
+  }
+  const g = circleInterestGuess(cid);
+  // 3 items and 50% are POLITENESS thresholds: they decide whether to bother
+  // you, never what is true. A wrong number costs a missed prompt, which is why
+  // the manual option below always exists.
+  // STRICT majority: 2 of 4 is not "a restaurant circle". A tie between kinds
+  // means there is no dominant one, so ask nothing and let the owner say.
+  if (g.known < 3 || !g.top || g.topN / g.known <= 0.5) {
+    return '<div style="font-size:11px;color:#7A9086;margin-bottom:12px;">'
+      + '<button class="btn btn-ghost btn-sm" data-action="edit-interests" data-circle-id="' + esc(cid) + '">Set what this circle is about</button></div>';
+  }
+  const label = INTEREST_LABEL[g.top] || g.top;
+  const alsoBig = g.second && g.secondN / g.known >= 0.3;
+  const secondLabel = alsoBig ? (INTEREST_LABEL[g.second] || g.second) : '';
+  return '<div style="background:#FFF8E8;border:1px solid #F0DCA8;border-radius:10px;padding:12px 14px;margin-bottom:12px;">'
+    + '<div style="font-size:13px;font-weight:700;color:#0D2B1F;" dir="auto">Is this circle about ' + esc(label) + '?</div>'
+    + '<div style="font-size:12px;color:#56695F;margin-top:4px;line-height:1.5;">'
+    + g.topN + ' of the ' + g.known + ' things here ' + (g.topN === 1 ? 'is' : 'are') + ' ' + esc(label) + '.'
+    + ' Confirming lets people in this circle send you ' + esc(label) + ' they find.</div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">'
+    + '<button class="btn btn-primary btn-sm" data-action="confirm-interest" data-circle-id="' + esc(cid) + '"'
+    + ' data-interest="' + esc(g.top) + (alsoBig ? ',' + esc(g.second) : '') + '">'
+    + 'Yes' + (alsoBig ? ', ' + esc(label) + ' and ' + esc(secondLabel) : '') + '</button>'
+    + '<button class="btn btn-secondary btn-sm" data-action="edit-interests" data-circle-id="' + esc(cid) + '">Something else</button>'
+    + '<button class="btn btn-ghost btn-sm" data-action="decline-interest" data-circle-id="' + esc(cid) + '">Not now</button>'
+    + '</div></div>';
+}
+
 function renderCircleDetail() {
   // Linkage is resolved on view, so badges never show an add-time guess.
   if (!AppState.isDemoMode && AppState.viewParams && AppState.viewParams.circleId
@@ -832,6 +989,7 @@ function renderCircleDetail() {
   const members = AppState.membersOfCircle(cid);
   const recs = AppState.allRecs().filter(function(r) { return r.circleId === cid; });
   const isDemo = AppState.synCircles.some(function(c) { return c.id === cid; });
+  const interestCard = circleInterestCardHtml(cid);
 
   return '<div style="max-width:680px;">'
     + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">'
@@ -846,6 +1004,8 @@ function renderCircleDetail() {
     + '<p style="font-size:13px;color:var(--slate-400);">' + esc(circle.description) + '</p>'
     + '</div>'
     + '</div>'
+
+    + interestCard
 
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">'
     + '<h2 style="font-size:13px;font-weight:700;color:var(--slate-600);white-space:nowrap;">MEMBERS (' + members.length + ')</h2>'
@@ -3568,6 +3728,7 @@ function openModal(name, params) {
   else if (name === 'add-rec') html = modalAddRec();
   else if (name === 'reply') html = modalReply(params);
   else if (name === 'share-list') html = modalShareList();
+  else if (name === 'interests') html = modalInterests(params);
   else if (name === 'invite') html = modalInvite(params);
   else if (name === 'add-reciprocal') html = modalAddReciprocal(params);
   else if (name === 'circle-link') html = modalCircleLink();
@@ -4528,6 +4689,36 @@ async function handleAddExistingPerson(btn) {
   }
 }
 
+// Writing what a circle is about. Only CONFIRMED interests are ever matched;
+// 'declined' is recorded so we know not to ask again — a circle the owner
+// silenced must be distinguishable from one never asked.
+async function handleSetInterests(cid, interests, source) {
+  if (!cid || AppState.isDemoMode) return;
+  try {
+    const del = await sb.from('circle_interests').delete().eq('circle_id', cid);
+    if (del.error) throw new Error(del.error.message);
+    const rows = (source === 'declined')
+      ? [{ circle_id: cid, owner_id: CURRENT_UID, interest: '_none', source: 'declined' }]
+      : interests.map(function(i) {
+          return { circle_id: cid, owner_id: CURRENT_UID, interest: i, source: 'confirmed' }; });
+    if (rows.length) {
+      const ins = await sb.from('circle_interests').insert(rows);
+      if (ins.error) throw new Error(ins.error.message);
+    }
+    await loadUserData();
+    closeModal();
+    renderApp();
+    toast(source === 'declined'
+      ? 'This circle will not be used for suggestions.'
+      : 'Saved. People in this circle can now send you '
+        + interests.map(function(i) { return INTEREST_LABEL[i] || i; }).join(' and ') + '.');
+  } catch (e) {
+    // Surfaced, never swallowed.
+    console.error('handleSetInterests failed:', e);
+    toast('Could not save that: ' + (e.message || 'unknown error'), 'warn');
+  }
+}
+
 async function handleSaveMember() {
   const mb = document.querySelector('.modal-body[data-circle-id]');
   const circleId = mb ? mb.dataset.circleId : AppState.viewParams.circleId;
@@ -5283,6 +5474,28 @@ document.addEventListener('click', function(e) {
       renderApp();
       toast(rm.name + ' removed.');
     }
+  }
+  else if (action === 'toggle-interest') {
+    const on = target.dataset.on === '1';
+    target.dataset.on = on ? '0' : '1';
+    target.classList.remove(on ? 'btn-primary' : 'btn-secondary');
+    target.classList.add(on ? 'btn-secondary' : 'btn-primary');
+  }
+  else if (action === 'save-interests') {
+    const picked = Array.prototype.slice
+      .call(document.querySelectorAll('[data-action="toggle-interest"]'))
+      .filter(function(b) { return b.dataset.on === '1'; })
+      .map(function(b) { return b.dataset.interest; });
+    handleSetInterests(target.dataset.circleId, picked, picked.length ? 'confirmed' : 'declined');
+  }
+  else if (action === 'confirm-interest') {
+    handleSetInterests(target.dataset.circleId, (target.dataset.interest || '').split(',').filter(Boolean), 'confirmed');
+  }
+  else if (action === 'decline-interest') {
+    handleSetInterests(target.dataset.circleId, [], 'declined');
+  }
+  else if (action === 'edit-interests') {
+    openModal('interests', { circleId: target.dataset.circleId });
   }
   else if (action === 'search-people') {
     refreshPeopleSearch();

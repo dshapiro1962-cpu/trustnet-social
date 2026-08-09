@@ -1114,3 +1114,55 @@ another.
 NOTE: repair_person_links.sql sits in the migrations folder and therefore runs
 on every rebuild. Idempotent and harmless, but it is a one-off repair, not a
 migration — move it to a scripts folder when convenient.
+
+# ═══ 8 AUG 2026 — v0.49.0 · STAGE 1: WHAT IS THIS CIRCLE ABOUT? ═══
+
+The confirm card, on the circle detail screen above MEMBERS.
+
+## BEHAVIOUR
+- Counts the `kind` of everything in the circle, maps each through the interest
+  vocabulary, and asks ONCE: "Is this circle about books? 3 of the 4 things here
+  are books. Confirming lets people in this circle send you books they find."
+  -> [Yes] [Something else] [Not now]
+- CONFIRMED interests show as chips with a "change" link; the circle is never
+  asked again.
+- "Not now" writes source='declined' — stored, not inferred, so a circle the
+  owner silenced is distinguishable from one never asked. It is never nagged.
+- "Something else" opens a manual picker of all 12 interests. Choosing none
+  means declined.
+- ONLY CONFIRMED interests are ever matched. Silence is the safe default: a
+  circle with no confirmed interest neither receives suggestions nor sends any.
+
+## THE THRESHOLDS DO NOT DECIDE ANYTHING
+dan had no view on the numbers, so they were built not to matter: they decide
+only whether it is worth ASKING. The owner's answer is the truth, and a manual
+"Set what this circle is about" ALWAYS exists — so a wrong threshold costs a
+missed prompt, never a wrong outcome.
+Floor: 3 items with a usable kind. Dominance: STRICT majority (>50%).
+The strict majority came from a failing test, not from taste: with >=50%, a
+circle of 2 restaurants + 1 novel + 1 island was called "a restaurant circle".
+A tie means there is no dominant kind, so ask nothing.
+
+## A SECOND COPY OF THE VOCABULARY — AND THE GUARD FOR IT
+interestsForKind now exists TWICE: authoritative in _shared/enrich_core.ts, and
+mirrored in the client so the card can count without a round trip. Two copies of
+one rule is EXACTLY what produced the classify-rec and match_canonical bugs, so
+interestui-sim compares the two term lists and fails naming the offending word
+("client-only: graphic novel"). It also runs the CLIENT copy against the
+substring traps independently — the server guard would not have caught a client
+regression.
+NOTE for the comparison: the server file uses DOUBLE quotes and the client
+SINGLE. The first version of the check matched only single quotes, found zero
+server terms, and PASSED VACUOUSLY. Extraction is now index-based rather than a
+regex, for the same reason: a pattern that silently fails to match makes a check
+worse than no check.
+
+## TESTS: interestui-sim 29 checks (dan's reading-circle example, thin circles,
+mixed circles, confirmed, declined, both client traps, mirror agreement).
+Negative tests proven: treating declined as confirmed, client vocabulary drift,
+and substring matching in the client mirror all fail.
+Suites 40, checks 808.
+
+## STILL NOT BUILT: the matcher (stages 2-3), the Inbox surface, the wording on
+both toggles, and network_feed still enforces the OLD promise (circle DOMAIN
+matching) — it must change or the app says one thing and does another.
