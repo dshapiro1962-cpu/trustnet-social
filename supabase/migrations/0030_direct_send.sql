@@ -36,10 +36,17 @@ alter table public.suggestions alter column matched_interest set default '';
 -- silently to the user and loudly only in a database log nobody reads. Caught
 -- by executing the function, not by reading it.
 alter table public.notifications drop constraint if exists notifications_type_check;
+-- THE LIST MUST COVER WHAT IS ALREADY THERE. My first version was written from
+-- the SCHEMA and omitted three types in ACTIVE USE — pick_won (resolve_query),
+-- collection_shared and collection_saved (send-collection / save-collection) —
+-- so the ALTER was rejected outright: "check constraint is violated by some
+-- row". A constraint derived from the code rather than the DATA will always
+-- lose to the data.
 alter table public.notifications
   add constraint notifications_type_check
   check (type in ('query','query_response','reciprocal','invite_accepted',
-                  'taste_match','rec_shared','suggestion'));
+                  'taste_match','pick_won','collection_shared','collection_saved',
+                  'rec_shared','suggestion'));
 
 -- ── SENDING TO SOMEONE ELSE NEEDS A FUNCTION, NOT A CLIENT INSERT ───────────
 -- suggestions RLS is `with check (user_id = auth.uid())` — correct and

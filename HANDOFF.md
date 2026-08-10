@@ -1392,3 +1392,17 @@ suggest-sweep must be SCHEDULED (Supabase cron, every few minutes).
 The feature is silently inert until a circle has a confirmed interest AND the
 sweep runs — nothing in the UI says so. Worth a line in the Inbox.
 Suites 41, checks 896. 24 migrations rebuild clean.
+
+## v0.53.1 — THE CONSTRAINT MUST BE DERIVED FROM THE DATA, NOT THE SCHEMA
+0030's notification constraint was rejected against dan's real database:
+"check constraint notifications_type_check is violated by some row". Three types
+were in ACTIVE USE and missing from my list — pick_won (resolve_query),
+collection_shared and collection_saved (send-collection / save-collection). I
+wrote the list from the code I had open rather than from what the table
+contains. Live counts: query_response 68 · query 44 · pick_won 14 ·
+collection_shared 13 · reciprocal 4 · invite_accepted 4 · collection_saved 3.
+GUARDED: suggestions-sim now derives the required type list FROM THE CODE across
+every edge function, 0025 and the client, and fails naming any type the
+constraint omits. Negative-tested. Suites 41, checks 897.
+LESSON: before ALTERing a constraint on a populated table, SELECT the distinct
+values first. A constraint derived from code will always lose to the data.

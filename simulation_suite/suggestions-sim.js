@@ -100,8 +100,29 @@ ck('...refusing a duplicate send', /already_sent/.test(sendMig));
 ck('...and one they already have', /already_in_their_library/.test(sendMig));
 ck('execute is granted to authenticated only',
    /grant execute on function public\.send_rec_to_member\(uuid, uuid\) to authenticated/.test(sendMig));
-ck('the notification type is ALLOWED by the constraint (it was not, and the send aborted)',
-   /check \(type in \('query','query_response','reciprocal','invite_accepted',\s*\n?\s*'taste_match','rec_shared','suggestion'\)\)/.test(sendMig));
+// The constraint must cover EVERY type any code actually writes. My first
+// version was derived from the schema and omitted three types in ACTIVE USE —
+// pick_won (resolve_query), collection_shared and collection_saved
+// (send-collection / save-collection) — so the ALTER was rejected outright
+// against dan's real data: "check constraint is violated by some row".
+// This check derives the required list FROM THE CODE, so adding a new
+// notification type without widening the constraint fails here rather than in
+// production.
+const allFns = ['librarian','extract-chat-recs','whatsapp-webhook','suggest-sweep','receive-response']
+  .map(function(d) {
+    const f = '/home/claude/fx-out/supabase/functions/' + d + '/index.ts';
+    return fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : ''; }).join('\n')
+  + fs.readFileSync('/home/claude/fx-out/supabase/migrations/0025_recover_functions.sql', 'utf8')
+  + sendMig + appSrc;
+const written = [...new Set((allFns.match(/'(query|query_response|reciprocal|invite_accepted|taste_match|pick_won|collection_shared|collection_saved|rec_shared|suggestion)'/g) || [])
+  .map(function(x) { return x.replace(/'/g, ''); }))];
+const constraintBlock = (sendMig.match(/notifications_type_check[\s\S]{0,400}?\);/) || [''])[0];
+const missing = written.filter(function(t) { return constraintBlock.indexOf("'" + t + "'") < 0; });
+ck('the notification constraint covers EVERY type the code writes',
+   missing.length === 0, missing.length ? 'NOT ALLOWED: ' + missing.join(', ') : '');
+ck('...including the three found only in dan\'s live data',
+   ["'pick_won'","'collection_shared'","'collection_saved'"].every(function(t) {
+     return constraintBlock.indexOf(t) >= 0; }));
 ck('the notification points at the INBOX, not at Trustnet generally',
    /'\/#inbox'/.test(sendMig));
 ck('a direct send is a DIFFERENT claim from a matched one',
