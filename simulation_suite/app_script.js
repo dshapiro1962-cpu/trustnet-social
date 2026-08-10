@@ -480,7 +480,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.52.0 · live';
+const APP_VERSION = 'v0.53.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -1570,7 +1570,11 @@ function suggestionCardHtml(sg) {
     .map(function(id) { const c = AppState.circleById(id); return c ? c.name : null; })
     .filter(Boolean);
   const label = INTEREST_LABEL[sg.matched_interest] || sg.matched_interest;
-  const verb = sg.via === 'answer' ? 'answered a question with this' : 'saved this';
+  // A DIRECT send is a different claim from a matched one. "Dany sent you this"
+  // is not "Dany saved this and it matched your interest" — both true, not the
+  // same sentence.
+  const verb = sg.via === 'answer' ? 'answered a question with this'
+             : (sg.via === 'direct' ? 'sent you this' : 'saved this');
   return '<div style="background:#F3EEFB;border:1px solid #DDD0F0;border-left:3px solid #5B3E9E;'
     + 'border-radius:10px;padding:12px 14px;margin-bottom:10px;">'
     + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;">'
@@ -2596,7 +2600,15 @@ function modalShareRec(params) {
     const circle = AppState.circleById(m.circleId);
     const text = recShareText(rec, can);
     let action;
-    if (m.contactMethod === 'whatsapp' && m.contactValue) {
+    // IN-APP FIRST (v0.53.0). A member who is on Trustnet was previously treated
+    // exactly like a stranger with an email address — the dialog had only two
+    // branches, wa.me and mailto, both external, and the link in the message
+    // went to Trustnet generally with NO reference to the item. Sending in the
+    // app puts it in their Inbox, about the actual thing, with one tap to keep.
+    if (m.linkedUserId) {
+      action = '<button class="btn btn-primary btn-sm" data-action="send-rec-in-app"'
+        + ' data-rec-id="' + esc(rec.id) + '" data-member-id="' + esc(m.id) + '">Send in app</button>';
+    } else if (m.contactMethod === 'whatsapp' && m.contactValue) {
       const ph = String(m.contactValue).replace(/[^0-9]/g, '');
       action = '<a class="btn btn-primary btn-sm" style="text-decoration:none;" target="tn_ext" rel="noopener" href="https://wa.me/' + esc(ph) + '?text=' + encodeURIComponent(text) + '">WhatsApp</a>';
     } else if (m.contactMethod === 'email' && m.contactValue) {
@@ -4810,6 +4822,51 @@ async function handleAddExistingPerson(btn) {
 // HYBRID: the suggestion remembered every circle that matched. One match files
 // it there; several ask, because picking for you would be the invented
 // tie-break the hybrid design exists to avoid.
+// Sending an item to someone who is on Trustnet. It becomes a SUGGESTION in
+// their Inbox — the same card, the same accept-or-dismiss, the same rule that
+// nothing enters a library without its owner. Reusing the queue rather than
+// inventing a second delivery mechanism means one surface to maintain and one
+// place a user has to look.
+async function handleSendRecInApp(btn) {
+  const rec = AppState.userRecs.find(function(r) { return r.id === btn.dataset.recId; });
+  const member = AppState.userMembers.find(function(m) { return m.id === btn.dataset.memberId; });
+  if (!rec || !member) return;
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = 'Sending\u2026';
+  try {
+    // MUST go through the server function. suggestions RLS is
+    // `with check (user_id = auth.uid())` — deliberately, so nobody can write
+    // into another person's inbox — so a direct client insert is REFUSED
+    // ("permission denied for table suggestions"). Proven by running it.
+    // send_rec_to_member enforces the rule RLS cannot express: you may put
+    // something in someone's inbox only if they are YOUR member and on the app.
+    const r = await sb.rpc('send_rec_to_member', {
+      p_rec_id: rec.id, p_member_id: member.id });
+    if (r.error) throw new Error(r.error.message);
+    const res = r.data || {};
+    if (!res.ok) {
+      const say = {
+        already_sent: member.name + ' already has this in their inbox.',
+        already_in_their_library: member.name + ' already has this in their library.',
+        not_your_member_or_not_on_app: member.name + ' is not on Trustnet yet \u2014 use WhatsApp or email instead.',
+        cannot_send_to_yourself: "That's you.",
+        not_your_item: 'That item is not yours to send.',
+      }[res.error] || ('Could not send that: ' + (res.error || 'unknown'));
+      btn.textContent = original; btn.disabled = false;
+      toast(say, 'warn');
+      return;
+    }
+    btn.textContent = 'Sent \u2713';
+    toast('Sent to ' + member.name + ' \u2014 it is in their inbox.');
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = original;
+    console.error('handleSendRecInApp failed:', e);
+    toast('Could not send that: ' + (e.message || 'unknown error'), 'warn');
+  }
+}
+
 async function handleAcceptSuggestion(btn) {
   const id = btn.dataset.sgId;
   const sg = (AppState.suggestions || []).find(function(s) { return s.id === id; });
@@ -5692,6 +5749,9 @@ document.addEventListener('click', function(e) {
       renderApp();
       toast(rm.name + ' removed.');
     }
+  }
+  else if (action === 'send-rec-in-app') {
+    handleSendRecInApp(target);
   }
   else if (action === 'accept-suggestion') {
     handleAcceptSuggestion(target);

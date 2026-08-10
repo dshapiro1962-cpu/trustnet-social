@@ -1340,3 +1340,55 @@ Suites 41, checks 881.
 ## THE ONE THING LEFT FOR THIS FEATURE
 suggest-sweep must be SCHEDULED (Supabase cron / pg_cron, every few minutes).
 Until then it only runs when invoked by hand — which is also how to test it.
+
+# ═══ 10 AUG 2026 — v0.53.0 · "SEND TO A MEMBER" HAD NO IN-APP PATH ═══
+
+## dan's BUG 1
+Dany saved Jackson Hole, pressed "Send to a member", chose shapiro — WHO IS ON
+THE APP and IS in Dany's circle — and the dialog offered ONLY EMAIL. The message
+then pointed at Trustnet generally with NO trace of the item.
+ROOT CAUSE: modalShareRec had exactly TWO branches, wa.me and mailto, both
+EXTERNAL. Zero in-app sends existed anywhere in the file. A member who is a
+Trustnet user was treated identically to a stranger with an email address.
+
+## THREE REAL BUGS CAUGHT BY EXECUTING, NOT READING
+1. RLS REFUSES a client insert into someone else's queue —
+   "permission denied for table suggestions". Correct and deliberate: nobody may
+   write into another person's inbox. So my first implementation (a client
+   insert) WOULD HAVE FAILED IN PRODUCTION EVERY TIME. The send must go through
+   a security-definer function that enforces what RLS cannot express: you may
+   put something in someone's inbox ONLY if they are YOUR member AND on the app.
+2. notifications_type_check allowed only query / query_response / reciprocal /
+   invite_accepted / taste_match. Inserting 'rec_shared' ABORTED THE WHOLE SEND,
+   silently to the user. Constraint widened.
+3. Sending an item the recipient already has must SAY SO, not fail.
+
+## AS BUILT (0030 + client)
+send_rec_to_member(rec, member) — security definer. Refuses: not_your_item ·
+not_your_member_or_not_on_app · cannot_send_to_yourself ·
+already_in_their_library · already_sent. On success it writes a suggestion with
+via='direct' and a notification pointing at /#inbox.
+REUSES THE QUEUE rather than inventing a second delivery mechanism: a direct
+send lands in the same Inbox card with the same accept-or-dismiss, and the card
+says "Dany SENT YOU THIS" — a different claim from "saved this and it matched
+your interest". Both true, not the same sentence.
+The client offers "Send in app" FIRST when the member is linked; WhatsApp and
+email remain for people who are not on Trustnet.
+VERIFIED ON REAL POSTGRES: valid send -> ok · repeat -> already_sent · not my
+item -> refused · not my member -> refused · suggestion lands as 'direct' with
+the note · notification title and /#inbox link correct.
+
+## dan's BUG 2 — Jackson Hole never appeared
+NOT a matching failure. All four gates passed: Dan's ski circle HAD a confirmed
+interest, kind was 'ski resort', Dany had shared it, and Dany was linked in that
+circle. MIGRATION 0028 WAS NEVER RUN — no suggestions table, nowhere to write,
+and the sweep had never been invoked because it is not yet scheduled.
+MY PREDICTION WAS WRONG (I expected no confirmed interest) and the data said so.
+ALSO: the sweep's watermark defaults to now() - 1 day, so items older than that
+are skipped on first run — wind it back before the first sweep.
+
+## STILL OPEN
+suggest-sweep must be SCHEDULED (Supabase cron, every few minutes).
+The feature is silently inert until a circle has a confirmed interest AND the
+sweep runs — nothing in the UI says so. Worth a line in the Inbox.
+Suites 41, checks 896. 24 migrations rebuild clean.

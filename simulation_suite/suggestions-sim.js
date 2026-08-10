@@ -67,6 +67,49 @@ ck('failures are surfaced, never swallowed',
    /Could not add that: /.test(web) && /Could not dismiss that: /.test(web));
 
 
+// ── SEND TO A MEMBER, IN THE APP (v0.53.0) ──────────────────────────────────
+// dan: Dany saved Jackson Hole, pressed "Send to a member", chose shapiro — who
+// IS on the app and IS in his circle — and the dialog offered ONLY EMAIL. The
+// message then pointed at Trustnet generally with NO trace of the item.
+// modalShareRec had exactly two branches, wa.me and mailto, both EXTERNAL: a
+// member who is a Trustnet user was treated identically to a stranger.
+//
+// THREE REAL BUGS WERE CAUGHT BY EXECUTING THIS, NOT READING IT:
+//   1. RLS refuses a client insert into another person's queue
+//      ("permission denied for table suggestions") — correct and deliberate,
+//      so the send MUST go through a security-definer function.
+//   2. notifications_type_check did not allow 'rec_shared', which ABORTED THE
+//      WHOLE SEND — silently to the user.
+//   3. sending an item the recipient already has must say so, not fail.
+const sendMig = fs.readFileSync('/home/claude/fx-out/supabase/migrations/0030_direct_send.sql', 'utf8');
+const appSrc  = fs.readFileSync('/home/claude/app/index.html', 'utf8');
+
+ck('a member ON the app is offered an IN-APP send first',
+   /if \(m\.linkedUserId\) \{[\s\S]{0,200}data-action="send-rec-in-app"/.test(appSrc));
+ck('...and email/WhatsApp remain only for those who are NOT on the app',
+   /\} else if \(m\.contactMethod === 'whatsapp'/.test(appSrc));
+ck('the client NEVER inserts into another person\'s queue directly',
+   !/from\('suggestions'\)\.insert/.test(appSrc));
+ck('it calls the server function instead', /sb\.rpc\('send_rec_to_member'/.test(appSrc));
+ck('send_rec_to_member exists and is security definer',
+   /create or replace function public\.send_rec_to_member[\s\S]{0,200}security definer/.test(sendMig));
+ck('...and only to YOUR member who is ON the app',
+   /where id = p_member_id and owner_id = v_me and linked_user_id is not null/.test(sendMig));
+ck('...refusing an item that is not yours', /not_your_item/.test(sendMig));
+ck('...refusing a duplicate send', /already_sent/.test(sendMig));
+ck('...and one they already have', /already_in_their_library/.test(sendMig));
+ck('execute is granted to authenticated only',
+   /grant execute on function public\.send_rec_to_member\(uuid, uuid\) to authenticated/.test(sendMig));
+ck('the notification type is ALLOWED by the constraint (it was not, and the send aborted)',
+   /check \(type in \('query','query_response','reciprocal','invite_accepted',\s*\n?\s*'taste_match','rec_shared','suggestion'\)\)/.test(sendMig));
+ck('the notification points at the INBOX, not at Trustnet generally',
+   /'\/#inbox'/.test(sendMig));
+ck('a direct send is a DIFFERENT claim from a matched one',
+   /sg\.via === 'direct' \? 'sent you this'/.test(appSrc));
+ck('via allows direct', /check \(via in \('answer','save','direct'\)\)/.test(sendMig));
+ck('every refusal is explained in plain words, not a raw error',
+   /is not on Trustnet yet/.test(appSrc));
+
 // ── THE ANSWER OPT-OUT, END TO END (v0.52.0) ────────────────────────────────
 const respondHtml = fs.readFileSync('/home/claude/app/respond.html', 'utf8');
 const respondJs   = fs.readFileSync('/home/claude/sims/respond_script.js', 'utf8');
