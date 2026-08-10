@@ -10,6 +10,7 @@ interface Body {
   rec_name: string;
   rec_note?: string;
   rec_location?: string;
+  shared_to_network?: boolean;
 }
 
 Deno.serve(async (req) => {
@@ -71,6 +72,12 @@ Deno.serve(async (req) => {
     responded_at: new Date().toISOString(),
     token_used: true,
     send_status: "responded",
+    // The opt-OUT from the answer dialog. Default TRUE: sharing is automatic and
+    // the toggle turns it off, matching the save card's promise. The column
+    // existed from 0026 with nothing writing it — a toggle with a home and no
+    // value, which is the same dead-flag pattern as `verified` and `kind` before
+    // they were wired up.
+    shared_to_network: body.shared_to_network !== false,
   }).eq("response_token", body.token);
 
   // 6. Notify the querying user (in-app) — real-time subscription also fires

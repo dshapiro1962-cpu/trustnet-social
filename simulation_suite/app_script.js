@@ -265,6 +265,10 @@ async function loadUserData() {
   // distinguishable from one never asked — we must not nag.
   try {
     const ci = await sb.from('circle_interests').select('circle_id, interest, source, terms, is_custom');
+    const sg = await sb.from('suggestions')
+      .select('id, canonical_id, from_person_id, via, source_note, matched_circles, matched_interest, status')
+      .eq('status', 'pending').order('created_at', { ascending: false });
+    AppState.suggestions = sg.data || [];
     AppState.circleInterests = ci.data || [];
   } catch (e) { AppState.circleInterests = []; console.error('circle_interests load failed:', e); }
 
@@ -476,7 +480,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.50.0 · live';
+const APP_VERSION = 'v0.52.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -1548,6 +1552,55 @@ function renderAnswered() {
    were away: answers, joins, system events
    ═══════════════════════════════════════════════ */
 
+// ═══ SUGGESTIONS IN THE INBOX (v0.51.0) ═════════════════════════════════════
+// Their own colour, no new tab-bar item — dan: "as i anticipate that most of
+// the usage will be by phone putting another toggle button at the bottom will
+// make it very crowded so in the inbox with a different color to distinguish
+// it." The Inbox is already where things wait for a decision.
+//
+// Each card carries the TRUST CHAIN in one line: who vouched for it and why it
+// reached you. Never shown: which circle THEY filed it in — that is theirs, and
+// circles are provenance, not evidence.
+function suggestionCardHtml(sg) {
+  const can = AppState.canonicalById(sg.canonical_id);
+  if (!can) return '';
+  const person = (AppState.people || []).find(function(p) { return p.id === sg.from_person_id; });
+  const who = person ? person.name : 'Someone in your circles';
+  const circles = (sg.matched_circles || [])
+    .map(function(id) { const c = AppState.circleById(id); return c ? c.name : null; })
+    .filter(Boolean);
+  const label = INTEREST_LABEL[sg.matched_interest] || sg.matched_interest;
+  const verb = sg.via === 'answer' ? 'answered a question with this' : 'saved this';
+  return '<div style="background:#F3EEFB;border:1px solid #DDD0F0;border-left:3px solid #5B3E9E;'
+    + 'border-radius:10px;padding:12px 14px;margin-bottom:10px;">'
+    + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;">'
+    + '<span style="font-weight:700;font-size:14px;color:#0D2B1F;" dir="auto">' + esc(can.name) + '</span>'
+    + '<span style="font-size:9px;font-weight:700;color:#5B3E9E;letter-spacing:.04em;">SUGGESTED</span>'
+    + '</div>'
+    + (can.kind ? '<div style="font-size:11.5px;color:#56695F;margin-top:2px;" dir="auto">' + esc(can.kind) + '</div>' : '')
+    + (sg.source_note ? '<div style="font-size:12px;color:#0D2B1F;margin-top:6px;line-height:1.45;" dir="auto">'
+        + esc(sg.source_note) + '</div>' : '')
+    + '<div style="font-size:11px;color:#56695F;margin-top:8px;line-height:1.5;" dir="auto">'
+    + esc(who) + ' ' + verb + '. '
+    + (circles.length ? 'You share ' + esc(circles.join(' and ')) + ', which ' + (circles.length > 1 ? 'are' : 'is')
+        + ' about ' + esc(label) + '.' : 'It matches ' + esc(label) + '.')
+    + '</div>'
+    + '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">'
+    + '<button class="btn btn-primary btn-sm" data-action="accept-suggestion" data-sg-id="' + esc(sg.id) + '">Add to my library</button>'
+    + '<button class="btn btn-ghost btn-sm" data-action="dismiss-suggestion" data-sg-id="' + esc(sg.id) + '">Not for me</button>'
+    + '</div></div>';
+}
+
+function suggestionsSectionHtml() {
+  const list = (AppState.suggestions || []).filter(function(s) { return s.status === 'pending'; });
+  if (!list.length) return '';
+  return '<div style="margin-bottom:20px;">'
+    + '<div style="font-size:11px;font-weight:700;color:#5B3E9E;letter-spacing:.04em;margin-bottom:8px;">'
+    + 'FROM YOUR CIRCLES (' + list.length + ')</div>'
+    + list.map(suggestionCardHtml).join('')
+    + '</div>';
+}
+
 function renderInbox() {
   if (AppState.isDemoMode) {
     return '<div class="empty-state"><div class="empty-icon">🔔</div><div class="empty-title">Inbox is a real-account feature</div></div>';
@@ -1559,15 +1612,19 @@ function renderInbox() {
   updateInboxBadge();
 
   const items = inboxItems();
+  const suggestions = suggestionsSectionHtml();
   const header = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">'
     + '<div style="font-size:13px;color:#7A9086;">Answers, joins and events — newest first</div>'
     + '<button class="btn btn-ghost btn-sm" data-action="refresh-inbox">↻ Refresh</button>'
     + '</div>';
 
   if (!items.length) {
-    return header + '<div class="empty-state" style="padding:60px 20px;"><div class="empty-icon">🔔</div>'
-      + '<div class="empty-title">Quiet in here</div>'
-      + '<div class="empty-body">When people answer your questions or join your circles, it shows up here first.</div></div>';
+    // Suggestions still show when there is no other inbox traffic — otherwise
+    // the one thing waiting for a decision would be hidden behind "Quiet in here".
+    return header + suggestions
+      + (suggestions ? '' : '<div class="empty-state" style="padding:60px 20px;"><div class="empty-icon">🔔</div>'
+        + '<div class="empty-title">Quiet in here</div>'
+        + '<div class="empty-body">When people answer your questions or join your circles, it shows up here first.</div></div>');
   }
 
   const rows = items.map(function(it) {
@@ -1624,7 +1681,8 @@ function renderInbox() {
       + '</div></div></div></div>';
   }).join('');
 
-  return header + '<div style="max-width:600px;">' + rows + '</div>';
+  // Suggestions first: they are the only thing here awaiting a decision.
+  return header + suggestions + '<div style="max-width:600px;">' + rows + '</div>';
 }
 
 /* ═══════════════════════════════════════════════
@@ -3414,7 +3472,7 @@ function shareRowHtml(rec) {
     + (rec.sharedToNetwork
       ? '<button class="btn btn-secondary btn-sm" data-action="toggle-share-rec" data-rec-id="' + esc(rec.id) + '">✓ Shared to your network — click to unshare</button>'
       : '<button class="btn btn-primary btn-sm" data-action="toggle-share-rec" data-rec-id="' + esc(rec.id) + '">📣 Share with people who trust me</button>')
-    + '<div style="font-size:11px;color:#7A9086;margin-top:5px;">Sharing shows this recommendation to people who have you in a matching circle. You can unshare anytime.</div>'
+    + '<div style="font-size:11px;color:#7A9086;margin-top:5px;">Shows this to people in your circles who share this interest \u2014 books to book circles, restaurants to dining circles. You can unshare anytime.</div>'
     + '</div>';
 }
 
@@ -3673,7 +3731,7 @@ function renderSettings() {
     + '<div class="card" style="margin-bottom:16px;"><div class="card-body" style="display:flex;flex-direction:column;gap:16px;">'
     + '<div style="font-size:13px;font-weight:700;color:var(--slate-700);">Privacy</div>'
     + '<div style="display:flex;align-items:center;justify-content:space-between;">'
-    + '<div><div style="font-size:13px;font-weight:600;">Share my recommendations</div><div style="font-size:12px;color:var(--slate-400);">New library items are visible to people who have you in a matching circle. You can unshare any single item on its page.</div></div>'
+    + '<div><div style="font-size:13px;font-weight:600;">Share my recommendations</div><div style="font-size:12px;color:var(--slate-400);">New library items are visible to people in your circles who share that interest. You can unshare any single item on its page.</div></div>'
     + (shareDefault()
         ? '<div style="width:44px;height:24px;border-radius:12px;background:var(--green-400);display:flex;align-items:center;justify-content:flex-end;padding:2px;cursor:pointer;flex-shrink:0;" data-action="toggle-share-default"><div style="width:20px;height:20px;border-radius:50%;background:#fff;pointer-events:none;"></div></div>'
         : '<div style="width:44px;height:24px;border-radius:12px;background:#CDD9D1;display:flex;align-items:center;justify-content:flex-start;padding:2px;cursor:pointer;flex-shrink:0;" data-action="toggle-share-default"><div style="width:20px;height:20px;border-radius:50%;background:#fff;pointer-events:none;"></div></div>')
@@ -4746,6 +4804,66 @@ async function handleAddExistingPerson(btn) {
 // vineyard), and THE USER SEES THEM before they take effect. Generation is
 // fallible — this same model once produced "hair removal machine" — so nothing
 // is applied silently. Infer, then ask.
+// Accepting is what makes it YOURS. Until this runs, a suggestion is not a
+// recommendation and is in nobody's library — the rule held all week: nothing
+// enters your library without you.
+// HYBRID: the suggestion remembered every circle that matched. One match files
+// it there; several ask, because picking for you would be the invented
+// tie-break the hybrid design exists to avoid.
+async function handleAcceptSuggestion(btn) {
+  const id = btn.dataset.sgId;
+  const sg = (AppState.suggestions || []).find(function(s) { return s.id === id; });
+  if (!sg) return;
+  btn.disabled = true;
+  try {
+    let circleId = (sg.matched_circles || [])[0] || null;
+    if ((sg.matched_circles || []).length > 1) {
+      const names = sg.matched_circles.map(function(cid) {
+        const c = AppState.circleById(cid); return c ? c.name : cid; });
+      const pick = prompt('This matches ' + names.length + ' of your circles:\n\n'
+        + names.map(function(n, i) { return (i + 1) + '. ' + n; }).join('\n')
+        + '\n\nWhich one? (number)', '1');
+      const idx = parseInt(pick, 10);
+      if (!idx || idx < 1 || idx > names.length) { btn.disabled = false; return; }
+      circleId = sg.matched_circles[idx - 1];
+    }
+    const ins = await sb.from('recommendations').insert({
+      owner_id: CURRENT_UID, canonical_id: sg.canonical_id, circle_id: circleId,
+      note: sg.source_note || '', status: 'saved', rec_date: new Date().toISOString().slice(0, 10),
+      source_label: 'suggested by someone in your circle',
+    });
+    if (ins.error) throw new Error(ins.error.message);
+    const up = await sb.from('suggestions')
+      .update({ status: 'accepted', decided_at: new Date().toISOString() }).eq('id', id);
+    if (up.error) throw new Error(up.error.message);
+    await loadUserData();
+    renderApp();
+    toast('Added to your library.');
+  } catch (e) {
+    btn.disabled = false;
+    console.error('handleAcceptSuggestion failed:', e);
+    toast('Could not add that: ' + (e.message || 'unknown error'), 'warn');
+  }
+}
+
+// A dismissal must STICK — the sweep re-runs every few minutes and would
+// otherwise offer the same item forever.
+async function handleDismissSuggestion(btn) {
+  const id = btn.dataset.sgId;
+  btn.disabled = true;
+  try {
+    const up = await sb.from('suggestions')
+      .update({ status: 'dismissed', decided_at: new Date().toISOString() }).eq('id', id);
+    if (up.error) throw new Error(up.error.message);
+    AppState.suggestions = (AppState.suggestions || []).filter(function(s) { return s.id !== id; });
+    renderApp();
+  } catch (e) {
+    btn.disabled = false;
+    console.error('handleDismissSuggestion failed:', e);
+    toast('Could not dismiss that: ' + (e.message || 'unknown error'), 'warn');
+  }
+}
+
 async function handleAddCustomInterest(btn) {
   const cid = btn.dataset.circleId;
   const input = document.getElementById('ci-custom');
@@ -5574,6 +5692,12 @@ document.addEventListener('click', function(e) {
       renderApp();
       toast(rm.name + ' removed.');
     }
+  }
+  else if (action === 'accept-suggestion') {
+    handleAcceptSuggestion(target);
+  }
+  else if (action === 'dismiss-suggestion') {
+    handleDismissSuggestion(target);
   }
   else if (action === 'add-custom-interest') {
     handleAddCustomInterest(target);

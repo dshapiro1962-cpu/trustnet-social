@@ -65,6 +65,17 @@
     <input id="rec-location" placeholder="e.g. London, UK" maxlength="80">
     <label for="rec-note">Your note</label>
     <textarea id="rec-note" placeholder="What makes it great? Any tips?" maxlength="1000"></textarea>
+    <!-- The opt-OUT. Sharing is automatic: this recommendation may reach people
+         in the asker's circles who share the interest. Checked by default,
+         because the feature is on unless the contributor turns it off — the
+         same promise as the save card in the app. -->
+    <label style="display:flex;align-items:flex-start;gap:8px;font-weight:400;margin-top:14px;cursor:pointer;">
+      <input type="checkbox" id="rec-share" checked style="margin-top:3px;flex:none;">
+      <span style="font-size:13px;line-height:1.5;">
+        <strong>Share to their network</strong><br>
+        <span style="opacity:.75;">Lets people in their circles who share this interest see it too. Untick to keep it just for them.</span>
+      </span>
+    </label>
     <button id="submit-btn">Send recommendation</button>
     <div style="font-size:9px;color:#A8BDAF;text-align:center;margin-top:10px;">r2.4-lib</div>
   </div>

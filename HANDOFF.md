@@ -1222,3 +1222,121 @@ could take those terms.
 whole-word traps, declined-custom matching nothing, and built-ins still
 resolving through the shared vocabulary. Negative test proven (ignoring custom
 terms fails). 21 migrations rebuild clean. Suites 40, checks 828.
+
+# ═══ 9 AUG 2026 — v0.51.0 · THE SUGGESTION QUEUE ═══
+
+The matcher and the Inbox surface. The feature now works end to end.
+
+## TWO DESIGN DECISIONS dan MADE, AND WHY THEY MATTER
+TRIGGER = A SWEEP EVERY FEW MINUTES, not a database trigger and not a call from
+receive-response.
+ * a DB trigger runs INSIDE the contributor's save: a fault in this
+   nice-to-have would stop Rina being able to ANSWER QUESTIONS AT ALL.
+ * a per-save call would miss the other write paths (chat-import,
+   whatsapp-webhook, manual save) — precisely how save paths silently skipped
+   enrichment twice this week.
+ * a sweep looks at the DATA not the code paths, so it cannot miss one; it logs
+   what it did; a bad rule can be fixed and re-run. Cost: up to a few minutes'
+   delay, and nobody is worse off seeing a book suggestion at 15:00 not 14:32.
+
+OWNERSHIP = HYBRID. The suggestion belongs to the USER and REMEMBERS which
+circles matched.
+ * circle-owned needs an INVENTED tie-break when Rina is in two circles that
+   both accept books (first created? alphabetical?) or sends two cards.
+ * user-owned with no circle leaves accepted items UNFILED — the contextless
+   state that made items unfindable earlier this week.
+ * hybrid: ONE card, every matching circle remembered, and on accept it files
+   into the match — or ASKS when several matched.
+
+## AS BUILT
+- suggestions table: unique (user_id, canonical_id) so a dismissal STICKS
+  against a sweep that re-runs every few minutes. matched_circles is an ARRAY.
+  RLS owner-scoped. sweep_state holds a restartable watermark.
+- suggest-sweep edge function. IMPORTS the shared vocabulary — a SQL sweep would
+  have needed a THIRD copy of the interest map, which is exactly what produced
+  the classify-rec and match_canonical bugs. Reads the STORED kind; makes no
+  OpenAI call.
+  GATE 1 shared_to_network on BOTH sources. GATE 2 CONFIRMED interests only.
+  Also skips: no kind, your own item, anything already in your library.
+  Which circle THEY filed it in is never consulted — provenance, not evidence.
+- Inbox surface in its own purple, no new tab-bar item (dan: the phone tab bar
+  is already crowded). Card states the trust chain: "Rina answered a question
+  with this. You share reading and friends, which are about books."
+  Accept creates a REAL recommendation and marks the suggestion accepted;
+  several matching circles ASK rather than picking.
+
+## TESTED ON A REAL POSTGRES WITH THE AMBIGUOUS CASE
+Fixture: Rina in TWO of Dan's circles, BOTH confirmed for books; she saves a
+novel and a restaurant. Result: exactly ONE suggestion, for the book, remembering
+BOTH circles; the restaurant matched nothing. The sweep's own logic was run
+against the database — not mocked.
+suggestions-sim 29 checks. Three negative tests proven: dropping the opt-out
+gate, matching unconfirmed interests, and removing the hybrid merge all fail.
+23 migrations rebuild clean. Suites 41, checks 857.
+
+## REMAINING FOR THIS FEATURE
+- receive-response does not yet WRITE query_responses.shared_to_network (the
+  column exists from 0026; the answer dialog's toggle has a home but no value).
+- The opt-out toggle is not yet ON the answer dialog.
+- Wording on both toggles still promises "matching circle" not "shared interest".
+- network_feed STILL enforces the old circle-DOMAIN rule (0025 line ~236).
+- SCHEDULING: suggest-sweep must be invoked every few minutes — Supabase cron or
+  pg_cron. Until then it can be called by hand to test.
+
+# ═══ 9 AUG 2026 — v0.52.0 · THE OUTSTANDING ITEMS, AND A TEST AUDIT ═══
+
+dan: "why didnt you do the outstanding items do them then test everything
+properly after insuring your test procedure is good."
+
+## THE TEST AUDIT CAME FIRST, AND IT WAS BAD
+Measured, not asserted: 239 of 857 checks (28%) EXECUTED NOTHING — pure string
+matching. suggestions-sim, the newest and least proven suite, was ENTIRELY in
+that group. That is the same weakness that let through the person_id data loss
+(mocked upsert that always succeeded) and a CHECK constraint that could never
+fire (asserted the constraint TEXT existed).
+suggestions-sim now RUNS the sweep's real vocabulary and merge, EXTRACTED from
+the shipping source rather than reimplemented — a test of a copy proves nothing.
+After this session: 510 executing / 210 string-only (70%).
+
+STANDING RULE, now recorded: JS logic must EXECUTE in the sim. SQL cannot
+execute on dan's Windows machine, so every SQL change is verified HERE against
+real Postgres before packaging, and the result written into this handoff.
+
+## THE FIVE ITEMS, ALL DONE
+1. THE ANSWER OPT-OUT EXISTS. respond.html gains "Share to their network",
+   CHECKED BY DEFAULT — sharing is automatic and the toggle turns it OFF, the
+   same promise as the save card.
+2. respond_script sends it; receive-response PERSISTS it
+   (`body.shared_to_network !== false`, so older clients still default to true).
+   The column existed from 0026 with NOTHING writing it — the same dead-flag
+   pattern as `verified` and `kind` before they were wired up.
+3+4. WORDING. Both surfaces dropped "people who have you in a MATCHING CIRCLE"
+   for "people in your circles who SHARE THIS INTEREST". Zero occurrences of the
+   old promise remain.
+5. network_feed BROUGHT IN LINE (0029). It matched circle DOMAINS —
+   `vc.domain = coalesce(cn.primary_category, rc.domain)` — which is coarse (a
+   book and a museum are both 'culture') AND used THE CONTRIBUTOR'S CIRCLE as a
+   fallback to decide what an item IS. That is the provenance-as-evidence
+   violation that put a dermatologist on the "ski" screen. It now matches the
+   item's KIND against a CONFIRMED interest, via circle_accepts_kind(), and
+   shows MY circle name rather than theirs.
+
+## VERIFIED ON REAL POSTGRES (23 migrations, clean rebuild)
+kind_has_term: 'skin doctor' vs 'ski' = FALSE · 'barber' vs 'bar' = FALSE ·
+'bookkeeper' vs 'book' = FALSE · 'ski resort' vs 'ski' = TRUE. The whole-word
+guard holds in SQL exactly as in TypeScript.
+circle_accepts_kind: books circle accepts 'novel', rejects 'bistro restaurant'
+and 'רופא עור dermatologist'. A circle with NO confirmed interest accepts
+NOTHING. A custom 'wine' interest accepts 'wine bar', rejects 'novel'.
+network_feed END TO END as Dan: returns EXACTLY ONE row — The White Tiger, in
+'reading'. Rina's shared restaurant is correctly excluded because no circle of
+Dan's confirmed restaurants.
+
+## NEGATIVE TESTS, ALL PROVEN
+Not persisting the answer opt-out · reverting the feed to circle-domain
+matching · flipping the toggle from opt-OUT to opt-IN. Each fails.
+Suites 41, checks 881.
+
+## THE ONE THING LEFT FOR THIS FEATURE
+suggest-sweep must be SCHEDULED (Supabase cron / pg_cron, every few minutes).
+Until then it only runs when invoked by hand — which is also how to test it.

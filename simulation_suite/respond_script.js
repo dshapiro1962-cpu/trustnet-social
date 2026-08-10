@@ -170,6 +170,9 @@ $("submit-btn").addEventListener("click", async () => {
         rec_name: recName,
         rec_location: $("rec-location").value.trim(),
         rec_note: $("rec-note").value.trim(),
+        // Opt-OUT, not opt-in: default true, unticking keeps the answer private
+        // to the asker. Stored on query_responses.shared_to_network (0026).
+        shared_to_network: $("rec-share") ? !!$("rec-share").checked : true,
       }),
     });
     const data = await res.json();
