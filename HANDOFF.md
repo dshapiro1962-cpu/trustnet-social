@@ -1555,3 +1555,46 @@ Building it took three corrections, each worth recording:
     produced three false positives).
 
 Suites 43, checks 925.
+
+# ═══ 11 AUG 2026 — v0.58.0 · THE CARD VANISHED FOR ITEMS YOU DO NOT OWN ═══
+
+The sweep reported created:1, the row existed, was pending, addressed to dan,
+matched on 'ski' — and the Inbox was EMPTY.
+
+CAUSE: suggestionCardHtml began
+    const can = AppState.canonicalById(sg.canonical_id);
+    if (!can) return '';
+AppState.userCanonicals holds canonicals for things ALREADY IN YOUR LIBRARY. A
+suggestion is BY DEFINITION something you do not have yet. So the lookup found
+nothing and the card rendered as an EMPTY STRING.
+
+SEVENTH silent failure in this project, same shape every time: a failure path
+that produces NOTHING instead of saying something. The full list, because the
+pattern matters more than any single instance:
+  1. identity lookup crash read as "not a user"
+  2. recheck reported a crash as "nobody has an account"
+  3. mocked upsert made data loss look like success
+  4. `if (!error) created++` in the sweep
+  5. unbound query error dropped 46 recommendations
+  6. watermark advanced on every run, erasing the evidence
+  7. this — a card that renders '' when it cannot describe its item
+
+## AS BUILT
+The suggestions query now EMBEDS the item: canonicals(name, kind, location,
+image_emoji, primary_category). The card uses that and falls back to the library
+lookup only as a courtesy. An item that still cannot be described renders a
+VISIBLE placeholder with a Dismiss button rather than disappearing. The load
+error is logged instead of swallowed.
+
+## TESTS
+suggestions-sim now EXECUTES the renderer with AppState.userCanonicals EMPTY —
+the real situation — and asserts the card appears, names the item, the kind, the
+person and the shared circle. Negative-tested: restoring the library-only lookup
+makes three checks fail. Suites 43, checks 943.
+
+## STILL OPEN
+- suggest-sweep is NOT SCHEDULED. Supabase cron, every few minutes, empty body.
+- no_kind: 61 of 114 contributions — ANSWERS are never enriched, so the richest
+  content in the product can never match an interest. Design gap, not a bug.
+- E2E (Playwright) has failed on the last two pushes while function deploys pass.
+  Unexamined.

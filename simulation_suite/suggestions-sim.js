@@ -286,4 +286,64 @@ if (typeof forKind === 'function' && typeof customMatches === 'function') {
   ck('RUN: an item with no kind produces nothing', forKind('').length === 0);
 }
 
+
+// ── THE CARD MUST RENDER AN ITEM YOU DO NOT OWN (v0.58.0) ───────────────────
+// THE BUG: suggestionCardHtml began
+//     const can = AppState.canonicalById(sg.canonical_id);
+//     if (!can) return '';
+// AppState.userCanonicals holds canonicals for things ALREADY IN YOUR LIBRARY.
+// A suggestion is BY DEFINITION something you do not have. So the lookup found
+// nothing and the card rendered as an EMPTY STRING — a correct row, correctly
+// addressed, invisible. The database said created:1 and the Inbox was empty.
+// SEVENTH silent-failure in this project, and the same shape every time: a
+// failure path that produces nothing instead of saying something.
+const vm2 = require('vm');
+let app2 = appSrc.slice(appSrc.indexOf('<script>', appSrc.indexOf('supabase.min.js')) + 8);
+app2 = app2.slice(0, app2.indexOf('</script>'));
+app2 += ';globalThis.__s={suggestionCardHtml,suggestionsSectionHtml,AppState};';
+const el2 = () => ({ value:'', style:{}, dataset:{}, textContent:'', innerHTML:'',
+  classList:{add(){},remove(){},toggle(){},contains(){return false;}}, addEventListener(){},
+  appendChild(){}, remove(){}, focus(){}, querySelector:()=>null, querySelectorAll:()=>[] });
+const c2 = { console:{log(){},error(){},warn(){}}, setTimeout:(f)=>{if(typeof f==='function')f();return 0;},
+ clearTimeout(){}, setInterval:()=>1, clearInterval(){},
+ document:{getElementById:()=>el2(),createElement:()=>el2(),querySelector:()=>null,querySelectorAll:()=>[],
+   addEventListener(){},removeEventListener(){},body:el2(),documentElement:el2(),hidden:false,visibilityState:'visible'},
+ window:{addEventListener(){},innerWidth:390,innerHeight:664,
+   visualViewport:{height:664,offsetTop:0,addEventListener(){}},
+   location:{href:'x',search:'',hash:'',origin:'x'},matchMedia:()=>({matches:false,addEventListener(){}})},
+ location:{href:'x',search:'',hash:'',origin:'x'}, navigator:{userAgent:'sim',language:'en'},
+ localStorage:{getItem:()=>null,setItem(){},removeItem(){}}, sessionStorage:{getItem:()=>null,setItem(){},removeItem(){}},
+ fetch:async()=>({ok:true,json:async()=>({})}), crypto:{randomUUID:()=>'u',subtle:{digest:async()=>new ArrayBuffer(32)}},
+ URLSearchParams, TextEncoder, AbortController, confirm:()=>true, alert(){}, prompt(){},
+ history:{replaceState(){},pushState(){}} };
+c2.supabase={createClient:()=>({from:()=>({}),auth:{onAuthStateChange(){},getSession:async()=>({data:{session:null}})},
+  rpc:async()=>({data:null}),channel:()=>({})})};
+c2.window.supabase=c2.supabase; c2.globalThis=c2; vm2.createContext(c2);
+vm2.runInContext(app2, c2, { filename:'app.js' });
+vm2.runInContext('CURRENT_UID="me";', c2);
+const S = c2.__s;
+S.AppState.isDemoMode = false;
+S.AppState.userCanonicals = [];          // <- the real situation: you do NOT own it
+S.AppState.people = [{ id:'p1', name:'Dany' }];
+S.AppState.userCircles = [{ id:'ski1', name:'ski' }];
+const sg = { id:'s1', canonical_id:'cX', from_person_id:'p1', via:'save',
+  source_note:'great powder', matched_circles:['ski1'], matched_interest:'ski', status:'pending',
+  canonicals:{ name:'Jackson Hole Mountain Resort', kind:'ski resort' } };
+S.AppState.suggestions = [sg];
+const cardHtml = S.suggestionCardHtml(sg);
+ck('RENDER: a suggestion for an item you do NOT own still renders',
+   cardHtml.length > 0, 'empty string returned');
+ck('RENDER: it shows the item name', cardHtml.indexOf('Jackson Hole Mountain Resort') >= 0);
+ck('RENDER: it shows the kind', cardHtml.indexOf('ski resort') >= 0);
+ck('RENDER: it names who vouched for it', cardHtml.indexOf('Dany') >= 0);
+ck('RENDER: it names the shared circle', cardHtml.indexOf('ski') >= 0);
+ck('RENDER: the section is not empty', S.suggestionsSectionHtml().indexOf('FROM YOUR CIRCLES') >= 0);
+const broken = S.suggestionCardHtml({ id:'s2', canonical_id:'gone', matched_circles:[], status:'pending' });
+ck('RENDER: an undescribable item says so rather than vanishing',
+   broken.length > 0 && broken.indexOf('could not be loaded') >= 0);
+ck('the query fetches the item WITH the suggestion',
+   /canonicals\(name, kind, location, image_emoji, primary_category\)/.test(appSrc));
+ck('a failed suggestions load is reported, not swallowed',
+   /suggestions load failed:/.test(appSrc));
+
 console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
