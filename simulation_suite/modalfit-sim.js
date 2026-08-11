@@ -32,7 +32,7 @@ let pass=0,fail=0; const ck=(n,c,x)=>{ if(c){pass++;console.log('  ✓',n);}else
 vm.runInContext(app,ctx,{filename:'app.js'});
 vm.runInContext('renderApp=function(){};showView=function(){};toast=function(){};CURRENT_UID="me";',ctx);
 const X=ctx.__x;
-ck('APP_VERSION is v0.56.0', X.APP_VERSION==='v0.56.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.57.0', X.APP_VERSION==='v0.57.0 · live', X.APP_VERSION);
 
 // ── one scroll container, not two ──
 ck('the modal itself no longer scrolls (nested scrollers removed)',

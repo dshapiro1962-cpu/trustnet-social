@@ -1511,3 +1511,47 @@ often a valid null), and changing 34 call sites blind converts silent bugs into
 loud outages. Needs its own session, one function at a time.
 
 Suites 42, checks 916.
+
+# ═══ 11 AUG 2026 — v0.57.0 · ONE WRONG WORD, FIVE ROUNDS OF GUESSING ═══
+
+## THE CAUSE, finally, in the database's own words
+  "column recommendations.person_id does not exist"
+suggest-sweep selected `person_id` from RECOMMENDATIONS. That column lives on
+MEMBERS. It was never even USED from that row — from_person_id comes from the
+member record. PostgREST rejected the whole query, v0.56.0's error check
+surfaced it, and everything fell out:
+  46 recommendations + 68 answers in the window = 114
+  sweep reported scanned: 68  ->  exactly the ANSWERS count
+The recommendations half — containing dan's Jackson Hole — never entered the
+array. Every diagnosis for five rounds examined the wrong half of the data.
+
+The person model WAS fully migrated (people, person_contacts, members.person_id,
+resolve_contact, contact_key all present). My "0022 was never run" theory was
+wrong too; the schema was right and the code asked for a column on the wrong
+table.
+
+## WHAT MADE IT TAKE SO LONG — three compounding faults, all mine
+1. The query's error was never bound, so a FAILED query and an EMPTY one looked
+   identical (fixed v0.56.0).
+2. The sweep set the watermark to now() on every run, so each diagnostic
+   destroyed the evidence of the next (fixed v0.55.0).
+3. I reasoned repeatedly about what the code SHOULD do instead of making it
+   report what it HAD. Five wrong theories. dan: "do you know what you are doing
+   doesn't look like it." He was right to ask.
+
+## NEW GUARD: columns-sim
+Parses the schema FROM THE MIGRATIONS, then checks every .from().select() in
+every shipped edge function selects only columns that exist. Negative-tested:
+reintroducing person_id fails, naming it exactly.
+Building it took three corrections, each worth recording:
+  * splitting the select on commas tore apart PostgREST embeds like
+    canonicals(name, location) -> 40 false positives;
+  * stripping only the brackets left the JOIN NAME looking like a column;
+  * a 120-char window between .from() and .select() SILENTLY SKIPPED the very
+    query it was written for, because a five-line comment sat between them —
+    THIRD time a check in this project has been fooled by prose. Comments are
+    now stripped before matching, and the window is a statement boundary rather
+    than a character count (400 chars reached into unrelated queries and
+    produced three false positives).
+
+Suites 43, checks 925.

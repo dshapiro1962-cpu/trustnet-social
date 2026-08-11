@@ -80,7 +80,12 @@ Deno.serve(async (req) => {
   // appeared in this project; it is now impossible here.
   const { data: recs, error: recsErr } = await admin
     .from("recommendations")
-    .select("id, owner_id, canonical_id, note, shared_to_network, created_at, person_id")
+    // NO person_id HERE. It is a column on MEMBERS, not on recommendations, and
+    // it was never used from this row — from_person_id comes from `m` below.
+    // Asking for a non-existent column made the whole query fail; the error was
+    // discarded, so 46 recommendations silently vanished from every run while
+    // the answers half sailed through. One wrong word, five rounds of guessing.
+    .select("id, owner_id, canonical_id, note, shared_to_network, created_at")
     .gt("created_at", since)
     .eq("shared_to_network", true)
     .order("created_at", { ascending: true })   // oldest first: the watermark

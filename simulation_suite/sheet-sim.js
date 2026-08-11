@@ -25,7 +25,7 @@ vm.runInContext('renderApp=function(){};showView=function(v){};toast=function(m,
  +'CURRENT_UID="me";fnPost=async function(n,b){return globalThis.__fnImpl(n,b);};',ctx);
 ctx.__toasts=[];ctx.__savedQueries=0;ctx.__u=0;
 const X=ctx.__x;
-ck('APP_VERSION is v0.56.0', X.APP_VERSION==='v0.56.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.57.0', X.APP_VERSION==='v0.57.0 · live', X.APP_VERSION);
 
 // ---- A. sheet failure surfaces the REAL error, not "network" ----
 X.AppState.isDemoMode=false;
