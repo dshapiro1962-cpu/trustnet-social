@@ -4,10 +4,19 @@ const { test, expect } = require('@playwright/test');
 test.describe('public — login screen and respond page', () => {
   test.use({ storageState: { cookies: [], origins: [] } }); // force logged-out
 
-  test('login card renders with email and code paths', async ({ page }) => {
+  test('login card offers both sign-in paths', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('#login-email')).toBeVisible({ timeout: 15000 });
-    await expect(page.locator('#login-send')).toBeVisible();
+    // WhatsApp is the DEFAULT pane and #login-email-pane starts display:none.
+    // The previous assertion expected #login-email to be VISIBLE on load, which
+    // was true until the WhatsApp/Email tabs were added — so this began failing
+    // on a working app. Stale test, not a regression.
+    // What matters is that BOTH paths are present, not which one is showing.
+    await expect(page.locator('#login-tab-wa')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#login-tab-email')).toBeVisible();
+    await expect(page.locator('#login-phone')).toBeVisible();
+    await expect(page.locator('#login-wa-send')).toBeVisible();
+    await expect(page.locator('#login-email')).toBeAttached();
+    await expect(page.locator('#login-send')).toBeAttached();
     await expect(page.locator('#login-code')).toBeAttached();
     await expect(page.locator('#login-verify')).toBeAttached();
   });
