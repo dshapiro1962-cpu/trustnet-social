@@ -47,8 +47,15 @@ ck('custom terms are matched WHOLE-WORD, like the built-ins',
    /k\.indexOf\(" " \+ String\(t\)\.toLowerCase\(\)\.trim\(\) \+ " "\) >= 0/.test(sweep));
 ck('the hybrid merge collapses two matching circles into ONE suggestion',
    /merged\[k\]\.matched_circles = \[\.\.\.new Set\(\[\.\.\.a, \.\.\.b\]\)\]/.test(sweep));
-ck('the watermark advances so work is not repeated forever',
-   /update\(\{ last_at: started \}\)/.test(sweep));
+// v0.55.0: this check asserted the BUG. `last_at: started` meant every run —
+// including one that created nothing — consumed its own window and erased the
+// evidence. Five diagnoses chased a target the code kept resetting. The
+// watermark now advances only over what the run actually SAW, and not at all if
+// an insert failed. Full rules in watermark-sim.
+ck('the watermark advances over what was SEEN, never to now()',
+   /update\(\{ last_at: seenUpTo \}\)/.test(sweep) && !/last_at: started/.test(sweep.replace(/\/\/.*/g, '')));
+ck('...and not at all when an insert failed',
+   /seenUpTo && why\.insert_failed === 0/.test(sweep));
 ck('which circle THEY filed it in is never consulted',
    !/contributor.*circle_id/.test(sweep.replace(/\/\/.*/g, '')));
 

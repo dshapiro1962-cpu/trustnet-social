@@ -45,78 +45,120 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return err("method_not_allowed", 405);
 
   const admin = adminClient();
-  const started = new Date().toISOString();
   // DEBUG: pass { debug_name: "Jackson" } to have the sweep report exactly what
   // it loaded and decided for that one item. Added after four wrong theories
   // about why a visibly-matching item produced nothing: reasoning about what
   // the code SHOULD do is not the same as making it show what it HAS.
   let dbgName = "";
-  try { const b = await req.json(); dbgName = String(b?.debug_name ?? ""); } catch (_) { /* no body */ }
+  let dryRun = false;
+  let sinceOverride = "";
+  try {
+    const b = await req.json();
+    dbgName = String(b?.debug_name ?? "");
+    // DRY RUN: look at everything, decide everything, WRITE NOTHING and leave
+    // the watermark alone. Diagnosing this feature was impossible because every
+    // observation changed the thing being observed.
+    dryRun = b?.dry_run === true;
+    sinceOverride = String(b?.since ?? "");
+  } catch (_) { /* no body */ }
   const dbg: Record<string, unknown> = {};
 
   // ── 1. what has appeared since last time ─────────────────────────────────
-  const { data: state } = await admin
+  // If THIS fails we fall back to a 1-day window rather than aborting — a
+  // missing watermark row is recoverable, and the fallback is explicit.
+  const { data: state, error: stateErr } = await admin
     .from("sweep_state").select("last_at").eq("name", "suggestions").single();
-  const since = state?.last_at ?? new Date(Date.now() - 86400000).toISOString();
+  if (stateErr) console.error("sweep_state read failed, using default window:", stateErr.message);
+  const since = sinceOverride || state?.last_at || new Date(Date.now() - 86400000).toISOString();
 
   // Contributions = saved items AND answers. dan: "include query and answer."
-  const { data: recs } = await admin
+  // EVERY QUERY'S ERROR IS CHECKED. This one silently returned null and the
+  // sweep reported scanned:68 — exactly the ANSWERS count — while 46
+  // recommendations, INCLUDING dan's Jackson Hole, never entered the array at
+  // all. Five diagnoses examined the wrong half of the data because a failed
+  // query and an empty one were indistinguishable. Fifth time this pattern has
+  // appeared in this project; it is now impossible here.
+  const { data: recs, error: recsErr } = await admin
     .from("recommendations")
     .select("id, owner_id, canonical_id, note, shared_to_network, created_at, person_id")
     .gt("created_at", since)
     .eq("shared_to_network", true)
-    .limit(500);
+    .order("created_at", { ascending: true })   // oldest first: the watermark
+    .limit(500);                                 // may only advance over what we SAW
 
-  const { data: answers } = await admin
+  const { data: answers, error: ansErr } = await admin
     .from("query_responses")
     .select("id, member_id, canonical_id, rec_name, rec_note, shared_to_network, responded_at")
     .gt("responded_at", since)
     .eq("shared_to_network", true)
     .not("canonical_id", "is", null)
+    .order("responded_at", { ascending: true })
     .limit(500);
+
+  // A source that FAILED must abort the run, not quietly contribute nothing.
+  // Advancing the watermark after a partial read would lose those rows forever.
+  if (recsErr || ansErr) {
+    return err("source_query_failed: " +
+      [recsErr ? "recommendations: " + recsErr.message : "",
+       ansErr ? "query_responses: " + ansErr.message : ""].filter(Boolean).join(" | "), 500);
+  }
 
   type Contribution = {
     canonical_id: string; contributor_user: string | null;
     contributor_member: string | null; via: "answer" | "save"; note: string;
+    at: string | null;
   };
   const contributions: Contribution[] = [];
   for (const r of recs ?? []) {
     contributions.push({ canonical_id: r.canonical_id, contributor_user: r.owner_id,
-      contributor_member: null, via: "save", note: r.note ?? "" });
+      contributor_member: null, via: "save", note: r.note ?? "", at: r.created_at ?? null });
   }
   for (const a of answers ?? []) {
     contributions.push({ canonical_id: a.canonical_id, contributor_user: null,
-      contributor_member: a.member_id, via: "answer", note: a.rec_note ?? a.rec_name ?? "" });
+      contributor_member: a.member_id, via: "answer", note: a.rec_note ?? a.rec_name ?? "",
+      at: a.responded_at ?? null });
   }
   if (!contributions.length) {
-    await admin.from("sweep_state").update({ last_at: started }).eq("name", "suggestions");
-    return json({ engine: ENGINE, scanned: 0, created: 0 });
+    // NOTHING SEEN -> DO NOT MOVE THE WATERMARK. Advancing here is what made
+    // this feature undebuggable: every run consumed its own window and left no
+    // trace, so five separate diagnoses chased a target the code kept resetting.
+    // A run that saw nothing has nothing to record.
+    return json({ engine: ENGINE, scanned: 0, created: 0, watermark_moved: false });
   }
 
   // ── 2. what ARE these things? read the stored kind, never re-derive it ────
   const canIds = [...new Set(contributions.map((c) => c.canonical_id))];
-  const { data: cans } = await admin
+  const { data: cans, error: cansErr } = await admin
     .from("canonicals").select("id, name, kind").in("id", canIds);
+  if (cansErr) return err("canonicals_query_failed: " + cansErr.message, 500);
   const kindOf: Record<string, string> = {};
   const nameOf: Record<string, string> = {};
   for (const c of cans ?? []) { kindOf[c.id] = c.kind ?? ""; nameOf[c.id] = c.name ?? ""; }
 
   // ── 3. who is interested? confirmed interests only ───────────────────────
-  const { data: interests } = await admin
+  const { data: interests, error: intErr } = await admin
     .from("circle_interests")
     .select("circle_id, owner_id, interest, terms, is_custom")
     .eq("source", "confirmed");
+  if (intErr) return err("interests_query_failed: " + intErr.message, 500);
   if (!interests?.length) {
-    await admin.from("sweep_state").update({ last_at: started }).eq("name", "suggestions");
-    return json({ engine: ENGINE, scanned: contributions.length, created: 0, reason: "no_confirmed_interests" });
+    // NOBODY HAS CONFIRMED AN INTEREST YET, so nothing could match — but that
+    // is a reason to WAIT, not to consume the window. Advancing here would
+    // throw away every contribution made before the first interest is set, and
+    // they would never be reconsidered. Caught by watermark-sim: the third
+    // early return I had missed.
+    return json({ engine: ENGINE, scanned: contributions.length, created: 0,
+                  reason: "no_confirmed_interests", watermark_moved: false });
   }
 
   // Membership: which of MY circles is a given person in?
   const circleIds = [...new Set(interests.map((i) => i.circle_id))];
-  const { data: members } = await admin
+  const { data: members, error: memErr } = await admin
     .from("members")
     .select("id, circle_id, owner_id, person_id, linked_user_id")
     .in("circle_id", circleIds);
+
+  if (memErr) return err("members_query_failed: " + memErr.message, 500);
 
   let created = 0;
   // WHY THIS DETAIL EXISTS: the first version reported only {scanned, created}
@@ -190,8 +232,15 @@ Deno.serve(async (req) => {
 
   for (const r of Object.values(merged)) {
     // Already in their library? Then it is not a suggestion.
-    const { data: has } = await admin.from("recommendations")
+    // A FAILED read here must not be treated as "they already have it" — that
+    // would silently drop a valid suggestion. Count it as a failure instead.
+    const { data: has, error: hasErr } = await admin.from("recommendations")
       .select("id").eq("owner_id", r.user_id).eq("canonical_id", r.canonical_id).limit(1);
+    if (hasErr) {
+      why.insert_failed++;
+      if (errors.length < 5) errors.push("library_check: " + hasErr.message.slice(0, 160));
+      continue;
+    }
     if (has?.length) {
       why.already_in_library++;
       if (dbgName && String(r.canonical_id) === String(dbg.canonical_id)) {
@@ -202,6 +251,7 @@ Deno.serve(async (req) => {
     }
     if (dbgName && String(r.canonical_id) === String(dbg.canonical_id)) dbg.reached_insert = true;
     // onConflict does nothing: a dismissal must STAY dismissed.
+    if (dryRun) { created++; continue; }   // would have created; writes nothing
     const { error } = await admin.from("suggestions").insert(r);
     if (error) {
       // NEVER silent. An insert that fails must be visible, or a broken feature
@@ -211,8 +261,25 @@ Deno.serve(async (req) => {
     } else { created++; }
   }
 
-  await admin.from("sweep_state").update({ last_at: started }).eq("name", "suggestions");
-  return json({ engine: ENGINE, scanned: contributions.length, created,
+  // THE WATERMARK ADVANCES ONLY OVER WHAT THIS RUN ACTUALLY PROCESSED — the
+  // timestamp of the newest contribution it SAW, not "now". Two reasons:
+  //   * `started` skips anything written DURING the run; those rows would be
+  //     silently lost forever.
+  //   * with .limit(500) and more than 500 pending, jumping to `now` discards
+  //     every unprocessed row in the window.
+  // If an insert failed, the watermark does not move at all, so the next run
+  // retries instead of erasing the evidence.
+  const seenUpTo = contributions.map((c) => c.at).filter(Boolean).sort().pop() ?? null;
+  let watermarkMoved = false;
+  if (seenUpTo && why.insert_failed === 0 && !dryRun) {
+    await admin.from("sweep_state").update({ last_at: seenUpTo }).eq("name", "suggestions");
+    watermarkMoved = true;
+  }
+  return json({ engine: ENGINE, scanned: contributions.length,
+                from_saves: (recs ?? []).length, from_answers: (answers ?? []).length,
+                created, watermark_moved: watermarkMoved,
+                watermark_now: watermarkMoved ? seenUpTo : since,
                 candidates: Object.keys(merged).length, why, errors,
+                dry_run: dryRun, since,
                 debug: dbgName ? dbg : undefined });
 });

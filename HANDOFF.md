@@ -1429,3 +1429,85 @@ own_item, no_interest_match, already_in_library, insert_failed }, errors[] }.
 Every drop-out has its own counter; insert errors are returned, capped at 5.
 Guarded by suggestions-sim: the old swallow pattern must not reappear.
 Suites 41, checks 902.
+
+# ═══ 11 AUG 2026 — v0.55.0 · THE SWEEP DESTROYED ITS OWN EVIDENCE ═══
+
+## WHAT ACTUALLY HAPPENED, AFTER FIVE WRONG DIAGNOSES
+dan's Jackson Hole never produced a suggestion. Every gate checked out — kind
+'ski resort', shared_to_network true, Dany linked in a circle whose confirmed
+interest is 'ski', item not already Dan's, no existing suggestion, and the exact
+SQL join the sweep performs RETURNED A ROW. The data was correct the whole time.
+
+THE BUG WAS THE WATERMARK. The sweep set `last_at = started` (i.e. now) at the
+end of EVERY run — including runs that created nothing, and including three
+separate early returns. So each run consumed its window and left no trace. Every
+diagnostic I asked dan to run was fighting a target the code kept resetting;
+the final query showed `passes_window: false` for a row created 10 Aug against a
+watermark supposedly set to 13 May, because a sweep had run in between and
+jumped it back to now.
+
+I identified this flaw and DESCRIBED it two messages before fixing it, then kept
+diagnosing around it. dan: "do you know what you are doing doesn't look like
+it." Fair. The lesson is not about watermarks: WHEN AN OBSERVATION CHANGES THE
+THING BEING OBSERVED, FIX THAT FIRST — every measurement taken afterwards is
+worthless.
+
+## AS BUILT
+- The watermark advances to the timestamp of the NEWEST contribution the run
+  actually SAW — never to now(). `started` is gone entirely.
+  * `now()` skips anything written DURING the run: silently lost forever.
+  * with .limit(500) and more pending, `now()` discards every unprocessed row.
+- It does NOT advance when: nothing was seen · nobody has a confirmed interest
+  (a reason to WAIT, not to consume) · any insert failed (so the next run
+  retries rather than erasing the evidence).
+- Contributions are ordered OLDEST FIRST so a page is contiguous and the
+  watermark can safely move to its end.
+- DRY RUN: { dry_run: true } decides everything, writes nothing, moves nothing.
+  { since: "..." } overrides the window without touching stored state.
+  Diagnosing was impossible while every observation mutated the system.
+- Response now carries watermark_moved, watermark_now, since, dry_run.
+
+## TESTS
+watermark-sim (12 checks) EXECUTES the rule: empty run does not move it ·
+moves to the newest SEEN, not the oldest, not now() · an insert failure leaves
+it alone · dry run never moves it. It caught a THIRD early return I had missed
+(no_confirmed_interests) that still jumped to now(). Negative-tested.
+suggestions-sim had a check asserting the BUG (`last_at: started`) — corrected.
+Suites 42, checks 915.
+
+# ═══ 11 AUG 2026 — v0.56.0 · THE RECOMMENDATIONS QUERY WAS SWALLOWING ITS ERROR ═══
+
+## THE ACTUAL CAUSE, after the watermark fix was necessary but not sufficient
+dan asked "are you sure now" after the watermark fix. I was not, and said so —
+because with the window verifiably at 90 days the sweep had still reported
+scanned:68 without Jackson Hole. The arithmetic settled it:
+   46 recommendations + 68 answers in the window = 114
+   sweep reported scanned: 68  ->  EXACTLY the answers count
+The recommendations half NEVER ENTERED THE ARRAY. The query was written
+`const { data: recs } = await ...` with the ERROR NEVER BOUND, so a failure
+returned null, contributed zero rows, and was indistinguishable from an empty
+result. Every diagnosis for five rounds examined the wrong half of the data.
+
+FIFTH OCCURRENCE OF THIS PATTERN IN THIS PROJECT: the identity lookup whose
+crash read as "not a user"; the recheck reporting a crash as "no account"; the
+mocked upsert that made data loss look like success; `if (!error) created++` in
+this same function; and now this.
+
+## AS BUILT
+All SEVEN queries in suggest-sweep bind and check their error. A failed SOURCE
+query ABORTS with source_query_failed rather than contributing nothing. A failed
+library check is NOT read as "they already have it". The response now reports
+from_saves and from_answers SEPARATELY, so a missing half is visible at a
+glance. watermark-sim fails if `const { data: x } = await` reappears anywhere in
+the sweep — negative-tested.
+
+## AUDIT: 34 UNCHECKED QUERIES REMAIN ACROSS 15 OTHER FUNCTIONS
+build-sheet 6 · check-similar-query 3 · extract-chat-recs 3 · receive-response 3
+· save-collection 3 · wa-signin 3 · librarian 2 · response-meta 2 ·
+taste-matches 2 · whatsapp-webhook 2 · get-collection 1 · resend-member 1 ·
+send-collection 1 · send-query 1 · update-taste-match 1.
+DELIBERATELY NOT FIXED WHOLESALE: some swallows are legitimate (a missing row is
+often a valid null), and changing 34 call sites blind converts silent bugs into
+loud outages. Needs its own session, one function at a time.
+
+Suites 42, checks 916.
