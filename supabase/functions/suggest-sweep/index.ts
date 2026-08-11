@@ -112,11 +112,20 @@ Deno.serve(async (req) => {
     .in("circle_id", circleIds);
 
   let created = 0;
+  // WHY THIS DETAIL EXISTS: the first version reported only {scanned, created}
+  // and SWALLOWED insert errors (`if (!error) created++`). When dan's Jackson
+  // Hole match produced created:0 with every gate visibly passing, there was
+  // NOTHING to look at — a failure and a non-match were indistinguishable. That
+  // is the same conflation that made a crashed identity lookup read as "not a
+  // user". Every drop-out is now counted and every error is returned.
+  const why = { no_kind: 0, not_a_member: 0, own_item: 0, no_interest_match: 0,
+                already_in_library: 0, insert_failed: 0 };
+  const errors: string[] = [];
   const rows: Record<string, unknown>[] = [];
 
   for (const c of contributions) {
     const kind = kindOf[c.canonical_id];
-    if (!kind) continue;                          // no kind -> never matches. Silence beats a guess.
+    if (!kind) { why.no_kind++; continue; }       // no kind -> never matches. Silence beats a guess.
     const builtIn = interestsForKind(kind);
 
     for (const ci of interests) {
@@ -125,13 +134,13 @@ Deno.serve(async (req) => {
         x.circle_id === ci.circle_id &&
         ((c.contributor_user && x.linked_user_id === c.contributor_user) ||
          (c.contributor_member && x.id === c.contributor_member)));
-      if (!m) continue;
-      if (ci.owner_id === c.contributor_user) continue;   // never suggest your own item back
+      if (!m) { why.not_a_member++; continue; }
+      if (ci.owner_id === c.contributor_user) { why.own_item++; continue; }   // never suggest your own item back
 
       const hit = ci.is_custom
         ? customMatches(kind, ci.terms ?? [])
         : builtIn.includes(ci.interest);
-      if (!hit) continue;
+      if (!hit) { why.no_interest_match++; continue; }
 
       rows.push({
         user_id: ci.owner_id, canonical_id: c.canonical_id,
@@ -158,12 +167,18 @@ Deno.serve(async (req) => {
     // Already in their library? Then it is not a suggestion.
     const { data: has } = await admin.from("recommendations")
       .select("id").eq("owner_id", r.user_id).eq("canonical_id", r.canonical_id).limit(1);
-    if (has?.length) continue;
+    if (has?.length) { why.already_in_library++; continue; }
     // onConflict does nothing: a dismissal must STAY dismissed.
     const { error } = await admin.from("suggestions").insert(r);
-    if (!error) created++;
+    if (error) {
+      // NEVER silent. An insert that fails must be visible, or a broken feature
+      // looks exactly like a feature with nothing to do.
+      why.insert_failed++;
+      if (errors.length < 5) errors.push(String(error.message ?? error).slice(0, 200));
+    } else { created++; }
   }
 
   await admin.from("sweep_state").update({ last_at: started }).eq("name", "suggestions");
-  return json({ engine: ENGINE, scanned: contributions.length, created });
+  return json({ engine: ENGINE, scanned: contributions.length, created,
+                candidates: Object.keys(merged).length, why, errors });
 });

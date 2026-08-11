@@ -38,8 +38,9 @@ ck('GATE 2: only CONFIRMED interests match', /\.eq\("source", "confirmed"\)/.tes
 ck('both saves AND answers are swept (dan: include query and answer)',
    /from\("recommendations"\)/.test(sweep) && /from\("query_responses"\)/.test(sweep));
 ck('an item with NO kind never matches (silence beats a guess)',
-   /if \(!kind\) continue;/.test(sweep));
-ck('you are never suggested your own item', /if \(ci\.owner_id === c\.contributor_user\) continue;/.test(sweep));
+   /if \(!kind\) \{ why\.no_kind\+\+; continue; \}/.test(sweep));
+ck('you are never suggested your own item',
+   /if \(ci\.owner_id === c\.contributor_user\) \{ why\.own_item\+\+; continue; \}/.test(sweep));
 ck('an item already in your library is not suggested',
    /Already in their library/.test(sweep));
 ck('custom terms are matched WHOLE-WORD, like the built-ins',
@@ -66,6 +67,24 @@ ck('suggestions show even when the rest of the inbox is empty',
 ck('failures are surfaced, never swallowed',
    /Could not add that: /.test(web) && /Could not dismiss that: /.test(web));
 
+
+// ── THE SWEEP MUST SAY WHY IT DID NOTHING (v0.54.0) ─────────────────────────
+// dan ran it and got {scanned: 46, created: 0} while EVERY gate visibly passed
+// for Jackson Hole. There was nothing to look at, because the code did
+// `if (!error) created++` — an insert failure and a non-match were
+// INDISTINGUISHABLE. Same conflation as the identity lookup whose crash read as
+// "not a user". A feature that cannot explain its own inaction cannot be
+// debugged from the outside.
+ck('the sweep counts every drop-out reason',
+   /why = \{ no_kind: 0, not_a_member: 0, own_item: 0, no_interest_match: 0,[\s\S]{0,80}already_in_library: 0, insert_failed: 0 \}/.test(sweep));
+ck('insert errors are RETURNED, never swallowed',
+   /why\.insert_failed\+\+;/.test(sweep) && /errors\.push\(String\(error\.message/.test(sweep));
+ck('...and `if (!error) created++` is gone', !/if \(!error\) created\+\+;/.test(sweep));
+ck('the response carries the reasons and the errors',
+   /candidates: Object\.keys\(merged\)\.length, why, errors/.test(sweep));
+ck('each gate increments its own counter, not a shared one',
+   /why\.no_kind\+\+/.test(sweep) && /why\.not_a_member\+\+/.test(sweep)
+   && /why\.no_interest_match\+\+/.test(sweep) && /why\.already_in_library\+\+/.test(sweep));
 
 // ── SEND TO A MEMBER, IN THE APP (v0.53.0) ──────────────────────────────────
 // dan: Dany saved Jackson Hole, pressed "Send to a member", chose shapiro — who

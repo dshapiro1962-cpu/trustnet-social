@@ -1406,3 +1406,26 @@ every edge function, 0025 and the client, and fails naming any type the
 constraint omits. Negative-tested. Suites 41, checks 897.
 LESSON: before ALTERing a constraint on a populated table, SELECT the distinct
 values first. A constraint derived from code will always lose to the data.
+
+# ═══ 10 AUG 2026 — v0.54.0 · THE SWEEP MUST SAY WHY IT DID NOTHING ═══
+
+dan ran the sweep and got {scanned: 46, created: 0} while EVERY gate visibly
+passed for Jackson Hole: kind 'ski resort', shared_to_network true, Dany linked
+in a circle whose confirmed interests are 'ski,restaurant', item not already
+his, no existing suggestion. There was NOTHING to look at — because the code did
+`if (!error) created++`, so AN INSERT FAILURE AND A NON-MATCH WERE
+INDISTINGUISHABLE.
+
+That is the same conflation this project has now hit four times: the identity
+lookup whose crash read as "not a user"; the recheck sweep that reported a crash
+as "nobody has an account"; the mocked upsert that made data loss look like
+success; and now this. I BUILT IT AGAIN while removing it elsewhere in the same
+week. The lesson is not "add logging" — it is that any code path which can fail
+must report the failure DIFFERENTLY from the empty result, or the feature cannot
+be debugged from outside.
+
+NOW RETURNS: { scanned, created, candidates, why: { no_kind, not_a_member,
+own_item, no_interest_match, already_in_library, insert_failed }, errors[] }.
+Every drop-out has its own counter; insert errors are returned, capped at 5.
+Guarded by suggestions-sim: the old swallow pattern must not reappear.
+Suites 41, checks 902.
