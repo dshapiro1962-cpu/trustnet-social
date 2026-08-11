@@ -38,7 +38,7 @@ ck('GATE 2: only CONFIRMED interests match', /\.eq\("source", "confirmed"\)/.tes
 ck('both saves AND answers are swept (dan: include query and answer)',
    /from\("recommendations"\)/.test(sweep) && /from\("query_responses"\)/.test(sweep));
 ck('an item with NO kind never matches (silence beats a guess)',
-   /if \(!kind\) \{ why\.no_kind\+\+; continue; \}/.test(sweep));
+   /if \(!kind\) \{ why\.no_kind\+\+;[\s\S]{0,60}continue; \}/.test(sweep));
 ck('you are never suggested your own item',
    /if \(ci\.owner_id === c\.contributor_user\) \{ why\.own_item\+\+; continue; \}/.test(sweep));
 ck('an item already in your library is not suggested',

@@ -46,6 +46,13 @@ Deno.serve(async (req) => {
 
   const admin = adminClient();
   const started = new Date().toISOString();
+  // DEBUG: pass { debug_name: "Jackson" } to have the sweep report exactly what
+  // it loaded and decided for that one item. Added after four wrong theories
+  // about why a visibly-matching item produced nothing: reasoning about what
+  // the code SHOULD do is not the same as making it show what it HAS.
+  let dbgName = "";
+  try { const b = await req.json(); dbgName = String(b?.debug_name ?? ""); } catch (_) { /* no body */ }
+  const dbg: Record<string, unknown> = {};
 
   // ── 1. what has appeared since last time ─────────────────────────────────
   const { data: state } = await admin
@@ -124,8 +131,20 @@ Deno.serve(async (req) => {
   const rows: Record<string, unknown>[] = [];
 
   for (const c of contributions) {
+    const isDbg = dbgName && (nameOf[c.canonical_id] ?? "").toLowerCase().includes(dbgName.toLowerCase());
+    if (isDbg) {
+      dbg.found_contribution = true;
+      dbg.canonical_id = c.canonical_id;
+      dbg.name = nameOf[c.canonical_id];
+      dbg.kind = kindOf[c.canonical_id];
+      dbg.contributor_user = c.contributor_user;
+      dbg.via = c.via;
+      dbg.interests_loaded = interests.length;
+      dbg.members_loaded = (members ?? []).length;
+      dbg.per_interest = [];
+    }
     const kind = kindOf[c.canonical_id];
-    if (!kind) { why.no_kind++; continue; }       // no kind -> never matches. Silence beats a guess.
+    if (!kind) { why.no_kind++; if (isDbg) dbg.stopped_at = "no_kind"; continue; }
     const builtIn = interestsForKind(kind);
 
     for (const ci of interests) {
@@ -134,12 +153,18 @@ Deno.serve(async (req) => {
         x.circle_id === ci.circle_id &&
         ((c.contributor_user && x.linked_user_id === c.contributor_user) ||
          (c.contributor_member && x.id === c.contributor_member)));
+      const hit0 = ci.is_custom ? customMatches(kind, ci.terms ?? []) : builtIn.includes(ci.interest);
+      if (isDbg) {
+        (dbg.per_interest as unknown[]).push({
+          circle: ci.circle_id, owner: ci.owner_id, interest: ci.interest,
+          member_found: !!m, is_own: ci.owner_id === c.contributor_user,
+          interest_hit: hit0, built_in_gives: builtIn,
+        });
+      }
       if (!m) { why.not_a_member++; continue; }
       if (ci.owner_id === c.contributor_user) { why.own_item++; continue; }   // never suggest your own item back
 
-      const hit = ci.is_custom
-        ? customMatches(kind, ci.terms ?? [])
-        : builtIn.includes(ci.interest);
+      const hit = hit0;
       if (!hit) { why.no_interest_match++; continue; }
 
       rows.push({
@@ -167,7 +192,15 @@ Deno.serve(async (req) => {
     // Already in their library? Then it is not a suggestion.
     const { data: has } = await admin.from("recommendations")
       .select("id").eq("owner_id", r.user_id).eq("canonical_id", r.canonical_id).limit(1);
-    if (has?.length) { why.already_in_library++; continue; }
+    if (has?.length) {
+      why.already_in_library++;
+      if (dbgName && String(r.canonical_id) === String(dbg.canonical_id)) {
+        dbg.stopped_at = "already_in_library";
+        dbg.library_owner_checked = r.user_id;
+      }
+      continue;
+    }
+    if (dbgName && String(r.canonical_id) === String(dbg.canonical_id)) dbg.reached_insert = true;
     // onConflict does nothing: a dismissal must STAY dismissed.
     const { error } = await admin.from("suggestions").insert(r);
     if (error) {
@@ -180,5 +213,6 @@ Deno.serve(async (req) => {
 
   await admin.from("sweep_state").update({ last_at: started }).eq("name", "suggestions");
   return json({ engine: ENGINE, scanned: contributions.length, created,
-                candidates: Object.keys(merged).length, why, errors });
+                candidates: Object.keys(merged).length, why, errors,
+                debug: dbgName ? dbg : undefined });
 });
