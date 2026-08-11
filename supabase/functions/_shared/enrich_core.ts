@@ -74,6 +74,23 @@ export function buildSearchDoc(e: {
 // secret. Kept as a SEPARATE call from aiEnrich so the enrichment call keeps
 // temperature:0 and response_format:json_object, which the search-preview
 // models restrict.
+// ═══ WHAT AN ENRICHMENT WRITES (v0.59.0) ════════════════════════════════════
+// ONE definition of the columns an enrichment sets, so the librarian and
+// receive-response cannot drift. Pure — it takes the result and returns the
+// patch; the caller does the write. Duplicating this was how `kind` came to be
+// persisted on one path and not another.
+export function enrichmentPatch(e: Enriched, vec: number[] | null): Record<string, unknown> {
+  const patch: Record<string, unknown> = {
+    name: e.name, location: e.location, primary_category: e.category, ai_tags: e.tags,
+    kind: e.kind || null,
+    search_doc: e.search_doc, search_doc_at: new Date().toISOString(),
+    class_source: "ai", classified_at: new Date().toISOString(),
+    verified: e.resolved === true,
+  };
+  if (vec) patch.embedding = vec;
+  return patch;
+}
+
 // ═══ THE INTEREST VOCABULARY (v0.48.0) ══════════════════════════════════════
 // Shared-interest suggestions need ONE comparable value on both sides: what X's
 // item IS, and what my circle is ABOUT. The enricher's `kind` is precise —

@@ -46,10 +46,14 @@ ck('resolvePlace is retained for venues', /export async function resolvePlace/.t
 ck('either source counts as grounding', /let resolved = !!evidence;/.test(core));
 
 // PERSISTENCE: the signal used to be computed and thrown away.
-ck('grounding is written to canonicals.verified on commit',
-   (lib.match(/verified: e\.resolved === true/g) || []).length >= 1);
-ck('...and on backfill too, so repairs do not silently unverify',
-   (lib.match(/verified: e\.resolved === true/g) || []).length === 2,
-   (lib.match(/verified: e\.resolved === true/g) || []).length + ' writes');
+// v0.59.0: the columns moved into enrichmentPatch() in the shared core, so
+// commit, backfill AND receive-response cannot drift. These checks now follow
+// the value to where it is actually defined.
+const coreSrc2 = fs.readFileSync('/home/claude/fx-out/supabase/functions/_shared/enrich_core.ts', 'utf8');
+ck('grounding is written to canonicals.verified by the shared patch',
+   /verified: e\.resolved === true/.test(coreSrc2));
+ck('...and every enrichment path uses that one builder',
+   (lib.match(/enrichmentPatch\(e, vec\)/g) || []).length === 2,
+   (lib.match(/enrichmentPatch\(e, vec\)/g) || []).length + ' librarian uses');
 
 console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');

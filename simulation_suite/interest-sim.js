@@ -19,10 +19,15 @@ const ck = (n, c, x) => { if (c) { pass++; console.log('  ✓', n); } else { fai
 
 // ── kind must be PERSISTED — the enabling change ────────────────────────────
 ck('canonicals.kind column is added', /add column if not exists kind text/.test(mig));
-ck('the librarian writes kind on COMMIT', (lib.match(/kind: e\.kind \|\| null/g) || []).length >= 1);
-ck('...and on BACKFILL too (repairs must not blank it)',
-   (lib.match(/kind: e\.kind \|\| null/g) || []).length === 2,
-   (lib.match(/kind: e\.kind \|\| null/g) || []).length + ' writes');
+// v0.59.0: `kind` moved into enrichmentPatch() in the shared core. It was
+// persisted on one path and not another once before, which is exactly why the
+// columns now live in ONE builder that commit, backfill and receive-response
+// all call.
+const coreForKind = fs.readFileSync('/home/claude/fx-out/supabase/functions/_shared/enrich_core.ts', 'utf8');
+ck('kind is written by the shared patch', /kind: e\.kind \|\| null/.test(coreForKind));
+ck('...and both librarian paths use that builder',
+   (lib.match(/enrichmentPatch\(e, vec\)/g) || []).length === 2,
+   (lib.match(/enrichmentPatch\(e, vec\)/g) || []).length + ' uses');
 
 // ── the answer dialog gets its own opt-out ──────────────────────────────────
 ck('query_responses gains shared_to_network',

@@ -4,6 +4,7 @@
 // No JWT required — the single-use response_token is the credential.
 // ============================================================================
 import { adminClient, json, err, handleOptions } from "../_shared/utils.ts";
+import { enrichOne, embed, enrichmentPatch } from "../_shared/enrich_core.ts";
 
 interface Body {
   token: string;
@@ -79,6 +80,47 @@ Deno.serve(async (req) => {
     // they were wired up.
     shared_to_network: body.shared_to_network !== false,
   }).eq("response_token", body.token);
+
+  // ── ENRICH THE ANSWER (v0.59.0) ───────────────────────────────────────────
+  // WHY THIS EXISTS: an answer became a canonical here and was NEVER enriched.
+  // No kind, no tags, no search document. Consequences, both real:
+  //   * the shared-interest sweep skips it — `if (!kind) continue` — so 61 of
+  //     dan's 114 contributions could never match anyone's interest. Answers
+  //     are the richest content in Trustnet and were the one shape that could
+  //     not spread.
+  //   * it is invisible to library search until someone explicitly saves it.
+  //
+  // ORDER MATTERS: the answer row is ALREADY WRITTEN above. The responder is a
+  // person with no app, mid-flow, and losing their reply because a web lookup
+  // timed out would be far worse than an unenriched canonical. Enrichment is
+  // best-effort and cannot fail the response.
+  //
+  // The question text goes in, so "asked: good resort for a family week in
+  // France" lands in the search document — the question is evidence, the circle
+  // is not (product law, v0.37.0).
+  if (canonicalId) {
+    try {
+      const key = Deno.env.get("OPENAI_API_KEY");
+      const { data: existing } = await admin
+        .from("canonicals").select("kind, search_doc").eq("id", canonicalId).single();
+      // Only enrich what needs it: a matched canonical is usually already done.
+      if (key && (!existing?.kind || !existing?.search_doc)) {
+        const e = await enrichOne(key, {
+          name: body.rec_name.trim(),
+          note: body.rec_note?.trim() ?? "",
+          location: body.rec_location?.trim() ?? "",
+          query_text: query?.text ?? "",
+        });
+        const vec = await embed(key, e.search_doc);
+        const { error: upErr } = await admin.from("canonicals")
+          .update(enrichmentPatch(e, vec)).eq("id", canonicalId);
+        if (upErr) console.error("answer enrichment write failed:", upErr.message);
+      }
+    } catch (e) {
+      // Logged, never thrown: the answer is already safe and must stay so.
+      console.error("answer enrichment failed (response already saved):", String(e).slice(0, 200));
+    }
+  }
 
   // 6. Notify the querying user (in-app) — real-time subscription also fires
   if (query) {

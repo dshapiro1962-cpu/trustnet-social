@@ -1598,3 +1598,43 @@ makes three checks fail. Suites 43, checks 943.
   content in the product can never match an interest. Design gap, not a bug.
 - E2E (Playwright) has failed on the last two pushes while function deploys pass.
   Unexamined.
+
+# ═══ 11 AUG 2026 — v0.59.0 · ANSWERS ARE ENRICHED TOO ═══
+
+## THE GAP
+receive-response created a canonical for every answer via match_canonical and
+NEVER enriched it — no kind, no tags, no search document. Two real consequences
+in dan's data:
+  * the sweep skips anything without a kind, so 61 OF HIS 114 CONTRIBUTIONS
+    could never match anyone's interest. Answers are the RICHEST content in
+    Trustnet and were the ONE SHAPE THAT COULD NOT SPREAD.
+  * the item stayed invisible to library search until someone explicitly saved
+    it — which is why dan's own library searched well while this did not.
+
+## AS BUILT
+Enrichment now runs in receive-response AFTER the answer row is written. ORDER
+IS THE DESIGN: the responder is a person with NO APP, mid-flow, and losing their
+reply because a web lookup timed out would be far worse than an unenriched
+canonical. The enrichment is wrapped so it cannot fail the response; a failed
+write is logged, never swallowed. Only canonicals lacking a kind or search_doc
+are worked on, so a matched (already enriched) one costs nothing.
+The QUESTION TEXT goes in, so "asked: good resort for a family week in France"
+lands in the search document — the question is evidence, the circle is not.
+
+## AND ONE DEFINITION OF WHAT AN ENRICHMENT WRITES
+Adding a third writer would have been a third hand-written column list, and
+`kind` was ALREADY persisted on one path and not another once (v0.48.0).
+enrichmentPatch(e, vec) now lives in _shared/enrich_core.ts and is used by
+librarian COMMIT, librarian BACKFILL and receive-response. No path spells the
+columns out by hand any more.
+
+## TESTS
+answers-sim (20 checks) incl. ordering, failure isolation, and that the patch is
+defined exactly once. Negative tests proven: moving enrichment before the save
+fails; letting the backfill drift from the shared builder fails.
+grounding-sim and interest-sim updated to follow the columns into the shared
+builder rather than asserting the old inline spellings.
+Suites 44, checks 954.
+
+## COST: one enrichment (web grounding + embedding) per NEW answer. Previously
+zero, which is why answers were free and useless.

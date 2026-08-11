@@ -19,7 +19,7 @@
 // ============================================================================
 import { adminClient, getUserId, json, err, handleOptions } from "../_shared/utils.ts";
 
-import { norm, enrichOne, embed } from "../_shared/enrich_core.ts";
+import { norm, enrichOne, embed, enrichmentPatch } from "../_shared/enrich_core.ts";
 
 const ENGINE = "librarian-v1";
 
@@ -123,13 +123,7 @@ Deno.serve(async (req: Request) => {
         query_text: (r as any).query_id ? (qText[(r as any).query_id] || "") : "",
       });
       const vec = await embed(key, e.search_doc);
-      const patch: Record<string, unknown> = {
-        name: e.name, location: e.location, primary_category: e.category,
-        ai_tags: e.tags, search_doc: e.search_doc, search_doc_at: new Date().toISOString(),
-        verified: e.resolved === true,   // v0.42.0 — same grounding flag as commit
-        kind: e.kind || null,            // v0.48.0 — backfill must persist it too
-      };
-      if (vec) patch.embedding = vec;
+      const patch = enrichmentPatch(e, vec);   // same builder as commit
       const { error } = await admin.from("canonicals").update(patch).eq("id", cn.id);
       if (!error) {
         repaired++;
@@ -168,23 +162,12 @@ Deno.serve(async (req: Request) => {
 
   if (mode === "commit" && body.canonical_id) {
     const vec = await embed(key, e.search_doc);
-    const patch: Record<string, unknown> = {
-      name: e.name, location: e.location, primary_category: e.category, ai_tags: e.tags,
-      // v0.48.0: PERSIST kind. It has always been produced — "novel",
-      // "children's book", "ski resort" — written into search_doc as text and
-      // stored in no column. It is the only signal precise enough to tell a
-      // book from a museum; primary_category puts both in 'culture'.
-      kind: e.kind || null,
-      search_doc: e.search_doc, search_doc_at: new Date().toISOString(),
-      class_source: "ai", classified_at: new Date().toISOString(),
-      // v0.42.0: PERSIST the grounding. enrichOne has always computed whether a
-      // real source (web search or Google Places) confirmed this entity exists,
-      // and the value was thrown away — so a confirmed restaurant and an
-      // invented occupation looked identical downstream. canonicals.verified
-      // has existed unused since 0001. Now it means something.
-      verified: e.resolved === true,
-    };
-    if (vec) patch.embedding = vec;
+    // ONE definition of what an enrichment writes (enrichmentPatch, v0.59.0).
+    // It used to be spelled out here AND in the backfill below, and when
+    // receive-response started enriching answers that would have been a THIRD
+    // copy. `kind` was already persisted on one path and not another once
+    // before; a shared builder makes that impossible.
+    const patch = enrichmentPatch(e, vec);
     const { error } = await admin.from("canonicals").update(patch).eq("id", body.canonical_id as string);
     if (error) return err("commit_failed: " + error.message, 500);
   }
