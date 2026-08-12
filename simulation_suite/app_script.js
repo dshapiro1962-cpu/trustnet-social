@@ -271,7 +271,7 @@ async function loadUserData() {
     // `canonicalById(...)` and returned '' when it found nothing, so a correct
     // row rendered as an empty string. Silently, again.
     const sg = await sb.from('suggestions')
-      .select('id, canonical_id, from_person_id, via, source_note, matched_circles, matched_interest, status, canonicals(name, kind, location, image_emoji, primary_category)')
+      .select('id, canonical_id, from_person_id, via, source_note, matched_circles, matched_interest, status, canonicals(name, kind, location, image_emoji, primary_category, website_url, google_url, image_url, search_doc)')
       .eq('status', 'pending').order('created_at', { ascending: false });
     if (sg.error) console.error('suggestions load failed:', sg.error);
     AppState.suggestions = sg.data || [];
@@ -486,7 +486,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.59.0 · live';
+const APP_VERSION = 'v0.60.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -1581,8 +1581,13 @@ function suggestionCardHtml(sg) {
       + '<button class="btn btn-ghost btn-sm" data-action="dismiss-suggestion" data-sg-id="'
       + esc(sg.id) + '">Dismiss</button></div>';
   }
+  // NAMING THE SENDER IS NOT OPTIONAL — dan, categorically: it is the entire
+  // value of the recommendation. The card fell back to "Someone in your
+  // circles" whenever from_person_id was null, which was ALWAYS for direct
+  // sends because that producer never set it (fixed in 0031). A fallback that
+  // reads plausibly is how a broken producer stays hidden.
   const person = (AppState.people || []).find(function(p) { return p.id === sg.from_person_id; });
-  const who = person ? person.name : 'Someone in your circles';
+  const who = person ? person.name : null;
   const circles = (sg.matched_circles || [])
     .map(function(id) { const c = AppState.circleById(id); return c ? c.name : null; })
     .filter(Boolean);
@@ -1601,10 +1606,24 @@ function suggestionCardHtml(sg) {
     + (can.kind ? '<div style="font-size:11.5px;color:#56695F;margin-top:2px;" dir="auto">' + esc(can.kind) + '</div>' : '')
     + (sg.source_note ? '<div style="font-size:12px;color:#0D2B1F;margin-top:6px;line-height:1.45;" dir="auto">'
         + esc(sg.source_note) + '</div>' : '')
+    // THE LINK MUST TRAVEL. dan sent an item saved via the fetch feature — it
+    // had a URL, a description and an image — and the card showed only a name,
+    // so the recipient could not reach the thing being recommended.
+    + ((can.website_url || can.google_url)
+        ? '<div style="margin-top:8px;"><a href="' + esc(can.website_url || can.google_url) + '"'
+          + ' target="tn_ext" rel="noopener" style="font-size:11.5px;color:#1E6B42;word-break:break-all;">'
+          + esc(String(can.website_url || can.google_url).replace(/^https?:\/\//, '').slice(0, 48)) + '</a></div>'
+        : '')
     + '<div style="font-size:11px;color:#56695F;margin-top:8px;line-height:1.5;" dir="auto">'
-    + esc(who) + ' ' + verb + '. '
-    + (circles.length ? 'You share ' + esc(circles.join(' and ')) + ', which ' + (circles.length > 1 ? 'are' : 'is')
-        + ' about ' + esc(label) + '.' : 'It matches ' + esc(label) + '.')
+    + (who
+        ? esc(who) + ' ' + verb + '. '
+          + (circles.length
+              ? 'You share ' + esc(circles.join(' and '))
+                + (label ? ', which ' + (circles.length > 1 ? 'are' : 'is') + ' about ' + esc(label) : '') + '.'
+              : (label ? 'It matches ' + esc(label) + '.' : ''))
+        // Visible, not plausible. "It matches ." with its dangling stop was the
+        // same fault: a template assuming a value the producer never supplied.
+        : '<span style="color:#B4553F;">This arrived without a sender \u2014 please report it.</span>')
     + '</div>'
     + '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">'
     + '<button class="btn btn-primary btn-sm" data-action="accept-suggestion" data-sg-id="' + esc(sg.id) + '">Add to my library</button>'
@@ -2368,26 +2387,41 @@ async function handleAddPickedMembers(btn) {
   const initials = function(str) { return (str || '').split(' ').map(function(w) { return w[0] || ''; }).join('').slice(0, 2).toUpperCase(); };
   const palette = ['#217A4B', '#1A6FA8', '#C0392B', '#E8A020', '#8B2FC9', '#2D6A8A'];
   let added = 0;
+  // Never drop someone silently: the old code returned early on a bad row and
+  // reported only how many succeeded.
+  const skippedAdds = [];
   document.querySelectorAll('.pc-cb').forEach(function(cb) {
     if (!cb.checked) return;
     const nm = cb.dataset.name || ''; const tel = cb.dataset.tel || '';
     if (!nm || !tel) return;
     const dup = AppState.userMembers.find(function(m) { return m.circleId === circleId && m.contactValue === tel; });
     if (dup) return;
-    const m = { id: uid(), name: nm, avatar: initials(nm),
-      avatarColor: palette[Math.floor(Math.random() * palette.length)],
-      isExternalSource: false, trustBasis: '', contactMethod: 'whatsapp',
-      contactValue: tel, responseRate: 'high', circleId: circleId,
-      addedAt: new Date().toISOString() };
+    // Through the constructor: it normalises the number to E.164 and rejects
+    // anything that is not a phone, rather than storing whatever the contact
+    // picker handed over.
+    const builtP = buildMember({
+      name: nm, circleId: circleId,
+      contactMethod: 'whatsapp', contactValue: tel, responseRate: 'high',
+    });
+    if (!builtP.ok) { skippedAdds.push(nm + ' \u2014 ' + builtP.detail); return; }
+    const m = builtP.member;
     AppState.userMembers.push(m);
     if (circle) { if (!circle.memberIds) circle.memberIds = []; circle.memberIds.push(m.id); }
     added++;
   });
-  if (!added) { toast('Nobody selected (or all already in the circle).', 'warn'); return; }
+  if (!added) {
+    // Say WHY. "Nobody selected" was shown even when every selected contact had
+    // been rejected for a fixable reason.
+    toast(skippedAdds.length
+      ? "Couldn't add: " + skippedAdds.join('; ')
+      : 'Nobody selected (or all already in the circle).', 'warn');
+    return;
+  }
   btn.disabled = true;
   await saveCircles();
   await saveMembers();
   toast('Added ' + added + ' member' + (added !== 1 ? 's' : '') + ' via WhatsApp.');
+  if (skippedAdds.length) toast("Couldn't add: " + skippedAdds.join('; '), 'warn');
   closeModal();
   renderApp();
 }
@@ -4805,20 +4839,52 @@ async function handleAddExistingPerson(btn) {
   const circleId = body ? body.dataset.circleId : '';
   if (!personId || !circleId) return;
   btn.disabled = true;
+  const originalLabel = btn.textContent;
   try {
-    const r = await sb.from('members').insert({
-      person_id: personId, circle_id: circleId,
-      owner_id: AppState.userProfile.id,
-      name: (btn.querySelector('span') || {}).textContent || 'Member',
-      response_rate: 'unknown'
-    }).select('*').single();
-    if (r.error) throw new Error(r.error.message);
+    // THE FIX FOR "unsupported_channel". This path used to insert person +
+    // circle + name and NOTHING ELSE, so the member had no way to be reached
+    // and every send feature failed on them later with an error the user could
+    // not act on. The person ALREADY HAS contacts — person_contacts, built in
+    // v0.43.0 — they were simply never carried across.
+    const pc = await sb.from('person_contacts')
+      .select('method, value').eq('person_id', personId);
+    if (pc.error) throw new Error(pc.error.message);
+    const person = await sb.from('people')
+      .select('name, linked_user_id, avatar, avatar_color').eq('id', personId).single();
+    if (person.error) throw new Error(person.error.message);
+    const contacts = pc.data || [];
+    if (!contacts.length) {
+      // Refuse rather than create an unreachable member. The old code created
+      // it happily and the failure surfaced much later, somewhere else.
+      btn.disabled = false; btn.textContent = originalLabel;
+      toast(person.data.name + ' has no contact details yet \u2014 add one to their profile first.', 'warn');
+      return;
+    }
+    const pick = contacts.find(function(c) { return c.method === 'whatsapp'; })
+              || contacts.find(function(c) { return c.method === 'email'; })
+              || contacts[0];
+    const built = buildMember({
+      circleId: circleId, name: person.data.name,
+      personId: personId, linkedUserId: person.data.linked_user_id || null,
+      contactMethod: pick.method, contactValue: pick.value,
+      avatar: person.data.avatar, avatarColor: person.data.avatar_color,
+      trustBasis: 'Added from your people',
+    });
+    if (!built.ok) throw new Error(built.detail || built.error);
+    AppState.userMembers.push(built.member);
+    const circle = AppState.circleById(circleId);
+    if (circle) {
+      circle.memberIds = circle.memberIds || [];
+      circle.memberIds.push(built.member.id);
+      await saveCircles();
+    }
+    await saveMembers();
     await loadUserData();
     closeModal();
     renderApp();
     toast('Added to this circle.');
   } catch (e) {
-    btn.disabled = false;
+    btn.disabled = false; btn.textContent = originalLabel;
     // Surfaced, never swallowed.
     toast('Could not add them: ' + (e.message || 'unknown error'), 'warn');
     console.error('handleAddExistingPerson failed:', e);
@@ -4901,12 +4967,26 @@ async function handleAcceptSuggestion(btn) {
       if (!idx || idx < 1 || idx > names.length) { btn.disabled = false; return; }
       circleId = sg.matched_circles[idx - 1];
     }
+    const sgSender = (AppState.people || []).find(function(p) { return p.id === sg.from_person_id; });
     const ins = await sb.from('recommendations').insert({
       owner_id: CURRENT_UID, canonical_id: sg.canonical_id, circle_id: circleId,
       note: sg.source_note || '', status: 'saved', rec_date: new Date().toISOString().slice(0, 10),
-      source_label: 'suggested by someone in your circle',
+      // SEAM AUDIT, FINDING B1: this path set no sharing flag and ran no
+      // enrichment. Two silent consequences:
+      //   * shared_to_network fell to the column default, so the user's own
+      //     preference was ignored on THIS path alone;
+      //   * an item accepted from a suggestion could never be suggested onward
+      //     — the feature could not propagate its own output.
+      source_label: sgSender ? ('suggested by ' + sgSender.name) : 'suggested by someone in your circles',
+      recommended_by_user_id: sg.from_user_id || null,
+      shared_to_network: shareDefault(),
     });
     if (ins.error) throw new Error(ins.error.message);
+    // An unenriched canonical is invisible to search AND can never match
+    // anyone's interest, so accepting it would otherwise be a dead end.
+    if (!(sg.canonicals && sg.canonicals.search_doc)) {
+      librarianCommit(sg.canonical_id, { note: sg.source_note || '' });
+    }
     const up = await sb.from('suggestions')
       .update({ status: 'accepted', decided_at: new Date().toISOString() }).eq('id', id);
     if (up.error) throw new Error(up.error.message);
@@ -4975,6 +5055,81 @@ async function handleAddCustomInterest(btn) {
   }
 }
 
+// ═══ ONE CONSTRUCTOR FOR MEMBERS (v0.60.0) ══════════════════════════════════
+// THE SEAM AUDIT FOUND FIVE PRODUCERS OF MEMBER ROWS, EACH SETTING A DIFFERENT
+// SUBSET. The worst — handleAddExistingPerson, written in v0.45.0 so picking
+// someone from search needs no form — set ONLY name and circle. No contact
+// method, no contact value. send-query, send-collection and resend-member all
+// dispatch on contact_method, so every member added that way was UNREACHABLE BY
+// EVERY FEATURE: "Error: unsupported_channel".
+// Also found: personId set by ONE of five, linkedUserId by ONE of five, and a
+// member in production whose NAME is an email address — a producer that wrote
+// the contact into the wrong field and validated nothing.
+//
+// buildMember REFUSES to return an incomplete row, because the checks live here
+// rather than in each caller's good intentions. Fixing five callers would have
+// left a sixth free to omit something new.
+// Returns { ok:true, member } or { ok:false, error, detail } — never a
+// half-built row, never a silent null.
+function buildMember(input) {
+  const name = String(input.name || '').trim();
+  const circleId = input.circleId;
+  if (!circleId) return { ok: false, error: 'no_circle', detail: 'A member must belong to a circle.' };
+  if (!name) return { ok: false, error: 'no_name', detail: 'A member needs a name.' };
+  // A NAME THAT IS A CONTACT means the caller filled the wrong field. Found in
+  // production: a member named "dshapiro3012@gmail.com" with no contact at all.
+  if (name.indexOf('@') >= 0 || /^[+\d][\d\s\-()]{7,}$/.test(name)) {
+    return { ok: false, error: 'name_is_contact',
+             detail: 'That looks like a contact, not a name. Put the address in the contact field.' };
+  }
+  const external = !!input.isExternalSource;
+  let method = input.contactMethod || null;
+  let value = String(input.contactValue || '').trim();
+  // An EXTERNAL SOURCE (a critic, a publication) legitimately has no contact —
+  // you do not message a newspaper. Everyone else must be reachable, or every
+  // send feature fails on them later with a message the user cannot act on.
+  if (!external) {
+    if (!method || method === 'app') {
+      return { ok: false, error: 'no_contact_method',
+               detail: 'Choose how to reach ' + name + ' \u2014 WhatsApp, email or LinkedIn.' };
+    }
+    if (!value) {
+      return { ok: false, error: 'no_contact_value',
+               detail: 'Add ' + name + "'s " + (method === 'whatsapp' ? 'number' : method) + '.' };
+    }
+    if (method === 'email' && value.indexOf('@') < 0) {
+      return { ok: false, error: 'bad_email', detail: 'That does not look like an email address.' };
+    }
+    if (method === 'whatsapp') {
+      const e164 = normalizeIlPhone(value);
+      if (!e164) return { ok: false, error: 'bad_phone', detail: 'That does not look like a phone number.' };
+      value = e164;
+    }
+  }
+  const palette = ['#217A4B','#1A6FA8','#C0392B','#E8A020','#8B2FC9','#2D6A8A'];
+  const inits = name.split(' ').map(function(w) { return w[0] || ''; }).join('').slice(0, 2).toUpperCase();
+  return { ok: true, member: {
+    id: input.id || uid(),
+    circleId: circleId, name: name,
+    // personId and linkedUserId were each set by ONE of five producers, so most
+    // rows sat OUTSIDE the person model — and suggest-sweep matches
+    // contributors on linked_user_id, so those members could never receive a
+    // suggestion at all.
+    personId: input.personId || null,
+    linkedUserId: input.linkedUserId || null,
+    contactMethod: external ? (method || 'source') : method,
+    contactValue: value || null,
+    isExternalSource: external,
+    sourceType: input.sourceType || null,
+    sourceUrl: input.sourceUrl || null,
+    trustBasis: input.trustBasis || '',
+    avatar: input.avatar || inits,
+    avatarColor: input.avatarColor || palette[Math.floor(Math.random() * palette.length)],
+    responseRate: input.responseRate || 'unknown',
+    addedAt: input.addedAt || new Date().toISOString(),
+  } };
+}
+
 async function handleSetInterests(cid, interests, source) {
   if (!cid || AppState.isDemoMode) return;
   try {
@@ -5033,14 +5188,13 @@ async function handleSaveMember() {
     const srcTrust= (document.getElementById('nm-srctrust') || {}).value.trim();
     if (!srcName) { toast('Please enter a source name.', 'warn'); return; }
 
-    newMember = {
-      id: uid(), name: srcName,
-      avatar: initials(srcName), avatarColor: '#56695F',
-      isExternalSource: true, sourceType: srcType,
-      sourceUrl: srcUrl, trustBasis: srcTrust,
-      contactMethod: 'source', responseRate: 'high',
-      circleId: circleId, addedAt: new Date().toISOString()
-    };
+    const builtS = buildMember({
+      name: srcName, circleId: circleId,
+      isExternalSource: true, sourceType: srcType, sourceUrl: srcUrl,
+      trustBasis: srcTrust, avatarColor: '#56695F', responseRate: 'high',
+    });
+    if (!builtS.ok) { toast(builtS.detail, 'warn'); return; }
+    newMember = builtS.member;
     if (!editId) toast('"' + srcName + '" added as an external source.');
   } else {
     let name  = (document.getElementById('nm-name') || {}).value.trim();
@@ -5134,13 +5288,17 @@ async function handleSaveMember() {
       }
       if (resolved.on_trustnet) reuseLinked = true;
     }
-    newMember = {
-      id: uid(), name: name,
-      avatar: initials(name), avatarColor: color,
-      isExternalSource: false,
-      trustBasis: trust, contactMethod: method, contactValue: contact || null, responseRate: rate,
-      circleId: circleId, addedAt: new Date().toISOString()
-    };
+    // The constructor validates: no contactless member, no contact in the name
+    // field, phone numbers normalised. It REFUSES rather than producing a row
+    // every send feature will later fail on.
+    const builtM = buildMember({
+      name: name, circleId: circleId, trustBasis: trust,
+      contactMethod: method, contactValue: contact, responseRate: rate,
+      avatarColor: color,
+      linkedUserId: reuseLinked || null, personId: existingPersonId || null,
+    });
+    if (!builtM.ok) { toast(builtM.detail, 'warn'); return; }
+    newMember = builtM.member;
     if (reuseLinked) newMember.linkedUserId = reuseLinked;
     // Carry the resolved person through, so this membership joins the EXISTING
     // person rather than minting a new one (0022). Without this the schema is
@@ -5566,13 +5724,17 @@ async function handleConfirmAddReciprocal(recipId, circleChoice) {
   }
   if (!circle) { toast('Please choose a circle.', 'warn'); return; }
 
-  var newMember = {
-    id: uid(), name: recip.name,
+  // Through the constructor like everything else. This used contactMethod:'app'
+  // with NO value — the contactless option removed from the picker in v0.45.0
+  // precisely because it produces members nothing can reach.
+  const builtR = buildMember({
+    name: recip.name, circleId: circle.id,
     avatar: recip.avatar, avatarColor: recip.avatarColor,
-    isExternalSource: false,
-    trustBasis: recip.trustBasis, contactMethod: 'app', responseRate: 'high',
-    circleId: circle.id, addedAt: new Date().toISOString()
-  };
+    trustBasis: recip.trustBasis, responseRate: 'high',
+    isExternalSource: true, sourceType: 'demo',
+  });
+  if (!builtR.ok) { toast(builtR.detail, 'warn'); return; }
+  var newMember = builtR.member;
   AppState.userMembers.push(newMember);
   if (!circle.memberIds) circle.memberIds = [];
   circle.memberIds.push(newMember.id);

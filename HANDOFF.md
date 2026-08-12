@@ -1638,3 +1638,74 @@ Suites 44, checks 954.
 
 ## COST: one enrichment (web grounding + embedding) per NEW answer. Previously
 zero, which is why answers were free and useless.
+
+# ═══ 11 AUG 2026 — v0.60.0 · THE SEAM AUDIT, AND ITS FIX ═══
+
+dan, after four failures in one screenshot: "how are these structural faults
+still occurring at this stage... it's as if we are at the early stages of the
+design, and you were urging me to start a beta." Both halves fair. I withdrew
+the beta push: runs A and B would not have found any of them, and I had been
+building features onto seams I had never examined.
+
+## THE AUDIT (seam_audit.md) — 13 findings, THREE structural faults
+1. NO SINGLE WRITER PER ENTITY. Five producers of member rows, four of
+   recommendations, two of suggestions — each setting a different subset.
+2. CONSUMERS ASSUME COMPLETENESS AND DEGRADE SILENTLY. Null contact ->
+   undeliverable; null person -> "Someone"; null interest -> "It matches .";
+   null circles -> unfiled. None of them says anything is wrong.
+3. THE PERSON MODEL IS OPTIONAL. Built in v0.43.0, populated by ONE of five
+   producers.
+(A fourth emerged from dan's data: producers that do not VALIDATE — a member in
+production whose NAME is an email address.)
+
+SCOPE, honestly: dan asked for "every combination of every feature". That is not
+achievable — ~20 features runs to millions of combinations, and claiming to have
+tested them would be the same overreach as "954 checks" implying safety. What
+IS achievable, and is where every bug lives: EVERY PRODUCER × EVERY CONSUMER, ON
+EVERY FIELD THAT CROSSES BETWEEN THEM.
+
+## THE FIX — constructors that REFUSE, not patches
+buildMember() is the single writer. It cannot be called in a way that produces
+an unreachable member: no contact method, no value, a bad phone, a bad email, or
+a NAME that is a contact — each is refused with a message the user can act on.
+External sources are exempt (you do not message a newspaper). All FIVE producers
+route through it. Fixing five callers would have left a sixth free to omit
+something new.
+0031 makes the DIRECT send resolve the sender to one of the RECIPIENT'S people
+and record the circles they share, so the card has something true to say —
+verified live: named_sender true, shared_circles 1, sender_name "Dan".
+The separate rec_shared NOTIFICATION IS GONE: it was a second Inbox entry with
+strictly less information than the card it duplicated.
+The card no longer invents "Someone in your circles"; if the sender cannot be
+resolved it SAYS SO in red. The item's LINK now travels (dan sent a fetched item
+and only its name arrived). Accepting now applies the user's sharing preference,
+enriches an unenriched item, and records who suggested it — previously an
+accepted item could never be suggested onward.
+
+## E2 WAS NOT A BUG — I WAS WRONG
+I called it "CRITICAL: reported success over a failed operation". The database
+said send_status 'sent', send_error null, at the exact minute; Resend's dashboard
+says delivered. The code was honest and the email arrived. I pattern-matched to
+the week's other silent failures instead of checking. 13 findings, not 14.
+
+## I DELETED SIX FUNCTIONS MID-FIX
+A python edit using s.index(A) to s.index(B) cut out everything between —
+buildMember, handleAcceptSuggestion, handleDismissSuggestion, handleSendRecInApp,
+handleAddCustomInterest, handleSetInterests. `node --check` PASSED, because
+deleting whole functions is syntactically valid. Restored from the v0.59.0
+package and redone with bounded str_replace.
+NEW GUARD (/tmp/guard.sh, run before every package): counts functions and
+asserts 13 key ones by name. A syntax check is not a completeness check.
+
+## TESTS
+seam-sim (32 checks) EXECUTES buildMember across every input shape, including
+five that would each have produced an unreachable member. Negative tests proven
+— and the FIRST version of one passed spuriously because it asserted an error
+STRING while a different branch still returned one; it now asserts the OUTCOME
+(no unreachable row from any input). Suites 45, checks 987.
+
+## STILL OPEN
+- 33 unchecked query errors across 15 edge functions (E1).
+- notifications has 8 producers and no shared builder (E3).
+- The real end-to-end test dan asked for: add member -> send query -> answer ->
+  save -> suggest -> accept, crossing the seams rather than testing inside them.

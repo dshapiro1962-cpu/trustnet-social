@@ -341,8 +341,13 @@ ck('RENDER: the section is not empty', S.suggestionsSectionHtml().indexOf('FROM 
 const broken = S.suggestionCardHtml({ id:'s2', canonical_id:'gone', matched_circles:[], status:'pending' });
 ck('RENDER: an undescribable item says so rather than vanishing',
    broken.length > 0 && broken.indexOf('could not be loaded') >= 0);
+// v0.60.0 widened this to carry website_url/google_url/image_url/search_doc —
+// the LINK must travel (dan sent a fetched item and only its name arrived) and
+// search_doc tells accept whether the item still needs enriching.
 ck('the query fetches the item WITH the suggestion',
-   /canonicals\(name, kind, location, image_emoji, primary_category\)/.test(appSrc));
+   /canonicals\(name, kind, location, image_emoji, primary_category/.test(appSrc));
+ck('...including the link, so the recipient can reach the thing',
+   /website_url, google_url, image_url, search_doc\)/.test(appSrc));
 ck('a failed suggestions load is reported, not swallowed',
    /suggestions load failed:/.test(appSrc));
 
