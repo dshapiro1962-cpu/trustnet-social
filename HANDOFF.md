@@ -1728,3 +1728,50 @@ DATA REPAIR for the two existing rows (run once, after 0031):
    where via='direct' and coalesce(matched_interest,'')='';
   update suggestions s set from_name = (select name from users where id=s.from_user_id)
    where s.via='direct' and s.from_person_id is null and s.from_name is null;
+
+# ═══ 13 AUG 2026 — v0.61.0 · THE INVITATION MUST BE VISIBLE ═══
+
+## yuval's invite
+dan invited yuval dayan by WhatsApp. He tapped the link and got a LOGIN FORM
+ASKING FOR A CODE HE HAD NEVER BEEN SENT.
+
+MY FIRST DIAGNOSIS WAS WRONG. I said "the receiving half is absent — nothing
+reads ?join=". It does: boot() captures it, stores tn_join_token, and it is
+consumed at three call sites after sign-in. The plumbing was FINE. My grep
+searched the wrong pattern and I asserted a conclusion from its silence.
+THE REAL FAULT: the invitation was INVISIBLE at the one moment it mattered. A
+stranger's first ever contact with Trustnet was an unexplained code field, with
+no indication he had been invited, by whom, or to what.
+
+## AS BUILT
+0032 invite_preview(token) — SECURITY DEFINER, granted to `anon`, because the
+visitor has not signed in yet and must see who invited them BEFORE being asked
+to. Returns ONLY the inviter's FIRST NAME and the circle name. No member list,
+no count, no email, no phone, no circle id. A revoked link stops resolving, and
+unknown vs revoked are indistinguishable to a prober.
+The login screen now leads with dan's wording, verbatim:
+   "dan is inviting you to his ski circle"
+   "He values your recommendations."
+and PRESELECTS the WhatsApp tab — he was invited on WhatsApp, on the phone he is
+holding, so the code should arrive there rather than by email. A dead link says
+so plainly and does not strand him; a failed lookup never blocks sign-in.
+
+DECISIONS (dan): show the invitation before the form (not a bare login), and NO
+codeless magic link — forward that WhatsApp message once and someone else is
+yuval inside the circle. He verifies with a code that arrives on the same phone.
+
+## AND THE THREE "ARRIVED WITHOUT A SENDER" CARDS
+v0.60.1 gave DIRECT sends a from_name and LEFT THE SWEEP WITH THE SAME GAP, so
+dan immediately saw three matched suggestions with no sender. Fixing one
+producer and not its twin is the exact mistake the seam audit exists to stop.
+The sweep now resolves the contributor's own name (users.name, falling back to
+the member row name) and its new query is error-checked like every other.
+
+Suites 45, checks 1017.
+
+## STILL OPEN
+- 33 unchecked query errors across 15 edge functions.
+- No realtime: the inbox only updates on load/refresh, so a query can sit unseen.
+  Polling or a Supabase subscription — deliberately NOT started today.
+- The real end-to-end test: add member -> send query -> answer -> save ->
+  suggest -> accept, crossing the seams rather than testing inside them.

@@ -796,6 +796,10 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
   <div style="background:#fff;border-radius:18px;padding:36px 32px;max-width:400px;width:calc(100% - 40px);box-shadow:0 20px 60px rgba(0,0,0,0.35);">
     <div style="width:44px;height:44px;border-radius:12px;background:#217A4B;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;margin-bottom:18px;">T</div>
     <div id="login-form">
+      <!-- Filled by showInviteBannerIfPending() when a ?join= token is pending.
+           This is a stranger's FIRST contact with Trustnet: the invitation must
+           come before the form, not after it. -->
+      <div id="login-invite" style="display:none;background:#F4F7F5;border:1px solid #E5EDE8;border-radius:10px;padding:12px 14px;margin-bottom:16px;"></div>
       <h1 style="font-size:22px;font-weight:800;color:#0D2B1F;margin-bottom:6px;">Sign in to Trustnet</h1>
       <p style="font-size:13px;color:#56695F;line-height:1.6;margin-bottom:18px;">No password. We'll send you a code.</p>
 
@@ -968,7 +972,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.60.1 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.61.0 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1512,7 +1516,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.60.1 · live';
+const APP_VERSION = 'v0.61.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -7499,12 +7503,57 @@ function wireWhatsAppLogin() {
   });
 }
 
+// Resolve a pending invite token and lead with it. Runs before sign-in, so it
+// cannot read the visitor's account — invite_preview (0032) is callable by
+// `anon` and returns only the inviter's first name and the circle name.
+async function showInviteBannerIfPending() {
+  const tok = localStorage.getItem('tn_join_token');
+  const host = document.getElementById('login-invite');
+  if (!host) return;
+  if (!tok) { host.style.display = 'none'; return; }
+  try {
+    const r = await sb.rpc('invite_preview', { p_token: tok });
+    const d = (r && r.data) || {};
+    if (r.error || !d.ok || !d.inviter || !d.circle) {
+      // A revoked or unknown token. Say so plainly rather than showing a
+      // half-sentence — and do not strand them: they can still sign in.
+      host.innerHTML = '<div style="font-size:12.5px;color:#7A9086;line-height:1.5;">'
+        + 'That invitation link is no longer valid. You can still sign in below.</div>';
+      host.style.display = 'block';
+      localStorage.removeItem('tn_join_token');
+      return;
+    }
+    host.innerHTML = '<div style="font-size:15px;font-weight:700;color:#0D2B1F;line-height:1.4;" dir="auto">'
+      + esc(d.inviter) + ' is inviting you to his ' + esc(d.circle) + ' circle</div>'
+      + '<div style="font-size:13px;color:#56695F;margin-top:4px;line-height:1.5;">'
+      + 'He values your recommendations.</div>';
+    host.style.display = 'block';
+    // He was invited on WhatsApp, on the phone he is holding — so the code
+    // should arrive there, not by email. Preselect that tab.
+    const waTab = document.getElementById('login-tab-wa');
+    if (waTab) waTab.click();
+  } catch (e) {
+    // Never block sign-in because the banner failed.
+    console.error('invite_preview failed:', e);
+    host.style.display = 'none';
+  }
+}
+
 function showLoginScreen() {
   hideLoadingScreen();
   document.getElementById('app').style.display = 'none';
   document.getElementById('onboarding').style.display = 'none';
   const lg = document.getElementById('login');
   lg.style.display = 'flex';
+  // ── THE INVITATION MUST BE VISIBLE (v0.61.0) ────────────────────────────
+  // yuval tapped a WhatsApp invite and got a login form asking for a code he
+  // had never been sent. The token plumbing was FINE — boot() captures ?join=
+  // and it is consumed after sign-in — but the invitation itself was INVISIBLE
+  // at the one moment it mattered. A stranger's first contact with Trustnet
+  // was an unexplained code field.
+  // invite_preview (0032) resolves the token while he is still anonymous,
+  // returning ONLY the inviter's first name and the circle name.
+  showInviteBannerIfPending();
   wireWhatsAppLogin();
   const btn = document.getElementById('login-send');
   if (btn && !btn._wired) {

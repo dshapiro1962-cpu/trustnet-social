@@ -165,6 +165,24 @@ Deno.serve(async (req) => {
 
   if (memErr) return err("members_query_failed: " + memErr.message, 500);
 
+  // THE CONTRIBUTOR'S OWN NAME, as a fallback for the card.
+  // The sweep set only from_person_id, taken from the member row's person link
+  // — and person_id was populated by ONE of five member producers, so for most
+  // rows it is null. The card then had nothing to name and said "This arrived
+  // without a sender", which dan saw on three cards at once.
+  // v0.60.1 gave DIRECT sends a from_name; the sweep was left with the same
+  // gap. Fixing one producer and not its twin is the exact mistake the seam
+  // audit exists to stop.
+  const contributorIds = [...new Set(contributions
+    .map((c) => c.contributor_user).filter(Boolean))] as string[];
+  const nameOfUser: Record<string, string> = {};
+  if (contributorIds.length) {
+    const { data: us, error: usErr } = await admin
+      .from("users").select("id, name").in("id", contributorIds);
+    if (usErr) return err("users_query_failed: " + usErr.message, 500);
+    for (const u of us ?? []) nameOfUser[u.id] = u.name ?? "";
+  }
+
   let created = 0;
   // WHY THIS DETAIL EXISTS: the first version reported only {scanned, created}
   // and SWALLOWED insert errors (`if (!error) created++`). When dan's Jackson
@@ -217,6 +235,9 @@ Deno.serve(async (req) => {
       rows.push({
         user_id: ci.owner_id, canonical_id: c.canonical_id,
         from_person_id: m.person_id ?? null, from_user_id: c.contributor_user,
+        // Prefer the recipient's OWN name for this person; fall back to the
+        // contributor's profile name; never leave the card with nothing.
+        from_name: (c.contributor_user ? nameOfUser[c.contributor_user] : "") || m.name || null,
         via: c.via, source_note: String(c.note).slice(0, 300),
         matched_circles: [ci.circle_id], matched_interest: ci.interest,
       });
