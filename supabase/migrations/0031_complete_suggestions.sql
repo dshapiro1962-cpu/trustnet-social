@@ -20,6 +20,9 @@
 -- and needs no fallback at all.
 -- ============================================================================
 
+-- The sender's own name, for when the recipient has no person record of them.
+alter table public.suggestions add column if not exists from_name text;
+
 create or replace function public.send_rec_to_member(p_rec_id uuid, p_member_id uuid)
 returns jsonb
 language plpgsql security definer set search_path = public as $$
@@ -74,11 +77,19 @@ begin
   where m3.owner_id = v_member.linked_user_id
     and m3.linked_user_id = v_me;
 
+  -- THE RECIPIENT MAY NOT HAVE ME IN ANY CIRCLE. Found live: dan sent
+  -- La Plagne to Dany, who had never added dan back, so there was no person
+  -- record to name and the card said "This arrived without a sender". Correct
+  -- refusal, wrong outcome: I CHOSE to send it, so my name should travel with
+  -- it. A recommendation whose sender cannot be named is worth little.
+  -- from_name is the sender's own profile name, used only when the recipient
+  -- has no person record of their own to show.
   insert into public.suggestions
-    (user_id, canonical_id, from_person_id, from_user_id, via, source_note,
+    (user_id, canonical_id, from_person_id, from_user_id, from_name, via, source_note,
      matched_circles, matched_interest)
   values
-    (v_member.linked_user_id, v_rec.canonical_id, v_person, v_me, 'direct',
+    (v_member.linked_user_id, v_rec.canonical_id, v_person, v_me,
+     (select name from public.users where id = v_me), 'direct',
      left(coalesce(v_rec.note, ''), 300), v_circles,
      -- NOT an empty string. The card composes a sentence around this value and
      -- '' produced "It matches ." with a dangling stop. A direct send has a
@@ -102,4 +113,4 @@ select
   (select count(*) from pg_proc where proname = 'send_rec_to_member')       as fn_should_be_1,
   (select count(*) from public.suggestions where matched_interest = '')     as blank_interest_should_be_0,
   (select count(*) from public.suggestions
-     where via = 'direct' and from_person_id is null)                       as unnamed_direct_sends;
+     where via = 'direct' and from_person_id is null and from_name is null) as unnamed_direct_sends;

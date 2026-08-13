@@ -271,7 +271,7 @@ async function loadUserData() {
     // `canonicalById(...)` and returned '' when it found nothing, so a correct
     // row rendered as an empty string. Silently, again.
     const sg = await sb.from('suggestions')
-      .select('id, canonical_id, from_person_id, via, source_note, matched_circles, matched_interest, status, canonicals(name, kind, location, image_emoji, primary_category, website_url, google_url, image_url, search_doc)')
+      .select('id, canonical_id, from_person_id, from_user_id, from_name, via, source_note, matched_circles, matched_interest, status, canonicals(name, kind, location, image_emoji, primary_category, website_url, google_url, image_url, search_doc)')
       .eq('status', 'pending').order('created_at', { ascending: false });
     if (sg.error) console.error('suggestions load failed:', sg.error);
     AppState.suggestions = sg.data || [];
@@ -486,7 +486,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.60.0 · live';
+const APP_VERSION = 'v0.60.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -1587,7 +1587,10 @@ function suggestionCardHtml(sg) {
   // sends because that producer never set it (fixed in 0031). A fallback that
   // reads plausibly is how a broken producer stays hidden.
   const person = (AppState.people || []).find(function(p) { return p.id === sg.from_person_id; });
-  const who = person ? person.name : null;
+  // from_name is the sender's OWN profile name, used when the recipient has no
+  // person record of them — you can be sent something by someone you have not
+  // added back, and their name should still travel with it.
+  const who = person ? person.name : (sg.from_name || null);
   const circles = (sg.matched_circles || [])
     .map(function(id) { const c = AppState.circleById(id); return c ? c.name : null; })
     .filter(Boolean);

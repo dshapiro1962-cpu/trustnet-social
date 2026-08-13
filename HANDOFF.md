@@ -1709,3 +1709,22 @@ STRING while a different branch still returned one; it now asserts the OUTCOME
 - notifications has 8 producers and no shared builder (E3).
 - The real end-to-end test dan asked for: add member -> send query -> answer ->
   save -> suggest -> accept, crossing the seams rather than testing inside them.
+
+## v0.60.1 — THE SENDER'S NAME ALWAYS TRAVELS
+Running 0031 against production showed 2 unnamed direct sends. One repaired; the
+other did not, and the reason was real rather than a fault: dan sent La Plagne to
+Dany, AND DANY HAD NEVER ADDED DAN BACK — no member row linking them, so no
+person record to name. The card correctly refused to invent a sender.
+Correct refusal, wrong outcome: HE CHOSE TO SEND IT, so his name should travel.
+suggestions.from_name now carries the sender's own profile name, written on
+every direct send. The card prefers the recipient's OWN person record (their
+name for that person), falls back to from_name, and only when BOTH are absent
+says "This arrived without a sender". Verified live: named_sender false,
+shared_circles 0, from_name "Dan" — the card names him anyway.
+Negative-tested. Suites 45, checks 995.
+
+DATA REPAIR for the two existing rows (run once, after 0031):
+  update suggestions set matched_interest = 'sent to you directly'
+   where via='direct' and coalesce(matched_interest,'')='';
+  update suggestions s set from_name = (select name from users where id=s.from_user_id)
+   where s.via='direct' and s.from_person_id is null and s.from_name is null;

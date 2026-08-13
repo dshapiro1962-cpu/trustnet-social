@@ -117,4 +117,41 @@ ck('accepting applies the user\'s sharing preference', /shared_to_network: share
 ck('accepting enriches an unenriched item', /librarianCommit\(sg\.canonical_id/.test(web));
 ck('accepting records WHO suggested it', /source_label: sgSender \? \('suggested by ' \+ sgSender\.name\)/.test(web));
 
+
+// ── THE SENDER'S NAME ALWAYS TRAVELS (v0.60.1) ──────────────────────────────
+// Found in dan's live data: he sent La Plagne to Dany, who had never added dan
+// back. No person record existed, so the card correctly refused to invent a
+// sender — but the outcome was wrong. HE CHOSE TO SEND IT; his name should go
+// with it. A recommendation whose sender cannot be named is worth little.
+const mig31 = fs.readFileSync('/home/claude/fx-out/supabase/migrations/0031_complete_suggestions.sql', 'utf8');
+ck('suggestions carry the sender\'s own name as a fallback',
+   /add column if not exists from_name text/.test(mig31));
+ck('...written from the sender\'s profile on every direct send',
+   /\(select name from public\.users where id = v_me\)/.test(mig31));
+ck('the client loads it', /from_person_id, from_user_id, from_name, via/.test(web));
+ck('the card prefers YOUR person record, then the sender\'s own name',
+   /person \? person\.name : \(sg\.from_name \|\| null\)/.test(web));
+
+const S = ctx.__x;
+S.AppState.people = [];                       // recipient has NO record of the sender
+S.AppState.userCircles = [];
+S.AppState.suggestions = [];
+const cardNoPerson = S.suggestionCardHtml({
+  id: 's9', canonical_id: 'cX', from_person_id: null, from_name: 'Dan',
+  from_user_id: 'u-dan', via: 'direct', source_note: 'great snow',
+  matched_circles: [], matched_interest: 'sent to you directly', status: 'pending',
+  canonicals: { name: 'La Plagne', kind: 'ski resort' } });
+ck('RENDER: the card names the sender even with no person record',
+   cardNoPerson.indexOf('Dan') >= 0, cardNoPerson.slice(0, 120));
+ck('RENDER: ...and does NOT show the "arrived without a sender" warning',
+   cardNoPerson.indexOf('arrived without a sender') < 0);
+ck('RENDER: ...and has no dangling "It matches ."',
+   cardNoPerson.indexOf('It matches .') < 0);
+const cardTrulyAnon = S.suggestionCardHtml({
+  id: 's10', canonical_id: 'cX', from_person_id: null, from_name: null,
+  via: 'save', matched_circles: [], matched_interest: '', status: 'pending',
+  canonicals: { name: 'Mystery', kind: 'thing' } });
+ck('RENDER: a genuinely unattributable item still SAYS SO',
+   cardTrulyAnon.indexOf('arrived without a sender') >= 0);
+
 console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
