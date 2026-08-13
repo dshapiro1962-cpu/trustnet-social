@@ -264,6 +264,17 @@ async function loadUserData() {
   // 'declined' is stored too, so a circle the owner said "not now" to is
   // distinguishable from one never asked — we must not nag.
   try {
+    // THE PEOPLE TABLE WAS NEVER LOADED. suggestionCardHtml and
+    // handleAcceptSuggestion both look up AppState.people by from_person_id —
+    // and NOTHING EVER ASSIGNED IT. So every card fell through to "This arrived
+    // without a sender" even when the person link was perfectly valid: dan saw
+    // three at once, all with has_person = true in the database.
+    // The `|| []` fallback in both readers is what hid it — an UNLOADED
+    // collection and an EMPTY one are indistinguishable. Same shape as the
+    // person_id write-never-read bug in v0.46.0.
+    const pl = await sb.from('people').select('id, name, avatar, avatar_color, linked_user_id');
+    if (pl.error) console.error('people load failed:', pl.error);
+    AppState.people = pl.data || [];
     const ci = await sb.from('circle_interests').select('circle_id, interest, source, terms, is_custom');
     // FETCH THE ITEM'S DETAILS WITH THE SUGGESTION. AppState.userCanonicals only
     // holds canonicals for things ALREADY IN YOUR LIBRARY — and a suggestion is
@@ -486,7 +497,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.61.0 · live';
+const APP_VERSION = 'v0.61.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {

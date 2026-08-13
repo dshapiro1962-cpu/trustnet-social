@@ -1775,3 +1775,27 @@ Suites 45, checks 1017.
   Polling or a Supabase subscription — deliberately NOT started today.
 - The real end-to-end test: add member -> send query -> answer -> save ->
   suggest -> accept, crossing the seams rather than testing inside them.
+
+## v0.61.1 — THE PEOPLE TABLE WAS NEVER LOADED
+dan's three "This arrived without a sender" cards were NOT a data problem. Every
+one had a VALID from_person_id (has_person = true), which is why the repair
+UPDATE I proposed matched zero rows.
+CAUSE: suggestionCardHtml and handleAcceptSuggestion both do
+    (AppState.people || []).find(p => p.id === sg.from_person_id)
+and NOTHING EVER ASSIGNED AppState.people. Read in two places, assigned in zero.
+Console confirmed it: "people loaded: 0".
+
+THE `|| []` FALLBACK IS WHAT HID IT — an UNLOADED collection and an EMPTY one
+are indistinguishable, so a structural failure looked like "no people yet".
+Third instance of this exact shape: person_id written and never read (v0.46.0),
+a phantom column that silently dropped 46 recommendations (v0.57.0), and now a
+collection that is read and never loaded. THE SEAM AUDIT CHECKED PRODUCERS AND
+CONSUMERS OF ROWS; IT NEVER ASKED WHETHER THE COLLECTIONS CONSUMERS READ ARE
+POPULATED AT ALL.
+
+FIXED: loadUserData now loads people (id, name, avatar, avatar_color,
+linked_user_id) and reports a load failure instead of swallowing it.
+NEW GUARD collections-loaded-sim: derives every AppState collection read with
+`|| []` and fails naming any that is never assigned. Negative-tested — removing
+the assignment reports "READ BUT NEVER LOADED: people".
+Suites 47, checks 1025.
