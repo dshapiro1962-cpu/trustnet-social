@@ -77,6 +77,43 @@ ck('a transient poll failure does NOT end the wait',
 ck('the fallback landing is handled before the login screen',
    web.indexOf("get('claimed')") < web.indexOf('if (!sess) { showLoginScreen(); return; }'));
 
+// ── THE STUCK LOADING SCREEN (v0.62.1) ──────────────────────────────────────
+// naama tapped through, the account was created, she JOINED the circle, the
+// claim was consumed — and her phone sat on the loading screen. Everything
+// server-side had worked.
+// CAUSE: finishCodelessJoin ended with `location.replace(location.pathname)`
+// and boot did `if (done) return;` — trusting the reload. But location.replace
+// only SCHEDULES a navigation; it does not stop the script. boot returned,
+// hideLoadingScreen() never ran, and on a phone just back from WhatsApp the
+// tab is deprioritised so that navigation can be slow or never arrive.
+// Opening the app fresh worked, which is what made it look like a load failure.
+ck('finishCodelessJoin no longer depends on a reload',
+   !/location\.replace\(location\.pathname\)/.test(web));
+ck('...it reports success instead', /return true;/.test(
+   web.slice(web.indexOf('async function finishCodelessJoin'),
+             web.indexOf('async function handleClaimedLanding'))));
+ck('...and reports failure, so callers can act', /return false;/.test(
+   web.slice(web.indexOf('async function finishCodelessJoin'),
+             web.indexOf('async function handleClaimedLanding'))));
+ck('boot CARRIES ON after the claimed landing rather than returning',
+   /await handleClaimedLanding\(\);/.test(web)
+   && !/const done = await handleClaimedLanding\(\);[\s\S]{0,40}if \(done\) return;/.test(web));
+ck('the poll path renders too, instead of waiting for a reload',
+   /if \(ok\) \{[\s\S]{0,140}await boot\(\);/.test(web));
+
+// ── THE BARE PHONE NUMBER (v0.62.1) ─────────────────────────────────────────
+// naama appeared in dany's leros circle as "+972545543467". WhatsApp does not
+// expose a name, so this function named her from her own number — while the
+// member row dany had created for her carried her real name all along.
+ck('the join adopts the name the INVITER already had', /const invitedName/.test(fn));
+ck('...looked up on the inviter\'s own member row',
+   /\.eq\("owner_id", link\.owner_id\)[\s\S]{0,80}\.eq\("contact_value", "\+" \+ e164\)/.test(fn));
+ck('...rejecting a "name" that is just the number again',
+   /!\/\^\\\+\?\\d\[\\d\\s\\-\(\)\]\*\$\/\.test\(knownAs\.name\)/.test(fn)
+   || /is just the number again/.test(fn));
+ck('...used for the profile', /name: invitedName \?\? \("\+" \+ e164\)/.test(fn));
+ck('...and for the member row', /name: invitedName \?\? me\?\.name/.test(fn));
+
 // ── behaviour: run the real poll loop ───────────────────────────────────────
 let app = web.slice(web.indexOf('<script>', web.indexOf('supabase.min.js')) + 8);
 app = app.slice(0, app.indexOf('</script>'));

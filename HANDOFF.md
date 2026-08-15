@@ -1873,3 +1873,35 @@ Only a phone can settle this.
 - Two accounts: someone who signed up by EMAIL and later joins by WhatsApp gets
   a SECOND account, stranding their library. naama would have hit this.
 - 33 unchecked query errors across 15 edge functions.
+
+## v0.62.1 — THE STUCK LOADING SCREEN, AND THE BARE PHONE NUMBER
+
+naama tapped through the codeless join and her phone SAT ON THE LOADING SCREEN.
+Everything server-side had worked: account created 15:19:47, joined dany's leros
+circle 15:19:48, claim consumed, session minted.
+
+I FIRST CLAIMED the screen she saw was onboarding and that her account was fine.
+dan corrected me: the stuck screen was the LOADER, the onboarding only appeared
+LATER when she opened the app fresh. I had built a story on a misread and stated
+it as fact. The correction is what made the real cause findable.
+
+CAUSE: finishCodelessJoin ended with `location.replace(location.pathname)` and
+boot did `if (done) return;` — trusting that reload to render the app. BUT
+location.replace only SCHEDULES a navigation; it does not stop the script. boot
+returned, hideLoadingScreen() NEVER RAN, and on a phone just back from WhatsApp
+the tab is deprioritised, so the navigation was slow or never arrived. Opening
+the app fresh worked — which is exactly what made it look like a load failure.
+FIXED: finishCodelessJoin returns true/false and boot CARRIES ON into its normal
+render path. The session is already set in the client, so no reload is needed at
+all. The polling path had the identical dependency and is fixed the same way.
+
+SECOND: naama appeared in dany's circle as "+972545543467". WhatsApp does not
+expose a name, so complete-join named her from her own number — WHILE THE MEMBER
+ROW DANY HAD CREATED FOR HER CARRIED HER REAL NAME ALL ALONG. It now adopts the
+inviter's name for both the profile and the membership, rejecting a "name" that
+is just the number again.
+
+Suites 48, checks 1070. Negative tests proven for both.
+
+LESSON: when the user says the screen was stuck, do not substitute a screen that
+fits my theory. Ask what was on it.

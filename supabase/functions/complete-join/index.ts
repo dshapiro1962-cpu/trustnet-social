@@ -79,8 +79,24 @@ Deno.serve(async (req) => {
   if (!circle) return err("circle_gone", 410);
 
   // ── 3. find or create the account for this phone ─────────────────────────
+  // THE INVITER USUALLY ALREADY HAS A NAME FOR THEM. naama appeared in dan's
+  // leros circle as "+972545543467" because this function named her from her
+  // own phone number — while the member row dany created for her carried her
+  // real name all along. WhatsApp does not expose a name, so the only name
+  // available is the one the person who invited her already wrote down.
   const key = phoneKey(phone);
   const e164 = toE164(phone);
+  const { data: knownAs } = await admin
+    .from("members").select("name")
+    .eq("owner_id", link.owner_id)
+    .eq("contact_value", "+" + e164)
+    .not("name", "is", null)
+    .limit(1).maybeSingle();
+  // Reject a "name" that is just the number again, or we would adopt the same
+  // placeholder we are trying to avoid.
+  const invitedName = (knownAs?.name && !/^\+?\d[\d\s\-()]*$/.test(knownAs.name))
+    ? knownAs.name : null;
+
   const { data: candidates, error: usersErr } = await admin
     .from("users").select("id, name, phone").not("phone", "is", null);
   if (usersErr) return err("users_lookup_failed: " + usersErr.message, 500);
@@ -99,7 +115,10 @@ Deno.serve(async (req) => {
     // The profile row. Named from the phone until they set a real name — an
     // empty name would render as a blank member in someone's circle.
     const { error: pErr } = await admin.from("users").insert({
-      id: userId, email: syntheticEmail, name: "+" + e164, phone: "+" + e164,
+      // The inviter's name for them, falling back to the number only when
+      // there genuinely is no name to use.
+      id: userId, email: syntheticEmail, name: invitedName ?? ("+" + e164),
+      phone: "+" + e164,
     });
     if (pErr) console.error("profile_insert_failed", pErr.message);
   }
@@ -115,7 +134,7 @@ Deno.serve(async (req) => {
       .from("users").select("name, avatar, avatar_color, email").eq("id", userId).maybeSingle();
     const { error: mErr } = await admin.from("members").insert({
       owner_id: circle.owner_id, circle_id: circle.id,
-      name: me?.name ?? ("+" + e164),
+      name: invitedName ?? me?.name ?? ("+" + e164),
       avatar: me?.avatar ?? null, avatar_color: me?.avatar_color ?? null,
       trust_basis: "Joined via invite link",
       // A CONTACT IS NOT OPTIONAL. Every send feature dispatches on

@@ -27,7 +27,7 @@ vm.runInContext('renderApp=function(){};showView=function(){};openModal=function
  +'toast=function(m,t){globalThis.__toasts.push([m,t||"ok"]);};CURRENT_UID="me";',ctx);
 ctx.__toasts=[]; ctx.__rpcImpl=async()=>({data:[]});
 const X=ctx.__x;
-ck('APP_VERSION is v0.62.0', X.APP_VERSION==='v0.62.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.62.1', X.APP_VERSION==='v0.62.1 · live', X.APP_VERSION);
 
 // ── phone identity: app, function and SQL must agree on ONE canonical form ──
 function keyJs(raw){const d=String(raw||'').replace(/\D/g,'');return d.length>=9?d.slice(-9):d;}

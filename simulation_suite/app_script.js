@@ -497,7 +497,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.62.0 · live';
+const APP_VERSION = 'v0.62.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -6533,7 +6533,13 @@ async function pollForClaim(token, attempt) {
     const d = (r && r.data) || {};
     if (d.claimed && d.phone) {
       if (status) status.textContent = 'Signing you in\u2026';
-      await finishCodelessJoin(token, d.phone);
+      const ok = await finishCodelessJoin(token, d.phone);
+      // Same fault as the landing path: this used to end here and wait for a
+      // reload that may never come on a backgrounded tab. Render instead.
+      if (ok) {
+        document.getElementById('login').style.display = 'none';
+        await boot();
+      }
       return;
     }
   } catch (e) {
@@ -6555,11 +6561,20 @@ async function finishCodelessJoin(token, phone) {
       access_token: r.access_token, refresh_token: r.refresh_token });
     if (error) throw new Error(error.message);
     localStorage.removeItem('tn_join_token');
-    location.replace(location.pathname);
+    // DO NOT RELY ON A RELOAD. `location.replace` only SCHEDULES a navigation —
+    // it does not stop this script — and boot then returned without ever
+    // calling hideLoadingScreen(). On a phone the tab has just come back from
+    // WhatsApp and is deprioritised, so that navigation can be slow or never
+    // arrive: naama sat on the loading screen while her account, her membership
+    // and her session all existed. Opening the app fresh worked, which is what
+    // made it look like a load failure.
+    // The session is already set in this client, so just carry on.
+    return true;
   } catch (e) {
     console.error('complete-join failed:', e);
     if (status) status.innerHTML = '<span style="color:#B4553F;">'
       + "Couldn't finish signing you in. Tap the link WhatsApp sent you.</span>";
+    return false;
   }
 }
 
@@ -6708,8 +6723,12 @@ async function boot() {
   // arrives at ?claimed=<token>. The claim is already recorded, so this signs
   // her in without another tap. When the tab DID survive, this never runs.
   if (new URLSearchParams(location.search).get('claimed')) {
-    const done = await handleClaimedLanding();
-    if (done) return;   // finishCodelessJoin reloads into the app
+    // Awaited, then boot CARRIES ON. It used to `return` here and trust
+    // finishCodelessJoin to reload — but location.replace only schedules a
+    // navigation, so boot returned, hideLoadingScreen() never ran, and the page
+    // sat on the loading screen. The session is set by the time this resolves,
+    // so the ordinary path below renders the app correctly.
+    await handleClaimedLanding();
   }
   const sess = (await sb.auth.getSession()).data.session;
   if (!sess) { showLoginScreen(); return; }
