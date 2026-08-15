@@ -1799,3 +1799,77 @@ NEW GUARD collections-loaded-sim: derives every AppState collection read with
 `|| []` and fails naming any that is never assigned. Negative-tested — removing
 the assignment reports "READ BUT NEVER LOADED: people".
 Suites 47, checks 1025.
+
+# ═══ 15 AUG 2026 — v0.62.0 · JOIN WITH NO CODE ═══
+
+dan, after naama's test: the code "complicates things too much, will scare users
+away, too many windows to shift through". Read a code in WhatsApp, remember it,
+switch back, type it. He is right.
+
+## WHAT SHE DOES NOW
+Taps the invite -> "Dany is inviting you to his ski circle" with ONE button ->
+taps it, WhatsApp opens with "Join Trustnet: <token>" ALREADY WRITTEN -> presses
+send -> switches back and she is in. SHE TYPES NOTHING AND NEVER SEES A DIGIT.
+
+The message reaches the Trustnet number FROM HER PHONE NUMBER, which WhatsApp
+guarantees — so SENDING IS THE VERIFICATION. A forwarded invite fails safely:
+her husband's tap sends from HIS number, so he joins as himself, never as her.
+That is what the code protected against, achieved without one.
+
+## THE FINDING THAT SHAPED THE DESIGN
+THE WEBHOOK DOES NOT VERIFY META'S SIGNATURE. No x-hub-signature-256, no
+app-secret HMAC. Anyone knowing the URL can post a forged message claiming any
+number. Today that is a junk library item; IF THE WEBHOOK COULD CREATE ACCOUNTS
+AND GRANT MEMBERSHIPS, ONE FORGED REQUEST WOULD LET ANYONE BECOME ANYONE.
+So the trust is INVERTED: the webhook only RECORDS a claim and creates nothing.
+Only the browser tab holding the token can complete it. A forged claim with no
+browser behind it is inert. (Signature verification is a real hole and is dan's
+next item — deliberately NOT smuggled into this change.)
+
+## BOTH PATHS BUILT, as dan asked
+PRIMARY: the tab polls claim_status every 2s for 3 minutes while she is in
+WhatsApp, then signs her in. She never leaves the flow and no session token
+travels through a chat.
+FALLBACK: the WhatsApp reply always carries /?claimed=<token>. If the tab did
+not survive the app switch — iOS may discard it — she taps that and lands signed
+in. When the tab DID survive she never notices it.
+
+## PARTS
+0033: invite_claims (10-minute expiry, ONE live claim per token, no RLS policies
+— reachable only through security-definer functions). claim_status(token) is
+anon-callable because she has not signed in yet; record_invite_claim is service
+role only.
+complete-join edge function: verifies the claim is live, unconsumed, unexpired
+AND FOR THAT PHONE; refuses a revoked invite; creates the account only if
+needed; joins idempotently; GIVES THE NEW MEMBER A CONTACT (an unreachable
+member cost a full day); consumes the claim; mints a session via generateLink +
+verifyOtp, the same mechanism wa-signin uses.
+whatsapp-webhook: intercepts "Join Trustnet: <token>" BEFORE the "this phone
+isn't linked to an account" reply that naama received.
+
+## A BUG LINT AND TYPE-CHECK BOTH PASSED
+  uses: (…).data?.uses ?? 0 + 1
+binds as `?? (0 + 1)`, so an existing count of 5 stayed 5 and only a null became
+1. Proven in node before fixing. Operator precedence is invisible to every check
+except reading it.
+
+## TESTS
+codeless-sim 34 checks, incl. BEHAVIOURAL: the real poll loop keeps waiting
+while she has not sent, completes the instant the claim appears, and passes the
+exact token and phone the webhook recorded. Three security negatives proven —
+removing the phone match, letting the webhook create accounts, and not consuming
+the claim all fail.
+FOURTH time a check was fooled by its own prose: the ordering assertion matched
+the comment ABOVE the join block, which quotes the reply text. Comments stripped.
+Suites 48, checks 1060. 27 migrations rebuild clean.
+
+## UNTESTABLE HERE — THE ONE REAL RISK
+Whether the browser tab survives the switch to WhatsApp on a real phone,
+especially iOS. If it does not, polling dies and the fallback link carries it.
+Only a phone can settle this.
+
+## STILL OPEN
+- Webhook signature verification (dan: separate change).
+- Two accounts: someone who signed up by EMAIL and later joins by WhatsApp gets
+  a SECOND account, stranding their library. naama would have hit this.
+- 33 unchecked query errors across 15 edge functions.

@@ -800,6 +800,11 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
            This is a stranger's FIRST contact with Trustnet: the invitation must
            come before the form, not after it. -->
       <div id="login-invite" style="display:none;background:#F4F7F5;border:1px solid #E5EDE8;border-radius:10px;padding:12px 14px;margin-bottom:16px;"></div>
+      <!-- Wrapped so the codeless invite flow can hide the whole sign-in
+           apparatus and show ONE button. An invited person needs no phone box,
+           no email box, no tabs and not the words "we'll send you a code" —
+           that is precisely the friction dan objected to. -->
+      <div id="login-methods">
       <h1 style="font-size:22px;font-weight:800;color:#0D2B1F;margin-bottom:6px;">Sign in to Trustnet</h1>
       <p style="font-size:13px;color:#56695F;line-height:1.6;margin-bottom:18px;">No password. We'll send you a code.</p>
 
@@ -819,6 +824,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
         <button class="btn btn-primary" id="login-send" style="width:100%;">Send sign-in link</button>
       </div>
 
+      </div><!-- /login-methods -->
       <p id="login-err" style="font-size:12px;color:#C0392B;margin-top:10px;display:none;"></p>
     </div>
 
@@ -972,7 +978,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.61.1 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.62.0 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1527,7 +1533,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.61.1 · live';
+const APP_VERSION = 'v0.62.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -6998,6 +7004,11 @@ document.addEventListener('click', function(e) {
       .map(function(b) { return b.dataset.interest; });
     handleSetInterests(target.dataset.circleId, picked, picked.length ? 'confirmed' : 'declined');
   }
+  else if (action === 'codeless-join') {
+    // The Trustnet business number. She never types it; wa.me prefills the
+    // whole message and she only presses send.
+    startCodelessJoin(target.dataset.token, '972587786049');
+  }
   else if (action === 'confirm-interest') {
     handleSetInterests(target.dataset.circleId, (target.dataset.interest || '').split(',').filter(Boolean), 'confirmed');
   }
@@ -7517,6 +7528,93 @@ function wireWhatsAppLogin() {
 // Resolve a pending invite token and lead with it. Runs before sign-in, so it
 // cannot read the visitor's account — invite_preview (0032) is callable by
 // `anon` and returns only the inviter's first name and the circle name.
+// ═══ CODELESS JOIN (v0.62.0) ════════════════════════════════════════════════
+// dan: the code "complicates things too much, will scare users away, too many
+// windows to shift through". He is right — read a code in WhatsApp, remember
+// it, switch back, type it.
+// Instead: ONE button. WhatsApp opens with the message already written, she
+// presses send, and this tab — still open behind WhatsApp — notices and signs
+// her in. She types nothing and never sees a digit.
+let TN_JOIN_POLL = null;
+
+function startCodelessJoin(token, waNumber) {
+  const host = document.getElementById('login-invite');
+  // Open WhatsApp with the message PREFILLED. She only presses send.
+  const text = encodeURIComponent('Join Trustnet: ' + token);
+  window.open('https://wa.me/' + String(waNumber).replace(/\D/g, '') + '?text=' + text, 'tn_wa');
+
+  if (host) {
+    host.innerHTML = '<div style="font-size:14px;font-weight:700;color:#0D2B1F;">'
+      + 'Press send in WhatsApp</div>'
+      + '<div style="font-size:12.5px;color:#56695F;margin-top:4px;line-height:1.5;">'
+      + "The message is already written. Come back here when you've sent it \u2014 "
+      + "you'll be signed in.</div>"
+      + '<div id="tn-join-status" style="font-size:11.5px;color:#7A9086;margin-top:8px;">Waiting\u2026</div>';
+  }
+  pollForClaim(token, 0);
+}
+
+// Ask every 2s for up to 3 minutes. She sees none of this; she is in WhatsApp.
+async function pollForClaim(token, attempt) {
+  if (TN_JOIN_POLL) clearTimeout(TN_JOIN_POLL);
+  const status = document.getElementById('tn-join-status');
+  if (attempt > 90) {
+    if (status) status.innerHTML = '<span style="color:#B4553F;">'
+      + "Still waiting. If you sent the message, tap the link WhatsApp sent back."
+      + '</span>';
+    return;
+  }
+  try {
+    const r = await sb.rpc('claim_status', { p_token: token });
+    const d = (r && r.data) || {};
+    if (d.claimed && d.phone) {
+      if (status) status.textContent = 'Signing you in\u2026';
+      await finishCodelessJoin(token, d.phone);
+      return;
+    }
+  } catch (e) {
+    // A transient failure must not end the wait — she may still be typing.
+    console.error('claim_status failed:', e);
+  }
+  TN_JOIN_POLL = setTimeout(function () { pollForClaim(token, attempt + 1); }, 2000);
+}
+
+async function finishCodelessJoin(token, phone) {
+  const status = document.getElementById('tn-join-status');
+  try {
+    const r = await fnPost('complete-join', { token: token, phone: phone });
+    if (!r || r.error || !r.access_token) {
+      throw new Error((r && r.error) || 'no session returned');
+    }
+    // Set the session, clear the token, and reload straight into the app.
+    const { error } = await sb.auth.setSession({
+      access_token: r.access_token, refresh_token: r.refresh_token });
+    if (error) throw new Error(error.message);
+    localStorage.removeItem('tn_join_token');
+    location.replace(location.pathname);
+  } catch (e) {
+    console.error('complete-join failed:', e);
+    if (status) status.innerHTML = '<span style="color:#B4553F;">'
+      + "Couldn't finish signing you in. Tap the link WhatsApp sent you.</span>";
+  }
+}
+
+// THE FALLBACK LANDING. If the browser tab did not survive the switch to
+// WhatsApp — iOS may discard it — she taps the link in WhatsApp's reply and
+// arrives here with ?claimed=<token>. The claim is already recorded, so this
+// completes without her doing anything else.
+async function handleClaimedLanding() {
+  const claimed = new URLSearchParams(location.search).get('claimed');
+  if (!claimed) return false;
+  history.replaceState(null, '', location.pathname);
+  try {
+    const r = await sb.rpc('claim_status', { p_token: claimed });
+    const d = (r && r.data) || {};
+    if (d.claimed && d.phone) { await finishCodelessJoin(claimed, d.phone); return true; }
+  } catch (e) { console.error('claimed landing failed:', e); }
+  return false;
+}
+
 async function showInviteBannerIfPending() {
   const tok = localStorage.getItem('tn_join_token');
   const host = document.getElementById('login-invite');
@@ -7537,12 +7635,19 @@ async function showInviteBannerIfPending() {
     host.innerHTML = '<div style="font-size:15px;font-weight:700;color:#0D2B1F;line-height:1.4;" dir="auto">'
       + esc(d.inviter) + ' is inviting you to his ' + esc(d.circle) + ' circle</div>'
       + '<div style="font-size:13px;color:#56695F;margin-top:4px;line-height:1.5;">'
-      + 'He values your recommendations.</div>';
+      + 'He values your recommendations.</div>'
+      // ONE BUTTON, NO CODE. She taps it, WhatsApp opens with the message
+      // already written, she presses send. That is the whole verification.
+      + '<button class="btn btn-primary" data-action="codeless-join" data-token="' + esc(tok) + '"'
+      + ' style="width:100%;margin-top:14px;">Continue with WhatsApp</button>'
+      + '<div style="font-size:11px;color:#7A9086;margin-top:8px;line-height:1.5;">'
+      + 'No code to type \u2014 just press send in WhatsApp.</div>';
     host.style.display = 'block';
-    // He was invited on WhatsApp, on the phone he is holding — so the code
-    // should arrive there, not by email. Preselect that tab.
-    const waTab = document.getElementById('login-tab-wa');
-    if (waTab) waTab.click();
+    // The email/phone form is not what an invited person needs. Hide it so the
+    // one button is the only thing on screen; "other ways to sign in" restores
+    // it for anyone who wants them.
+    const formEl = document.getElementById('login-methods');
+    if (formEl) formEl.style.display = 'none';
   } catch (e) {
     // Never block sign-in because the banner failed.
     console.error('invite_preview failed:', e);
@@ -7634,6 +7739,14 @@ async function boot() {
     history.replaceState(null, '', location.pathname);
   }
 
+  // THE FALLBACK LANDING. If the browser tab did not survive the switch to
+  // WhatsApp — iOS may discard it — she taps the link WhatsApp replied with and
+  // arrives at ?claimed=<token>. The claim is already recorded, so this signs
+  // her in without another tap. When the tab DID survive, this never runs.
+  if (new URLSearchParams(location.search).get('claimed')) {
+    const done = await handleClaimedLanding();
+    if (done) return;   // finishCodelessJoin reloads into the app
+  }
   const sess = (await sb.auth.getSession()).data.session;
   if (!sess) { showLoginScreen(); return; }
   CURRENT_UID = sess.user.id;

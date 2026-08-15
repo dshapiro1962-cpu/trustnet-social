@@ -75,8 +75,50 @@ Deno.serve(async (req) => {
   const from: string = msg.from || "";
   const senderDigits = digits(from);
 
-  // ── who is this? match sender phone to a Trustnet account ─────────────────
   const admin = adminClient();
+
+  // ── JOIN A CIRCLE, CODELESSLY (v0.62.0) ───────────────────────────────────
+  // MUST COME FIRST — before the "this phone isn't linked to an account" reply,
+  // which is exactly what naama received when she messaged this number.
+  //
+  // She taps ONE button in the browser, WhatsApp opens with "Join Trustnet:
+  // <token>" already written, she presses send. The message arrives FROM HER
+  // PHONE NUMBER — WhatsApp guarantees that — so sending IS the verification.
+  // No code, no digits, nothing typed. A forwarded invite fails safely: her
+  // husband's tap sends from HIS number, so he would join as himself.
+  //
+  // THIS ONLY RECORDS THE CLAIM. It creates no account and no membership,
+  // because THIS WEBHOOK DOES NOT VERIFY META'S SIGNATURE — a forged request
+  // could claim any number. The browser tab that holds the token completes it.
+  // A forged claim with no browser behind it achieves nothing.
+  const joinMatch = (msg.type === "text" && msg.text?.body)
+    ? String(msg.text.body).match(/Join\s+Trustnet:\s*([A-Za-z0-9_-]{8,})/i)
+    : null;
+  if (joinMatch) {
+    const token = joinMatch[1];
+    const { data: rec, error: recErr } = await admin
+      .rpc("record_invite_claim", { p_token: token, p_phone: "+" + digits(from) });
+    if (recErr) {
+      console.error("record_invite_claim_failed", recErr.message);
+      await sendText(from, "Something went wrong joining. Please tap the invite link again.");
+      return json({ ok: true });
+    }
+    if (!rec?.ok) {
+      await sendText(from, "That invitation link is no longer valid. Ask for a new one.");
+      return json({ ok: true });
+    }
+    // THE FALLBACK, always sent. If the browser tab did not survive the switch
+    // to WhatsApp — which iOS in particular may do — polling died with it, and
+    // this link is how she still gets in. When the tab DID survive she is
+    // already inside and never taps it.
+    const appUrl = Deno.env.get("APP_URL") ?? "https://trustnetsocial.netlify.app";
+    await sendText(from,
+      "Got it \u2014 switch back to your browser and you're in.\n\n" +
+      "If that tab closed, open this instead:\n" + appUrl + "/?claimed=" + token);
+    return json({ ok: true });
+  }
+
+  // ── who is this? match sender phone to a Trustnet account ─────────────────
   const { data: candidates } = await admin
     .from("users").select("id, name, share_by_default, phone")
     .not("phone", "is", null);

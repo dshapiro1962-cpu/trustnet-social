@@ -17,7 +17,7 @@ let pass=0,fail=0; const ck=(n,c,x)=>{ if(c){pass++;console.log('  ✓',n);}else
 vm.runInContext(src,ctx,{filename:'app.js'});
 vm.runInContext('renderApp=function(){};showView=function(){};toast=function(){};CURRENT_UID="me";',ctx);
 const X=ctx.__x;
-ck('APP_VERSION is v0.61.1', X.APP_VERSION==='v0.61.1 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.62.0', X.APP_VERSION==='v0.62.0 · live', X.APP_VERSION);
 X.AppState.isDemoMode=false;
 X.AppState.userCircles=[{id:'c1',name:'Ski',color:'#111',memberIds:[]},{id:'c2',name:'Food',color:'#222',memberIds:[]}];
 X.AppState.userCanonicals=[{id:'k1',name:'Avoriaz 1800',primaryCategory:'travel',aiTags:[]},{id:'k2',name:'Habasta',primaryCategory:'dining',aiTags:[]}];

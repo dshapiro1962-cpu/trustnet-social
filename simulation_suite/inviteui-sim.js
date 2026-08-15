@@ -38,8 +38,14 @@ ck('the banner is resolved before sign-in', /showInviteBannerIfPending\(\);/.tes
 ck("dan's wording: X is inviting you to his Y circle",
    /is inviting you to his ' \+ esc\(d\.circle\) \+ ' circle/.test(web));
 ck('...and the second line', /He values your recommendations\./.test(web));
-ck('WhatsApp is preselected — the code arrives on the phone he is holding',
-   /const waTab = document\.getElementById\('login-tab-wa'\);[\s\S]{0,60}waTab\.click\(\)/.test(web));
+// v0.62.0 REPLACED this. There is no tab to preselect any more: the entire
+// sign-in apparatus is HIDDEN for an invited person and replaced by ONE button.
+// dan on the code: "complicates things too much, will scare users away, too
+// many windows to shift through."
+ck('the sign-in apparatus is hidden for an invitee — one button instead',
+   /getElementById\('login-methods'\);[\s\S]{0,80}display = 'none'/.test(web));
+ck('...and that button is the codeless WhatsApp join',
+   /data-action="codeless-join"/.test(web));
 ck('a dead link says so plainly instead of half a sentence',
    /That invitation link is no longer valid/.test(web));
 ck('...and does NOT strand them — they can still sign in',
