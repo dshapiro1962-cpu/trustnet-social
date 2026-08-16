@@ -37,7 +37,7 @@ ctx.__resolve={state:'free',person_id:null,person_name:null,membership_id:null,o
 ctx.__rpcImpl=async(n)=>(n==='resolve_contact' ? {data:[ctx.__resolve],error:null} : {data:false});
 const X=ctx.__x;
 const lastToast=()=>ctx.__toasts.length?String(ctx.__toasts[ctx.__toasts.length-1][0]):'';
-ck('APP_VERSION is v0.62.1', X.APP_VERSION==='v0.62.1 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.63.0', X.APP_VERSION==='v0.63.0 · live', X.APP_VERSION);
 
 function reset() {
   byId['inv-new-msg']=el(); byId['inv-err']=el();
@@ -170,18 +170,18 @@ ck('16. modal offers WhatsApp AND Email for someone new',
    && im3.indexOf('>WhatsApp<')>=0 && im3.indexOf('>Email<')>=0 && im3.indexOf('id="inv-contact"')>=0);
 ck('17. the one-link option is still there too', im3.indexOf('invite-copy-link')>=0);
 
-byId['inv-method']=el({value:'whatsapp'}); byId['inv-contact']=el({value:'050 987 6543'}); byId['inv-err']=el(); byId['inv-new-msg']=el();
+byId['inv-method']=el({value:'whatsapp'}); byId['inv-contact']=el({value:'050 987 6543'}); byId['inv-name']=el({value:'Test Person'}); byId['inv-err']=el(); byId['inv-new-msg']=el();
 ctx.__opened=[];
 await X.handleInviteNew(el({dataset:{circleId:'c1',circleName:'Ski'},disabled:false,textContent:''}));
 ck('18. new WhatsApp invite normalises the number and opens wa.me with the link',
    ctx.__opened.length===1 && /wa\.me\/972509876543/.test(ctx.__opened[0]) && decodeURIComponent(ctx.__opened[0]).indexOf('join=tok')>=0);
 
-byId['inv-method']=el({value:'email'}); byId['inv-contact']=el({value:'new@friend.com'}); ctx.__opened=[];
+byId['inv-method']=el({value:'email'}); byId['inv-contact']=el({value:'new@friend.com'}); byId['inv-name']=el({value:'Test Person'}); ctx.__opened=[];
 await X.handleInviteNew(el({dataset:{circleId:'c1',circleName:'Ski'},disabled:false,textContent:''}));
 ck('19. new email invite opens mailto with the link',
    ctx.__opened.length===1 && ctx.__opened[0].indexOf('mailto:new%40friend.com')>=0);
 
-byId['inv-method']=el({value:'whatsapp'}); byId['inv-contact']=el({value:'+972501111111'}); ctx.__opened=[]; byId['inv-err']=el(); byId['inv-new-msg']=el();
+byId['inv-method']=el({value:'whatsapp'}); byId['inv-contact']=el({value:'+972501111111'}); byId['inv-name']=el({value:'Test Person'}); ctx.__opened=[]; byId['inv-err']=el(); byId['inv-new-msg']=el();
 // The refusal now comes from the RESOLVER (asked live), not a local cache.
 const prevImpl = ctx.__rpcImpl;
 ctx.__rpcImpl = async (n) => n === 'resolve_contacts'
@@ -193,7 +193,7 @@ ck('20. inviting a number that is ALREADY a linked member -> refused (via live r
    && byId['inv-new-msg'].textContent.indexOf('Rina')>=0);
 ctx.__rpcImpl = prevImpl;
 
-byId['inv-contact']=el({value:'not-a-number'}); ctx.__opened=[]; byId['inv-err']=el(); byId['inv-new-msg']=el();
+byId['inv-contact']=el({value:'not-a-number'}); byId['inv-name']=el({value:'Test Person'}); ctx.__opened=[]; byId['inv-err']=el(); byId['inv-new-msg']=el();
 await X.handleInviteNew(el({dataset:{circleId:'c1',circleName:'Ski'},disabled:false,textContent:''}));
 ck('21. invalid contact -> error, nothing opened', ctx.__opened.length===0 && byId['inv-new-msg'].textContent.length>0);
 

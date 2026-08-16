@@ -497,7 +497,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.62.1 · live';
+const APP_VERSION = 'v0.63.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -4164,6 +4164,11 @@ function modalAddMember(params) {
     + '<div id="nm-form-pane" style="display:' + (editId ? 'block' : 'none') + ';">'
     + (em ? typeToggleFinal : '<div class="field"><div class="field-label">TYPE</div>' + typeToggleFinal + '</div>')
     + personFields
+    // The same picker the invite dialog uses. Adding someone should let you
+    // file them in several circles at once — the person model already separates
+    // WHO someone is from WHERE you have filed them, so each tick is simply one
+    // more member row. Only when ADDING: editing works on one existing row.
+    + (editId ? '' : circleTicksHtml(circleId, 'nm'))
     + sourceFields
     + '</div>'
     + '</div>'
@@ -4369,6 +4374,15 @@ function modalInvite(params) {
         }).join('')
     + '</div>'
     + '<input type="hidden" id="inv-method" value="whatsapp">'
+    // A NAME. Without it an invited person arrives as a bare phone number:
+    // naama appeared in dany's leros circle as "+972545543467" because the
+    // invite captured no name, so the member row was named from the contact and
+    // complete-join then adopted that placeholder.
+    // THE PHONE STILL DECIDES IDENTITY — dan, repeatedly: "naama" and "nama"
+    // with the same number are the same person. The name is only a label, and
+    // buildMember rejects one that is really a contact.
+    + '<input class="field-input" id="inv-name" placeholder="Their name" '
+    + 'style="width:100%;margin-bottom:6px;">'
     + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
     + '<input class="field-input" id="inv-contact" dir="ltr" placeholder="+972 50 123 4567" '
     + 'style="flex:1 1 200px;min-width:0;">'
@@ -4377,6 +4391,7 @@ function modalInvite(params) {
     + '</div>'
     + '<div id="inv-new-msg" style="display:none;font-size:12px;line-height:1.5;margin-top:8px;'
     + 'padding:9px 11px;border-radius:9px;"></div>'
+    + circleTicksHtml(circleId, 'inv')
     + '<div style="font-size:11px;color:#7A9086;margin-top:5px;line-height:1.45;">'
     + 'Opens your WhatsApp or mail app, ready to send.</div>'
     + '</div>';
@@ -4502,7 +4517,7 @@ function inviteMessageFor(circleName, url) {
 // Invite ONE member, using the contact details already on their record.
 // One place for invite feedback, beside the form and scrolled into view.
 // Both invite paths use it, so no message can render off-screen again.
-function inviteSay(text, kind) {
+function inviteSay(text, kind, isHtml) {
   const el2 = document.getElementById('inv-new-msg');
   if (!el2) return;
   const style = kind === 'ok'
@@ -4511,7 +4526,10 @@ function inviteSay(text, kind) {
       ? 'background:#EEF4FB;color:#1A3F6B;border:1px solid #CFE0F2;'
       : 'background:#FDECEA;color:#9B2C22;border:1px solid #F5C6C0;');
   el2.style.cssText = 'font-size:12px;line-height:1.5;margin-top:8px;padding:9px 11px;border-radius:9px;display:block;' + style;
-  el2.textContent = text;
+  // textContent by DEFAULT: anything user-supplied stays inert. isHtml is opt-in
+  // and only ever passed markup this file built, with every interpolated value
+  // already through esc().
+  if (isHtml) el2.innerHTML = text; else el2.textContent = text;
   if (el2.scrollIntoView) el2.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
@@ -4589,6 +4607,11 @@ async function handleInviteNew(btn) {
   const circleName = btn.dataset.circleName || 'your';
   const method = (document.getElementById('inv-method') || {}).value || 'whatsapp';
   const contact = ((document.getElementById('inv-contact') || {}).value || '').trim();
+  const invName = ((document.getElementById('inv-name') || {}).value || '').trim();
+  // Every ticked circle. The invite MESSAGE names only the one we are standing
+  // in — dan: she does not need to know she is in the others.
+  const pickedCircles = pickedCircleIds('inv');
+  const targetCircles = pickedCircles.length ? pickedCircles : [circleId];
   // Feedback belongs beside the form, not at the far bottom of a scrolling
   // sheet — that is why the "already on Trustnet" answer was never seen.
   const say = inviteSay;
@@ -4596,6 +4619,10 @@ async function handleInviteNew(btn) {
   const msgEl = document.getElementById('inv-new-msg');
   if (msgEl) msgEl.style.display = 'none';
 
+  // WITHOUT A NAME the member row is named from the contact, and complete-join
+  // then adopts that placeholder — which is why naama appeared in dany's circle
+  // as "+972545543467".
+  if (!invName) { fail('Add their name, so they do not appear as a phone number.'); return; }
   if (method === 'whatsapp' && !normalizeIlPhone(contact)) { fail('Enter a valid phone number, e.g. 050 123 4567.'); return; }
   if (method === 'email' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contact)) { fail('Enter a valid email address.'); return; }
 
@@ -4611,7 +4638,15 @@ async function handleInviteNew(btn) {
       return;
     }
     if (info.is_user && !info.member_id) {
-      say('This person is already on Trustnet but not in this circle. Add them as a member instead \u2014 they will get your questions in the app.', 'info');
+      // dan: "what is the point of inviting someone who is already on the app
+      // to join the app". Say it AND give the button, rather than telling them
+      // to go and do it themselves somewhere else.
+      say('They are already on Trustnet \u2014 no invite needed. '
+        + '<button class="btn btn-primary btn-sm" data-action="add-known-person" '
+        + 'data-name="' + esc(invName) + '" data-method="' + esc(method) + '" '
+        + 'data-contact="' + esc(contact) + '" data-circles="' + esc(targetCircles.join(',')) + '" '
+        + 'style="margin-top:8px;">Add to ' + (targetCircles.length > 1
+            ? targetCircles.length + ' circles' : 'this circle') + '</button>', 'info', true);
       return;
     }
     if (info.member_id && !info.is_user) {
@@ -4636,7 +4671,41 @@ async function handleInviteNew(btn) {
     toast('Email opened \u2014 press send there.');
   }
   btn.disabled = false; btn.textContent = 'Send invite';
+
+  // ── CREATE THE MEMBER ROWS NOW (v0.63.0) ─────────────────────────────────
+  // The invite used to open WhatsApp and record NOTHING, so the invitee existed
+  // nowhere until they joined — which is why complete-join had no name to adopt
+  // and naama landed in dany's circle as "+972545543467".
+  // Now they are a member with their real name from the moment you invite them,
+  // in EVERY ticked circle. dan: she does not need to know about the others.
+  const madeIn = [], couldNot = [];
+  for (const cid of targetCircles) {
+    const circle = AppState.circleById(cid);
+    const cname = circle ? circle.name : cid;
+    const already = (AppState.userMembers || []).some(function(m) {
+      return m.circleId === cid && normContact(m.contactValue) === normContact(contact); });
+    if (already) continue;
+    const built = buildMember({
+      name: invName, circleId: cid,
+      contactMethod: method, contactValue: contact,
+      trustBasis: 'Invited to Trustnet',
+    });
+    if (!built.ok) { couldNot.push(cname + ' \u2014 ' + built.detail); continue; }
+    AppState.userMembers.push(built.member);
+    if (circle) {
+      circle.memberIds = circle.memberIds || [];
+      circle.memberIds.push(built.member.id);
+    }
+    madeIn.push(cname);
+  }
+  if (madeIn.length) {
+    await saveMembers(); await saveCircles(); await loadUserData(); renderApp();
+    toast(invName + ' added to ' + madeIn.join(', ') + ' \u2014 invite sent.');
+  }
+  if (couldNot.length) toast("Couldn't add to " + couldNot.join('; '), 'warn');
+
   const inp = document.getElementById('inv-contact'); if (inp) inp.value = '';
+  const nmInp = document.getElementById('inv-name'); if (nmInp) nmInp.value = '';
 }
 
 async function handleInviteCopyLink(btn) {
@@ -4847,6 +4916,54 @@ async function handleSaveCircle() {
 // Adding someone you ALREADY KNOW to another circle: no form, no retyping, no
 // duplicate row. This is the path that did not exist — which is why one person
 // in seven circles was seven unrelated member rows.
+// "They are already on Trustnet — add them" from the invite dialog.
+// dan: "what is the point of inviting someone who is already on the app to join
+// the app... it should say he is on the app and give the option to add him to
+// one of your circles."
+// ONE MEMBER ROW PER TICKED CIRCLE. A partial failure keeps what succeeded and
+// names what did not — rolling back work that worked helps nobody.
+async function handleAddKnownPerson(btn) {
+  const name = btn.dataset.name || '';
+  const method = btn.dataset.method || '';
+  const contact = btn.dataset.contact || '';
+  const circleIds = String(btn.dataset.circles || '').split(',').filter(Boolean);
+  if (!circleIds.length) return;
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = 'Adding\u2026';
+  const added = [], failed = [];
+  try {
+    for (const cid of circleIds) {
+      const circle = AppState.circleById(cid);
+      const cname = circle ? circle.name : cid;
+      const dup = (AppState.userMembers || []).some(function(m) {
+        return m.circleId === cid && normContact(m.contactValue) === normContact(contact); });
+      if (dup) { added.push(cname + ' (already there)'); continue; }
+      const built = buildMember({
+        name: name, circleId: cid,
+        contactMethod: method, contactValue: contact,
+        trustBasis: 'Added from invite',
+      });
+      if (!built.ok) { failed.push(cname + ' \u2014 ' + built.detail); continue; }
+      AppState.userMembers.push(built.member);
+      if (circle) {
+        circle.memberIds = circle.memberIds || [];
+        circle.memberIds.push(built.member.id);
+      }
+      added.push(cname);
+    }
+    if (added.length) { await saveMembers(); await saveCircles(); await loadUserData(); }
+    renderApp();
+    if (added.length) toast(name + ' added to ' + added.join(', ') + '.');
+    if (failed.length) toast("Couldn't add to " + failed.join('; '), 'warn');
+    if (!added.length && !failed.length) toast('Nothing to add.', 'warn');
+  } catch (e) {
+    btn.disabled = false; btn.textContent = original;
+    console.error('handleAddKnownPerson failed:', e);
+    toast('Could not add them: ' + (e.message || 'unknown error'), 'warn');
+  }
+}
+
 async function handleAddExistingPerson(btn) {
   const personId = btn.dataset.personId;
   const body = document.querySelector('.modal-body');
@@ -5085,6 +5202,60 @@ async function handleAddCustomInterest(btn) {
 // left a sixth free to omit something new.
 // Returns { ok:true, member } or { ok:false, error, detail } — never a
 // half-built row, never a silent null.
+// ═══ CIRCLE PICKER (v0.63.0) ════════════════════════════════════════════════
+// One component, used when adding a member and when inviting one. dan: adding
+// someone should let you choose which circles to file them in, and more than
+// one.
+//
+// WHY THIS IS SMALL RATHER THAN A SCHEMA CHANGE: I first proposed multi-circle
+// invite tokens, partial-failure handling and an atomic multi-insert — a
+// half-day of work. Wrong shape. THE PERSON MODEL ALREADY SOLVED IT (v0.43.0):
+// a person exists independently of circles and `members` is just a join. Adding
+// someone to three circles is not one complex operation, it is THREE TRIVIAL
+// ONES on a person who already exists. No new schema, no multi-circle token, no
+// atomicity problem.
+// The invite still anchors to ONE circle for the wording ("Dany is inviting you
+// to his leros circle"); the other memberships are dan's own filing and, per
+// his instruction, the invitee is never told about them.
+// Named circleTicksHtml, NOT circlePickerHtml: that identifier is ALREADY a
+// local variable inside two other render functions, which would shadow this
+// global inside their scope. Legal, silent, and exactly the kind of collision
+// that produces a bug nobody can see.
+function circleTicksHtml(currentCircleId, idPrefix) {
+  const circles = (AppState.userCircles || []).filter(function(c) { return !c.isDemo; });
+  if (!circles.length) return '';
+  return '<div style="margin-top:12px;">'
+    + '<div style="font-size:11px;font-weight:700;color:#56695F;letter-spacing:0.4px;margin-bottom:6px;">'
+    + 'ADD TO WHICH CIRCLES?</div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px;">'
+    + circles.map(function(c) {
+        const on = c.id === currentCircleId;
+        return '<button type="button" data-action="toggle-circle-pick"'
+          + ' data-picker="' + esc(idPrefix) + '" data-circle-id="' + esc(c.id) + '"'
+          + ' data-on="' + (on ? '1' : '0') + '"'
+          + ' class="btn btn-sm ' + (on ? 'btn-primary' : 'btn-secondary') + '"'
+          + ' style="white-space:nowrap;">' + esc(c.name) + '</button>';
+      }).join('')
+    + '</div></div>';
+}
+
+// Which circles are ticked. Returns ids; the caller makes one member per id.
+function pickedCircleIds(idPrefix) {
+  return Array.prototype.slice
+    .call(document.querySelectorAll('[data-action="toggle-circle-pick"][data-picker="' + idPrefix + '"]'))
+    .filter(function(b) { return b.dataset.on === '1'; })
+    .map(function(b) { return b.dataset.circleId; });
+}
+
+// Contact comparison, shared. This existed ONLY as a local inside
+// handleSaveMember, and v0.63.0 used it in handleInviteNew and
+// handleAddKnownPerson too — where it is not in scope, so BOTH threw
+// "norm is not defined" for every user who sent an invite. matrix-sim caught it
+// by executing the function; no string check would have.
+function normContact(v) {
+  return String(v || '').replace(/[\s()+-]/g, '').toLowerCase();
+}
+
 function buildMember(input) {
   const name = String(input.name || '').trim();
   const circleId = input.circleId;
@@ -5242,6 +5413,7 @@ async function handleSaveMember() {
     const tail = function(v) { const d = String(v || '').replace(/\D/g, ''); return d.slice(-9); };
     let reuseLinked = null;
     let existingPersonId = null;
+    const extraAdded = [];
     if (!editId) {
       // (#8) you are not your own member — by phone as well as by email
       if (method === 'whatsapp' && contact) {
@@ -5313,6 +5485,28 @@ async function handleSaveMember() {
     });
     if (!builtM.ok) { toast(builtM.detail, 'warn'); return; }
     newMember = builtM.member;
+    // EVERY TICKED CIRCLE gets its own member row. One person, several
+    // filings — the person model already separates the two, so this is simply
+    // repeating a cheap operation rather than a complex multi-insert.
+    // Only when adding; editing works on the single existing row.
+    if (!editId) {
+      const extraCircles = pickedCircleIds('nm').filter(function(c) { return c !== circleId; });
+      extraCircles.forEach(function(cid) {
+        const b2 = buildMember({
+          name: name, circleId: cid, trustBasis: trust,
+          contactMethod: method, contactValue: contact, responseRate: rate,
+          linkedUserId: reuseLinked || null, personId: existingPersonId || null,
+        });
+        if (!b2.ok) return;
+        const dup2 = (AppState.userMembers || []).some(function(m) {
+          return m.circleId === cid && normContact(m.contactValue) === normContact(contact); });
+        if (dup2) return;
+        AppState.userMembers.push(b2.member);
+        const c2 = AppState.circleById(cid);
+        if (c2) { c2.memberIds = c2.memberIds || []; c2.memberIds.push(b2.member.id); }
+        extraAdded.push(c2 ? c2.name : cid);
+      });
+    }
     if (reuseLinked) newMember.linkedUserId = reuseLinked;
     // Carry the resolved person through, so this membership joins the EXISTING
     // person rather than minting a new one (0022). Without this the schema is
@@ -5344,7 +5538,14 @@ async function handleSaveMember() {
         return;
       }
     }
-    if (!editId) toast(name + ' added to circle.');
+    if (!editId) {
+      // Name every circle they landed in, so a multi-tick is visibly confirmed
+      // rather than silently assumed.
+      toast(extraAdded.length
+        ? name + ' added to ' + [(AppState.circleById(circleId) || {}).name || 'this circle']
+            .concat(extraAdded).join(', ') + '.'
+        : name + ' added to circle.');
+    }
   }
 
   if (editId) {
@@ -5955,6 +6156,12 @@ document.addEventListener('click', function(e) {
   else if (action === 'add-custom-interest') {
     handleAddCustomInterest(target);
   }
+  else if (action === 'toggle-circle-pick') {
+    const on = target.dataset.on === '1';
+    target.dataset.on = on ? '0' : '1';
+    target.classList.remove(on ? 'btn-primary' : 'btn-secondary');
+    target.classList.add(on ? 'btn-secondary' : 'btn-primary');
+  }
   else if (action === 'toggle-interest') {
     const on = target.dataset.on === '1';
     target.dataset.on = on ? '0' : '1';
@@ -5967,6 +6174,9 @@ document.addEventListener('click', function(e) {
       .filter(function(b) { return b.dataset.on === '1'; })
       .map(function(b) { return b.dataset.interest; });
     handleSetInterests(target.dataset.circleId, picked, picked.length ? 'confirmed' : 'declined');
+  }
+  else if (action === 'add-known-person') {
+    handleAddKnownPerson(target);
   }
   else if (action === 'codeless-join') {
     // The Trustnet business number. She never types it; wa.me prefills the

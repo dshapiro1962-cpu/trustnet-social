@@ -96,9 +96,13 @@ ck('...and both default to null rather than being dropped',
    ok1.ok && ok1.member.personId === null && ok1.member.linkedUserId === null);
 
 // ── every producer goes through it ──────────────────────────────────────────
-ck('all five member producers call buildMember',
-   (web.match(/buildMember\(\{/g) || []).length === 5,
-   (web.match(/buildMember\(\{/g) || []).length + ' call sites');
+// Assert the PROPERTY, not a count. v0.63.0 added multi-circle adding, so the
+// same producers now call buildMember several times each — a fixed number would
+// have to be edited on every such change, and a check people keep editing is a
+// check people stop trusting.
+const bmCalls = (web.match(/buildMember\(\{/g) || []).length;
+ck('every member producer goes through buildMember', bmCalls >= 5, bmCalls + ' call sites');
+ck('...and no producer hand-builds a member row', !/newMember = \{\s*\n\s*id: uid\(\), name:/.test(web));
 ck('no producer hand-builds a member row any more',
    !/newMember = \{\s*\n\s*id: uid\(\), name:/.test(web));
 

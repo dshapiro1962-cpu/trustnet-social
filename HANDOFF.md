@@ -1905,3 +1905,51 @@ Suites 48, checks 1070. Negative tests proven for both.
 
 LESSON: when the user says the screen was stuck, do not substitute a screen that
 fits my theory. Ask what was on it.
+
+# ═══ 15 AUG 2026 — v0.63.0 · NAME ON INVITE, AND FILE INTO SEVERAL CIRCLES ═══
+
+## THREE CHANGES dan ASKED FOR
+1. THE INVITE DIALOG NOW ASKS FOR A NAME. It collected only a phone number, so
+   no member row existed until the person joined — which is why complete-join
+   had nothing to name naama from and she landed in dany's leros circle as
+   "+972545543467". A name is now REQUIRED, and the invite CREATES the member
+   rows immediately. The phone still decides identity (dan, repeatedly: "naama"
+   and "nama" with the same number are the same person); the name is a label,
+   and buildMember still rejects one that is really a contact.
+2. "ALREADY ON TRUSTNET" IS NOW A BUTTON. dan: "what is the point of inviting
+   someone who is already on the app to join the app... it should give the
+   option to add him to one of your circles." It said so and offered no way to
+   act. inviteSay gained an opt-in isHtml flag; textContent remains the default
+   so anything user-supplied stays inert.
+3. A CIRCLE PICKER on both the invite and add-member dialogs. Tick as many as
+   you like; each tick is one member row. The invite MESSAGE names only the
+   circle you are standing in — dan: she does not need to know about the others.
+
+## THE MULTI-CIRCLE PART WAS SMALL, AND MY FIRST PLAN WAS WRONG
+I proposed multi-circle invite tokens, an atomic multi-insert and
+partial-failure design — half a day, plus a schema change. dan pushed back and
+asked me to think again. THE PERSON MODEL ALREADY SOLVED IT (v0.43.0): a person
+exists independently of circles and `members` is just a join, so adding someone
+to three circles is THREE TRIVIAL OPERATIONS on a person who already exists. No
+schema change, no token change, no atomicity problem. A partial failure keeps
+what succeeded and names what did not.
+
+## A CRASH THAT WOULD HAVE SHIPPED
+I used `norm` in handleInviteNew and handleAddKnownPerson. It exists ONLY as a
+LOCAL inside handleSaveMember, so BOTH NEW PATHS THREW "norm is not defined" FOR
+EVERY USER WHO SENT AN INVITE. `node --check` passes an undefined identifier
+happily — it is a runtime error. matrix-sim caught it by EXECUTING the function.
+Fixed with a shared normContact() helper; guarded.
+
+## ALSO CAUGHT WHILE BUILDING
+- circlePickerHtml was ALREADY a local variable in two other render functions;
+  a global of that name would have been silently shadowed. Renamed
+  circleTicksHtml.
+- A negative test PASSED SPURIOUSLY: it matched /extraCircles\.forEach/, which
+  survived when I replaced the array with []. It now checks where the circles
+  come from, not that a loop exists.
+- seam-sim asserted EXACTLY 5 buildMember call sites; multi-circle adding makes
+  it 8. It now asserts the property (>= 5), because a check people must edit on
+  every change is a check people stop trusting.
+
+Suites 49, checks 1103.

@@ -23,11 +23,16 @@ ctx.window.supabase=ctx.supabase; ctx.globalThis=ctx; vm.createContext(ctx);
 let pass=0,fail=0; const ck=(n,c,x)=>{ if(c){pass++;console.log('  ✓',n);}else{fail++;console.log('  ✗',n,x||'');} };
 (async()=>{
 vm.runInContext(app,ctx,{filename:'app.js'});
-vm.runInContext('renderApp=function(){};showView=function(){};openModal=function(n,p){globalThis.__om=[n,p];};closeModal=function(){};'
+// v0.63.0: the invite now CREATES member rows (previously it opened WhatsApp
+// and recorded nothing, which is why an invitee had no name until they joined).
+// So these must be stubbed or handleInviteNew throws on the mock client.
+vm.runInContext('saveMembers=async function(){};saveCircles=async function(){};'
+  + 'loadUserData=async function(){};'
+  + 'renderApp=function(){};showView=function(){};openModal=function(n,p){globalThis.__om=[n,p];};closeModal=function(){};'
  +'toast=function(m,t){globalThis.__toasts.push([m,t||"ok"]);};CURRENT_UID="me";',ctx);
 ctx.__toasts=[]; ctx.__rpcImpl=async()=>({data:[]});
 const X=ctx.__x;
-ck('APP_VERSION is v0.62.1', X.APP_VERSION==='v0.62.1 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.63.0', X.APP_VERSION==='v0.63.0 · live', X.APP_VERSION);
 
 // ── phone identity: app, function and SQL must agree on ONE canonical form ──
 function keyJs(raw){const d=String(raw||'').replace(/\D/g,'');return d.length>=9?d.slice(-9):d;}
@@ -61,7 +66,7 @@ X.AppState.userProfile={id:'me',name:'Dan S'};
 X.AppState.userMembers=[];
 X.AppState.userCircles=[{id:'c1',name:'Ski',memberIds:[]}];
 X.AppState.circleById=(id)=>X.AppState.userCircles.find(c=>c.id===id)||null;
-byId['inv-method']=el({value:'whatsapp'}); byId['inv-contact']=el({value:'050 123 4567'}); byId['inv-err']=el(); byId['inv-new-msg']=el();
+byId['inv-method']=el({value:'whatsapp'}); byId['inv-contact']=el({value:'050 123 4567'}); byId['inv-name']=el({value:'Test Person'}); byId['inv-err']=el(); byId['inv-new-msg']=el();
 ctx.__rpcImpl=async(n)=> n==='resolve_contacts'
   ? {data:[{input_value:'050 123 4567',method:'whatsapp',is_user:true,user_id:'u1',member_id:'m1',member_name:'Rina'}]}
   : {data:'tok'};
@@ -76,8 +81,13 @@ ctx.__rpcImpl=async(n)=> n==='resolve_contacts'
   : {data:'tok'};
 byId['inv-err']=el(); byId['inv-new-msg']=el(); ctx.__opened=[];
 await X.handleInviteNew(el({dataset:{circleId:'c1',circleName:'Ski'},disabled:false,textContent:''}));
-ck('on Trustnet but NOT in this circle -> told to add them, nothing sent',
-   ctx.__opened.length===0 && byId['inv-new-msg'].textContent.indexOf('Add them as a member')>=0);
+// v0.63.0: this is no longer a SENTENCE telling you to go and do it elsewhere —
+// dan: "what is the point of inviting someone who is already on the app to join
+// the app... it should give the option to add him to one of your circles."
+// It is now a BUTTON, set via innerHTML rather than textContent.
+ck('on Trustnet but NOT in this circle -> offered a button, nothing sent',
+   ctx.__opened.length===0
+   && byId['inv-new-msg'].innerHTML.indexOf('add-known-person')>=0);
 
 ctx.__rpcImpl=async(n)=> n==='resolve_contacts'
   ? {data:[{input_value:'050 123 4567',method:'whatsapp',is_user:false,user_id:null,member_id:null,member_name:null}]}
