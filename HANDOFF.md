@@ -1953,3 +1953,32 @@ Fixed with a shared normContact() helper; guarded.
   every change is a check people stop trusting.
 
 Suites 49, checks 1103.
+
+## v0.63.1 — ONE BINDING, THREE SYMPTOMS
+
+dan reported four faults in the add-member dialog. THREE HAD ONE CAUSE.
+
+nm-search carried data-action="search-people", which is routed ONLY by the
+CLICK delegator. So typing did nothing and it fired when you TAPPED THE BOX —
+dan: "I finish typing a name and nothing happens, only after I tap inside the
+box again the app reacts." Everything else followed:
+  * "I have to scroll down a list of 7 app members to reach her name" — the list
+    was never FILTERED, so Tchia sat in her alphabetical place.
+  * seven cards overflowed the modal and pushed the footer AND THE TAB BAR off
+    screen. The tab bar was never covered; it was pushed out by an overgrown
+    dialog.
+
+I FIRST DIAGNOSED THE SECOND AS A SORTING BUG and was about to reorder results.
+WRONG: search_my_people already filters with `name ilike '%q%'` — proven against
+real Postgres, one row for 'tchia'. dan asked me to check the analysis again
+before building, which is the only reason the wrong fix was not written.
+
+FIXED: nm-search bound in the INPUT delegator, debounced 180ms.
+ALSO: the duplicate "+ Add member" removed from the Invite row (dan: keep the
+one at the top right); the results list capped at min(46vh,300px) and scrollable;
+result cards given box-sizing and min-width:0 so a long name cannot push the
+card wider than the phone ("you have to swipe right and left a little").
+
+TESTED BEHAVIOURALLY: a real input event is dispatched at the delegator and the
+search is observed firing — and NOT firing for a different field. Both negatives
+proven. Suites 50, checks 1116.

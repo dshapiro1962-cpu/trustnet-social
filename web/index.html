@@ -978,7 +978,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.63.0 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.63.1 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1533,7 +1533,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.63.0 · live';
+const APP_VERSION = 'v0.63.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -2118,7 +2118,9 @@ function renderCircleDetail() {
     + (!isDemo ? '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
         + '<button class="btn btn-ghost btn-sm" data-action="open-circle-link" data-circle-id="' + esc(cid) + '" data-circle-name="' + esc(circle.name) + '">Invite link</button>'
         + '<button class="btn btn-ghost btn-sm" data-action="open-invite" data-circle-id="' + esc(cid) + '" data-circle-name="' + esc(circle.name) + '">✉️ Invite</button>'
-        + '<button class="btn btn-ghost btn-sm" data-action="open-modal" data-modal="add-member" data-circle-id="' + esc(cid) + '">+ Add member</button>'
+        // "+ Member" already sits at the TOP RIGHT beside "Ask this circle".
+        // Two entry points to the same dialog is one too many on a phone.
+        
         + '<button class="btn btn-ghost btn-sm" data-action="open-modal" data-modal="edit-circle" data-circle-id="' + esc(cid) + '">Edit</button>'
         + '<button class="btn btn-ghost btn-sm" data-action="delete-circle" data-circle-id="' + esc(cid) + '" style="color:#C0392B;">Delete</button>'
         + '</div>' : '')
@@ -5051,7 +5053,10 @@ function personResultHtml(p, circleId) {
   const circleNames = (p.circles || []).map(function(c) { return c.name; }).join(', ');
   return '<button type="button" data-action="pick-person" data-person-id="' + esc(p.person_id) + '"'
     + (inThis ? ' disabled' : '')
-    + ' style="display:block;width:100%;text-align:left;background:' + (inThis ? '#F4F7F5' : '#fff')
+    // box-sizing so the padding is INSIDE the 100%, and min-width:0 so a long
+    // name or email cannot push the card wider than the phone — dan: "you have
+    // to swipe to the right and left a little to see the whole screen content".
+    + ' style="display:block;width:100%;box-sizing:border-box;min-width:0;text-align:left;background:' + (inThis ? '#F4F7F5' : '#fff')
     + ';border:1px solid #E5EDE8;border-radius:10px;padding:10px 12px;margin-bottom:8px;'
     + 'cursor:' + (inThis ? 'default' : 'pointer') + ';">'
     + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;">'
@@ -5059,7 +5064,8 @@ function personResultHtml(p, circleId) {
     + (p.on_trustnet ? '<span class="chip chip-green" style="font-size:9px;">on Trustnet</span>'
                      : '<span style="font-size:9px;color:#7A9086;">circle member</span>')
     + '</div>'
-    + '<div style="font-size:11px;color:#56695F;margin-top:3px;" dir="auto">' + contactLine(p.contacts) + '</div>'
+    + '<div style="font-size:11px;color:#56695F;margin-top:3px;overflow-wrap:anywhere;" dir="auto">'
+    + contactLine(p.contacts) + '</div>'
     + (circleNames ? '<div style="font-size:10px;color:#7A9086;margin-top:2px;" dir="auto">in ' + esc(circleNames) + '</div>' : '')
     + (inThis ? '<div style="font-size:10px;color:#B4553F;margin-top:3px;">already in this circle</div>' : '')
     + '</button>';
@@ -5185,7 +5191,12 @@ function modalAddMember(params) {
   const searchPane = editId ? '' : ('<div id="nm-search-pane" style="display:flex;flex-direction:column;gap:10px;">'
     + '<div class="field"><div class="field-label">WHO DO YOU WANT TO ADD?</div>'
     + '<input class="field-input" id="nm-search" data-action="search-people" placeholder="Start typing a name\u2026" autocomplete="off"></div>'
-    + '<div id="nm-search-results"></div>'
+    // Capped and scrollable. It had NO height limit, so an unfiltered list grew
+    // past the modal's overflow:hidden and pushed the footer — and the tab bar
+    // — out of view. With the search bound correctly this is usually one or two
+    // rows, but a guard costs nothing.
+    + '<div id="nm-search-results" style="max-height:min(46vh,300px);overflow-y:auto;'
+    + '-webkit-overflow-scrolling:touch;"></div>'
     + '<button type="button" class="btn btn-secondary btn-sm" data-action="add-new-person" style="align-self:flex-start;">'
     + '+ Add someone new</button>'
     + '</div>');
@@ -7535,6 +7546,19 @@ document.addEventListener('click', function(e) {
 
 // Library search — update only the results, never re-render the whole view
 document.addEventListener('input', function(e) {
+  // THE ADD-MEMBER SEARCH. It was routed ONLY by the CLICK delegator, so
+  // typing did nothing and it fired when you TAPPED THE BOX — dan: "I finish
+  // typing a name and nothing happens, only after I tap inside the box again
+  // the app reacts."
+  // Everything else he reported followed from this: the list stayed
+  // UNFILTERED, so Tchia sat in her alphabetical place among seven people, and
+  // seven cards overflowed the modal and pushed the footer and the tab bar off
+  // screen. One binding, four symptoms.
+  if (e.target && e.target.id === 'nm-search') {
+    clearTimeout(window._nmSearchDebounce);
+    window._nmSearchDebounce = setTimeout(refreshPeopleSearch, 180);
+    return;
+  }
   if (e.target && e.target.id === 'sr-search') {
     const q = (e.target.value || '').trim().toLowerCase();
     document.querySelectorAll('.sr-row').forEach(function(row) {

@@ -37,7 +37,7 @@ ctx.__resolve={state:'free',person_id:null,person_name:null,membership_id:null,o
 ctx.__rpcImpl=async(n)=>(n==='resolve_contact' ? {data:[ctx.__resolve],error:null} : {data:false});
 const X=ctx.__x;
 const lastToast=()=>ctx.__toasts.length?String(ctx.__toasts[ctx.__toasts.length-1][0]):'';
-ck('APP_VERSION is v0.63.0', X.APP_VERSION==='v0.63.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.63.1', X.APP_VERSION==='v0.63.1 · live', X.APP_VERSION);
 
 function reset() {
   byId['inv-new-msg']=el(); byId['inv-err']=el();
