@@ -43,10 +43,22 @@ test.describe('query loop — one session: circle → member → real send', () 
     await tapp(page.getByRole('button', { name: 'Create Circle' }));
     await expect(page.getByText(CIRCLE).first()).toBeVisible({ timeout: 10000 });
 
-    // 2) Member (default 'app' method — no external delivery)
+    // 2) Member — A CONTACT IS NOW REQUIRED.
+    // This step used to fill only the name and rely on the default 'app'
+    // method. buildMember (v0.60.0) REFUSES a member without a contact,
+    // because send-query, send-collection and resend-member all dispatch on
+    // contact_method — a contactless member produced "unsupported_channel"
+    // across three accounts and cost a full day to trace. The 'app' method was
+    // removed for the same reason. Email is used here so nothing is delivered
+    // to a real phone.
     await tapp(page.locator('[data-modal="add-member"]').first());
+    const addNew07 = page.locator('[data-action="add-new-person"]').first();
+    if (await addNew07.count()) await tapp(addNew07);   // dialog opens on SEARCH first
     await expect(page.locator('#nm-name')).toBeVisible({ timeout: 10000 });
     await page.locator('#nm-name').fill(MEMBER);
+    const emailTab07 = page.locator('[data-action="pick-segment"][data-picker-id="nm-method"][data-value="email"]').first();
+    if (await emailTab07.count()) await tapp(emailTab07);
+    await page.locator('#nm-contact').fill('e2e+' + Date.now() + '@trustnet.local');
     await tapp(page.locator('[data-action="save-member"]').first());
     await expect(page.getByText(MEMBER).first()).toBeVisible({ timeout: 10000 });
 

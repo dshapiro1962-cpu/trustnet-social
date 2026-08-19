@@ -1982,3 +1982,74 @@ card wider than the phone ("you have to swipe right and left a little").
 TESTED BEHAVIOURALLY: a real input event is dispatched at the delegator and the
 search is observed firing — and NOT firing for a different field. Both negatives
 proven. Suites 50, checks 1116.
+
+# ═══ 19 AUG 2026 — v0.64.0 · ONE ANSWER TO "WHO IS THIS PERSON?" ═══
+
+dan: "how come we haven't solved the issue of the app using the email address or
+phone number as the definitive identity of a person and using that identity for
+every aspect of the app — e.g. knowing Chain Answerer is not on the app and
+acting accordingly."
+
+WE HAD SOLVED IT — IN THE DATABASE, AND NEVER PROPAGATED IT. resolve_contact
+(0024) gives one authoritative answer and person_contacts enforces one contact
+one person. It was called from ONE file. TWELVE other surfaces each answered the
+question their own way — SIX different questions in all (see identity_audit.md).
+
+## PROVEN, NOT INFERRED
+1. respond.html asked "is a session present in THIS browser?" — so when dan
+   opened an answer link on his own machine it found HIS session, decided the
+   ANSWERER already had Trustnet, SUPPRESSED THE INVITATION, and sent "Back to
+   Trustnet" to dan's own account. Anyone answering on a shared or family
+   computer hits the same thing.
+2. TWO PHONE NORMALISERS THAT DISAGREE. wa-signin used the last nine digits;
+   whatsapp-webhook used all of them. A profile storing '0545543467' and a
+   WhatsApp sender of '972545543467' are the SAME PERSON: sign-in matched,
+   save-to-library refused with "this phone isn't linked to an account yet".
+   Executed in node against that exact pair.
+3. THE CLIENT CANNOT SET linked_user_id AND WAS TRYING TO. resolve_contact
+   withholds the account id on purpose (nobody may enumerate who is registered),
+   so handleSaveMember did `reuseLinked = true` — writing `true` into a UUID
+   column, a write POSTGRES REJECTS OUTRIGHT (proven). The member saved with NO
+   link, and nine functions then treated a real Trustnet user as a stranger.
+   THAT IS EXACTLY "app_doorways: 0" in dan's end-to-end test.
+
+## AS BUILT
+- phoneKey and toE164 now live ONCE in _shared/utils.ts, matching phone_key() in
+  SQL. The three private copies are gone. toE164 is documented as a DELIVERY
+  format, deliberately distinct from identity — conflating them was the bug.
+- 0034 link_member(): security definer, YOUR OWN MEMBER ONLY, matches phone OR
+  email, returns only a BOOLEAN. Plus a one-off repair for every existing row.
+  Verified on real Postgres: unlinked member -> linked; a genuine stranger stays
+  unlinked; someone else's member is REFUSED.
+- All six member-producing paths call it after saving.
+- receive-response now returns answerer_on_trustnet from the member row it
+  already loads; respond.html uses that instead of readTnSession(). The ONE
+  remaining session read (offering YOUR library to answer with) is correct and
+  is now documented as such so nobody "fixes" it.
+
+## PART 2 IS NOT BUILDABLE AS I PROPOSED IT — AND I SHOULD HAVE SEEN IT SOONER
+"Match on phone OR email" cannot work in wa-signin: it receives ONLY a phone.
+There is no email to match against. And A USER WHO SIGNED UP BY EMAIL HAS NO WAY
+TO ADD A PHONE TO THEIR ACCOUNT — there is no such field in the app.
+So an email-era user signing in by WhatsApp still gets a SECOND account. The
+honest fix is a profile setting that lets them add their phone, NOT a matching
+heuristic: merging two accounts on a guess is far worse than a duplicate.
+STILL OPEN, needs dan's decision.
+
+## TESTS
+identity-sim, 21 checks, incl. BEHAVIOURAL proof that the two normalisers now
+agree on the pair that broke, and that no function defines its own. Three
+negatives proven: webhook back to raw digits, client inventing a link,
+respond.html reading the browser session.
+Four stale assertions corrected — three because the client CORRECTLY no longer
+sets linkedUserId, and one (importdedup) that demanded a whole branch on ONE
+LINE and failed on whitespace. A check that fails on formatting trains people to
+ignore it.
+Suites 51, checks 1139. 28 migrations rebuild clean on real Postgres.
+
+## NOTE FOR THE NEXT SESSION
+The container reset mid-session and took app/, sims/, migrations and Postgres
+with it. Everything was recovered from the v0.63.1 package plus dan's repo zip —
+but the sims expect a specific layout (/home/claude/app, /home/claude/functions,
+/home/claude/sim, /home/claude/respond) which had to be rebuilt by hand. Worth
+keeping that layout in the package so a reset costs minutes, not an hour.

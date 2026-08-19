@@ -32,13 +32,22 @@ vm.runInContext('saveMembers=async function(){};saveCircles=async function(){};'
  +'toast=function(m,t){globalThis.__toasts.push([m,t||"ok"]);};CURRENT_UID="me";',ctx);
 ctx.__toasts=[]; ctx.__rpcImpl=async()=>({data:[]});
 const X=ctx.__x;
-ck('APP_VERSION is v0.63.1', X.APP_VERSION==='v0.63.1 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.64.0', X.APP_VERSION==='v0.64.0 · live', X.APP_VERSION);
 
 // ── phone identity: app, function and SQL must agree on ONE canonical form ──
 function keyJs(raw){const d=String(raw||'').replace(/\D/g,'');return d.length>=9?d.slice(-9):d;}
 const forms=['050-123-4567','+972 50 123 4567','0501234567','972501234567','+972501234567'];
 ck('all phone formats collapse to one key (app side)', new Set(forms.map(keyJs)).size===1);
-ck('the FUNCTION uses the same rule', fnSrc.indexOf('d.length >= 9 ? d.slice(-9) : d')>=0);
+// v0.64.0: phoneKey is no longer inline in wa-signin — it was defined
+// PRIVATELY there, in complete-join AND in whatsapp-webhook, and the webhook's
+// copy used a DIFFERENT rule (all digits, not the last nine), so the same
+// person was recognised by sign-in and refused by save-to-library. It now lives
+// once in _shared/utils.ts.
+const sharedSrc = require('fs').readFileSync('/home/claude/functions/_shared/utils.ts','utf8');
+ck('the rule is defined ONCE, in _shared', sharedSrc.indexOf('d.length >= 9 ? d.slice(-9) : d')>=0);
+ck('...and wa-signin imports it rather than redefining it',
+   /import \{[^}]*phoneKey[^}]*\} from "\.\.\/_shared\/utils\.ts"/.test(fnSrc)
+   && fnSrc.indexOf('function phoneKey') < 0);
 ck('the DATABASE uses the same rule', sqlSrc.indexOf('right(regexp_replace(p_raw') >= 0 && sqlSrc.indexOf("'g'), 9)") >= 0);
 ck('users.phone_key is generated, not hand-maintained', sqlSrc.indexOf('generated always as (phone_key(phone)) stored')>=0);
 ck('members.contact_key is generated too', sqlSrc.indexOf('generated always as (')>=0 && sqlSrc.indexOf('members add column if not exists contact_key')>=0);

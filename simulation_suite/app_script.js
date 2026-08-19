@@ -497,7 +497,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.63.1 · live';
+const APP_VERSION = 'v0.64.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -2436,6 +2436,10 @@ async function handleAddPickedMembers(btn) {
   btn.disabled = true;
   await saveCircles();
   await saveMembers();
+  // A contact from the phone book may well be on Trustnet already.
+  for (const m of AppState.userMembers.filter(function(x) { return x.circleId === circleId; })) {
+    if (!m.linkedUserId) await linkMemberOnServer(m.id);
+  }
   toast('Added ' + added + ' member' + (added !== 1 ? 's' : '') + ' via WhatsApp.');
   if (skippedAdds.length) toast("Couldn't add: " + skippedAdds.join('; '), 'warn');
   closeModal();
@@ -4710,7 +4714,14 @@ async function handleInviteNew(btn) {
     madeIn.push(cname);
   }
   if (madeIn.length) {
-    await saveMembers(); await saveCircles(); await loadUserData(); renderApp();
+    await saveMembers(); await saveCircles();
+    // An invited person may ALREADY be on Trustnet — the dialog says so — and
+    // then they should get the in-app doorway, not just an email.
+    for (const m of AppState.userMembers.filter(function(x) {
+      return normContact(x.contactValue) === normContact(contact); })) {
+      await linkMemberOnServer(m.id);
+    }
+    await loadUserData(); renderApp();
     toast(invName + ' added to ' + madeIn.join(', ') + ' \u2014 invite sent.');
   }
   if (couldNot.length) toast("Couldn't add to " + couldNot.join('; '), 'warn');
@@ -4963,7 +4974,17 @@ async function handleAddKnownPerson(btn) {
       }
       added.push(cname);
     }
-    if (added.length) { await saveMembers(); await saveCircles(); await loadUserData(); }
+    if (added.length) {
+      await saveMembers(); await saveCircles();
+      // These are people the dialog has ALREADY confirmed are on Trustnet, so
+      // the link matters most here: without it they receive email instead of
+      // the in-app question they expect.
+      for (const m of AppState.userMembers.filter(function(x) {
+        return normContact(x.contactValue) === normContact(contact); })) {
+        await linkMemberOnServer(m.id);
+      }
+      await loadUserData();
+    }
     renderApp();
     if (added.length) toast(name + ' added to ' + added.join(', ') + '.');
     if (failed.length) toast("Couldn't add to " + failed.join('; '), 'warn');
@@ -5021,6 +5042,7 @@ async function handleAddExistingPerson(btn) {
       await saveCircles();
     }
     await saveMembers();
+    await linkMemberOnServer(built.member.id);
     await loadUserData();
     closeModal();
     renderApp();
@@ -5267,6 +5289,29 @@ function normContact(v) {
   return String(v || '').replace(/[\s()+-]/g, '').toLowerCase();
 }
 
+// Ask the SERVER to link a member to a Trustnet account, if there is one.
+// The browser is never told which account — resolve_contact withholds the id so
+// nobody can enumerate who is registered — so linking must happen server-side.
+// Called after every member is created or has its contact changed.
+// WITHOUT THIS the member is saved with linked_user_id NULL, and nine functions
+// (send-query, send-collection, resend-member, check-similar-query,
+// check-reciprocal, update-taste-match, suggest-sweep among them) treat a real
+// Trustnet user as a stranger — which is why an end-to-end test showed
+// "app_doorways: 0" for a member whose contact matched a real account.
+async function linkMemberOnServer(memberId) {
+  if (!memberId || AppState.isDemoMode) return false;
+  try {
+    const r = await sb.rpc('link_member', { p_member_id: memberId });
+    if (r.error) { console.error('link_member failed:', r.error); return false; }
+    return !!(r.data && r.data.linked);
+  } catch (e) {
+    // Never block the save: an unlinked member still works for email and
+    // WhatsApp delivery, it simply misses the in-app doorway.
+    console.error('link_member threw:', e);
+    return false;
+  }
+}
+
 function buildMember(input) {
   const name = String(input.name || '').trim();
   const circleId = input.circleId;
@@ -5423,6 +5468,7 @@ async function handleSaveMember() {
     const norm = function(v) { return String(v || '').replace(/[\s()+-]/g, '').toLowerCase(); };
     const tail = function(v) { const d = String(v || '').replace(/\D/g, ''); return d.slice(-9); };
     let reuseLinked = null;
+    let isOnTrustnet = false;
     let existingPersonId = null;
     const extraAdded = [];
     if (!editId) {
@@ -5483,7 +5529,17 @@ async function handleSaveMember() {
         name = holder;
         existingPersonId = resolved.person_id;
       }
-      if (resolved.on_trustnet) reuseLinked = true;
+      // THE CLIENT CANNOT SET linked_user_id AND MUST NOT TRY.
+      // resolve_contact deliberately withholds the user id for anyone who is
+      // not already one of your people, so that nobody can enumerate who is
+      // registered. This line used to write `true` into a UUID column: the
+      // write was REJECTED, the member was saved with no link, and nine
+      // functions — send-query among them — then treated a real Trustnet user
+      // as a stranger. That is exactly why an end-to-end test showed
+      // "app_doorways: 0" for a member whose contact matched a real account.
+      // link_member() (0034) does it server-side after the save and returns
+      // only a boolean.
+      isOnTrustnet = !!resolved.on_trustnet;
     }
     // The constructor validates: no contactless member, no contact in the name
     // field, phone numbers normalised. It REFUSES rather than producing a row
@@ -5492,7 +5548,7 @@ async function handleSaveMember() {
       name: name, circleId: circleId, trustBasis: trust,
       contactMethod: method, contactValue: contact, responseRate: rate,
       avatarColor: color,
-      linkedUserId: reuseLinked || null, personId: existingPersonId || null,
+      linkedUserId: null, personId: existingPersonId || null,   // set by link_member() after save
     });
     if (!builtM.ok) { toast(builtM.detail, 'warn'); return; }
     newMember = builtM.member;
@@ -5506,7 +5562,7 @@ async function handleSaveMember() {
         const b2 = buildMember({
           name: name, circleId: cid, trustBasis: trust,
           contactMethod: method, contactValue: contact, responseRate: rate,
-          linkedUserId: reuseLinked || null, personId: existingPersonId || null,
+          linkedUserId: null, personId: existingPersonId || null,   // set by link_member() after save
         });
         if (!b2.ok) return;
         const dup2 = (AppState.userMembers || []).some(function(m) {
@@ -5518,7 +5574,7 @@ async function handleSaveMember() {
         extraAdded.push(c2 ? c2.name : cid);
       });
     }
-    if (reuseLinked) newMember.linkedUserId = reuseLinked;
+
     // Carry the resolved person through, so this membership joins the EXISTING
     // person rather than minting a new one (0022). Without this the schema is
     // right and the app keeps creating strangers anyway.
@@ -5549,6 +5605,12 @@ async function handleSaveMember() {
         return;
       }
     }
+    // Link every member just written, including the extra circles.
+    await linkMemberOnServer(newMember.id);
+    for (const em of extraAdded.length ? AppState.userMembers.filter(function(m) {
+      return normContact(m.contactValue) === normContact(contact) && m.id !== newMember.id;
+    }) : []) { await linkMemberOnServer(em.id); }
+
     if (!editId) {
       // Name every circle they landed in, so a multi-tick is visibly confirmed
       // rather than silently assumed.

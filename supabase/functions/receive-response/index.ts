@@ -133,7 +133,21 @@ Deno.serve(async (req) => {
     });
   }
 
-  return json({ success: true });
+  // TELL THE PAGE WHO THE ANSWERER IS — authoritatively.
+  // respond.html decided whether to show the "join Trustnet" invitation by
+  // asking `readTnSession()`: IS THERE A SESSION IN THIS BROWSER? That is the
+  // wrong question. dan added dshari08@hotmail.com as an answerer, opened the
+  // link on his own machine, and the page found HIS session — so it concluded
+  // the answerer already had Trustnet, SUPPRESSED THE INVITATION, and its
+  // "Back to Trustnet" button landed on dan's account.
+  // It is not only a test artefact: anyone answering on a shared or family
+  // computer is denied the invitation for the same reason.
+  // The member row we already loaded holds the truth. Only a boolean leaves
+  // here — never the account id.
+  return json({
+    success: true,
+    answerer_on_trustnet: !!member?.linked_user_id,
+  });
 });
 
 function guessEmoji(name: string, location?: string): string {

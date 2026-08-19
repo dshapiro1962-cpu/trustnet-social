@@ -21,22 +21,10 @@
 // credential, and it is 32 random characters held only by whoever tapped the
 // invite.
 // ============================================================================
-import { adminClient, json, err, handleOptions } from "../_shared/utils.ts";
+import { adminClient, json, err, handleOptions, phoneKey, toE164 } from "../_shared/utils.ts";
 
 const ENGINE = "complete-join-v1";
 
-function phoneKey(raw: string): string {
-  const d = String(raw || "").replace(/\D/g, "");
-  return d.length >= 9 ? d.slice(-9) : d;
-}
-function toE164(raw: string): string {
-  let d = String(raw || "").replace(/[^\d+]/g, "");
-  if (d.startsWith("00")) d = "+" + d.slice(2);
-  if (d.startsWith("+")) return d.replace(/\D/g, "");
-  if (d.startsWith("972")) return d;
-  if (d.startsWith("0")) return "972" + d.slice(1);
-  return d;
-}
 
 Deno.serve(async (req) => {
   const pre = handleOptions(req);

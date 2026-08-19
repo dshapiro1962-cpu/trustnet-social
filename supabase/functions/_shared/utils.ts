@@ -90,3 +90,39 @@ export function jaccard(a: string, b: string): number {
 export async function normalisedHash(text: string): Promise<string> {
   return await sha256(tokenise(text).sort().join(" "));
 }
+
+// ═══ PHONE IDENTITY — ONE RULE (v0.64.0) ════════════════════════════════════
+// phoneKey was defined PRIVATELY in wa-signin, complete-join and
+// whatsapp-webhook — and the webhook's version was DIFFERENT. It used plain
+// digits(), keeping the country code:
+//     phoneKey('0545543467')  -> '545543467'      (last 9)
+//     digits('0545543467')    -> '0545543467'     (all)
+// So for a user whose profile stores '0545543467' while WhatsApp reports
+// '972545543467':
+//     wa-signin      MATCHED  -> they sign in fine
+//     whatsapp-webhook DID NOT -> "this phone isn't linked to an account yet"
+// The same person, the same number, recognised by one surface and refused by
+// another. Proven by executing both against that pair.
+//
+// This is the SAME rule as phone_key() in SQL (0017), which backs an indexed
+// generated column and a unique constraint — so client, edge and database now
+// agree by construction rather than by three people remembering to.
+export function phoneKey(raw: string | null | undefined): string {
+  const d = String(raw ?? "").replace(/\D/g, "");
+  if (!d) return "";
+  // Last nine digits: the national part in Israel, so +972 50 123 4567,
+  // 050-123-4567 and 972501234567 are all one person.
+  return d.length >= 9 ? d.slice(-9) : d;
+}
+
+// E.164 for delivery. Distinct from phoneKey: this is how we SEND to a number,
+// phoneKey is how we RECOGNISE it. Conflating them is what produced the bug
+// above — a delivery format used as an identity.
+export function toE164(raw: string | null | undefined): string {
+  let d = String(raw ?? "").replace(/[^\d+]/g, "");
+  if (d.startsWith("00")) d = "+" + d.slice(2);
+  if (d.startsWith("+")) return d.replace(/\D/g, "");
+  if (d.startsWith("972")) return d;
+  if (d.startsWith("0")) return "972" + d.slice(1);
+  return d;
+}

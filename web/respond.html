@@ -190,6 +190,11 @@ async function initLibraryLookup() {
   let keyList = [];
   try { for (let i = 0; i < localStorage.length; i++) keyList.push(localStorage.key(i)); } catch (e) { dbg("localStorage error: " + e.message); }
   dbg("storage keys (" + keyList.length + "): " + keyList.join(" | "));
+  // THIS use of readTnSession is CORRECT and must stay. It asks "can I offer
+  // you items from YOUR library to answer with?" — a question that genuinely
+  // depends on who is signed in to THIS browser. The identity question, "does
+  // the answerer have an account?", is a different one and is answered by
+  // receive-response (see the thanks view below).
   const sess = readTnSession();
   if (!sess) { dbg("session: NONE matched /^sb-.*-auth-token$/ -> strip stays hidden"); return; }
   dbg("session: found, uid=" + sess.uid + ", token len=" + (sess.token || "").length);
@@ -293,9 +298,17 @@ $("submit-btn").addEventListener("click", async () => {
           "People ask you for recommendations all the time. Trustnet keeps them in one place — and lets you ask your own trusted people back. No ads, no strangers, no algorithm.";
       }
       $("convert-btn").href = APP_URL;
-      // A member answering from inside the app already HAS Trustnet — replace the
-      // conversion pitch with a plain confirmation. Anonymous answerers keep it.
-      if (readTnSession()) {
+      // ASK ABOUT THE ANSWERER, NOT THE BROWSER.
+      // This used to be `if (readTnSession())` — "is there a session in THIS
+      // browser?" — which is a different question entirely. dan added
+      // dshari08@hotmail.com as an answerer and opened the link on his own
+      // machine: the page found HIS session, concluded the answerer already had
+      // Trustnet, SUPPRESSED THE INVITATION, and sent "Back to Trustnet" to
+      // dan's own account. Anyone answering on a shared or family computer hits
+      // the same thing.
+      // receive-response knows the truth — it loads the member row, which
+      // carries linked_user_id — and now returns it as a boolean.
+      if (data.answerer_on_trustnet === true) {
         var conv = document.querySelector(".convert");
         if (conv) {
           conv.innerHTML = '<div style="text-align:center;">'

@@ -8,12 +8,15 @@
 //               WHATSAPP_PHONE_ID, OPENAI_API_KEY, OPENAI_MODEL?,
 //               GOOGLE_PLACES_API_KEY?
 // ============================================================================
-import { adminClient, json } from "../_shared/utils.ts";
+import { adminClient, json, phoneKey } from "../_shared/utils.ts";
 import { CATEGORIES, buildSearchDoc, embed as embedDoc } from "../_shared/enrich_core.ts";
 
 const ENGINE = "wawh-v3-image";
 
 
+// digits() remains for DELIVERY formatting only (building "+<number>"), never
+// for identity. Using a delivery format as an identity is exactly the bug this
+// change removes.
 function digits(s: string): string { return (s || "").replace(/\D/g, ""); }
 
 async function sendText(to: string, text: string): Promise<void> {
@@ -73,7 +76,6 @@ Deno.serve(async (req) => {
   if (!msg) return json({ ok: true });
 
   const from: string = msg.from || "";
-  const senderDigits = digits(from);
 
   const admin = adminClient();
 
@@ -122,7 +124,13 @@ Deno.serve(async (req) => {
   const { data: candidates } = await admin
     .from("users").select("id, name, share_by_default, phone")
     .not("phone", "is", null);
-  const user = (candidates || []).find((u) => digits(u.phone) === senderDigits);
+  // phoneKey, NOT digits. digits() keeps the country code, so a profile storing
+  // '0545543467' never matched a WhatsApp sender of '972545543467' — the same
+  // person, recognised by wa-signin and refused here with "this phone isn't
+  // linked to an account yet". One identity rule now, shared with wa-signin,
+  // complete-join and phone_key() in SQL.
+  const senderKey = phoneKey(from);
+  const user = (candidates || []).find((u) => phoneKey(u.phone) === senderKey);
   if (!user) {
     await sendText(from,
       "Hi! This is Trustnet's save-to-library number, but this phone isn't linked to an account yet. " +

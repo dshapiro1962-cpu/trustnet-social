@@ -32,8 +32,11 @@ ck('chat-import now calls match_canonical (it never did before)',
    /admin\.rpc\("match_canonical"/.test(src));
 ck('...with BOTH name and location, as receive-response does',
    /p_name: it\.name\.trim\(\)/.test(src) && /p_location:/.test(src));
+// Formatting-insensitive. The old regex demanded the whole branch on ONE line
+// and failed the moment it was wrapped — a check that fails on whitespace tells
+// you nothing about behaviour and trains people to ignore it.
 ck('a matched canonical is REUSED, not duplicated',
-   /if \(matchId\) \{ canonicalId = matchId as string; reused\+\+; \}/.test(src));
+   /if \(matchId\)\s*\{[\s\S]{0,120}?canonicalId = matchId as string;[\s\S]{0,40}?reused\+\+;/.test(src));
 ck('a new canonical is minted ONLY when nothing matched',
    /if \(!canonicalId\) \{/.test(src));
 ck('reuse count is reported back (a re-import should show high reuse)',

@@ -16,7 +16,7 @@
 //
 // Secrets: WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, SUPABASE_SERVICE_ROLE_KEY
 // ============================================================================
-import { json, err, handleOptions } from "../_shared/utils.ts";
+import { json, err, handleOptions, phoneKey, toE164 } from "../_shared/utils.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // A dedicated admin client with session persistence OFF. The shared
@@ -37,22 +37,7 @@ const MAX_ATTEMPTS = 5;
 const RESEND_COOLDOWN_SEC = 60;
 const MAX_PER_HOUR = 5;
 
-// One canonical form, matching phone_key() in the database exactly.
-function phoneKey(raw: string): string {
-  const d = String(raw || "").replace(/\D/g, "");
-  if (!d) return "";
-  return d.length >= 9 ? d.slice(-9) : d;
-}
 
-// E.164 for WhatsApp delivery: Israeli local -> +972…
-function toE164(raw: string): string {
-  let d = String(raw || "").replace(/[^\d+]/g, "");
-  if (d.startsWith("00")) d = "+" + d.slice(2);
-  if (d.startsWith("+")) return d.replace(/\D/g, "");
-  if (d.startsWith("972")) return d;
-  if (d.startsWith("0")) return "972" + d.slice(1);
-  return d;
-}
 
 async function sha256(s: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));

@@ -37,7 +37,7 @@ ctx.__resolve={state:'free',person_id:null,person_name:null,membership_id:null,o
 ctx.__rpcImpl=async(n)=>(n==='resolve_contact' ? {data:[ctx.__resolve],error:null} : {data:false});
 const X=ctx.__x;
 const lastToast=()=>ctx.__toasts.length?String(ctx.__toasts[ctx.__toasts.length-1][0]):'';
-ck('APP_VERSION is v0.63.1', X.APP_VERSION==='v0.63.1 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.64.0', X.APP_VERSION==='v0.64.0 · live', X.APP_VERSION);
 
 function reset() {
   byId['inv-new-msg']=el(); byId['inv-err']=el();
@@ -98,8 +98,11 @@ const added=X.AppState.userMembers.find(function(m){return m.circleId==='c1' && 
 // one contact is one person, but the human confirms) and then REUSES that
 // person instead of minting a second one. Reuse is the point; the toast was
 // only ever a consolation for not having a person model.
+// linkedUserId dropped from this assertion in v0.64.0: the client no longer
+// sets it (see check 9). What matters HERE is person REUSE — the same person,
+// no second people row — which is what this check was always about.
 ck('6. someone from ANOTHER circle -> reuses the SAME person, no new people row',
-   !!added && added.personId==='p9' && !!added.linkedUserId
+   !!added && added.personId==='p9'
    && !ctx.__inserts.some(function(i){return i[0]==='people';}),
    JSON.stringify({p:added&&added.personId, l:added&&added.linkedUserId,
                    ins:ctx.__inserts.map(function(i){return i[0];})}));
@@ -116,9 +119,17 @@ ck('8. adding YOURSELF by PHONE -> refused (was unguarded)',
 reset(); ctx.__resolve={state:'free',person_id:null,person_name:null,membership_id:null,on_trustnet:true};
 form({name:'Newbie', method:'email', contact:'new@x.com'});
 await X.handleSaveMember();
-ck('9. brand-new contact who HAS an account -> resolved server-side and linked',
+// v0.64.0: THE CLIENT NO LONGER SETS linkedUserId, and must not. It used to do
+//     if (resolved.on_trustnet) reuseLinked = true;
+// — writing `true` into a UUID column, a write Postgres REJECTS outright. The
+// member was then saved with NO link, and nine functions treated a real
+// Trustnet user as a stranger ("app_doorways: 0"). resolve_contact withholds
+// the account id on purpose, so linking must happen server-side: link_member().
+ck('9. brand-new contact who HAS an account -> resolved, then linked SERVER-SIDE',
    ctx.__rpcCalls.some(function(c){return c[0]==='resolve_contact';}) &&
-   X.AppState.userMembers.some(function(m){return m.contactValue==='new@x.com' && m.linkedUserId;}));
+   ctx.__rpcCalls.some(function(c){return c[0]==='link_member';}));
+ck('9b. ...and the client never invents a link itself',
+   X.AppState.userMembers.every(function(m){ return m.linkedUserId !== true; }));
 
 reset(); form({name:'Stranger', method:'email', contact:'nobody@x.com'});
 await X.handleSaveMember();
