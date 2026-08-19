@@ -32,7 +32,7 @@ vm.runInContext('saveMembers=async function(){};saveCircles=async function(){};'
  +'toast=function(m,t){globalThis.__toasts.push([m,t||"ok"]);};CURRENT_UID="me";',ctx);
 ctx.__toasts=[]; ctx.__rpcImpl=async()=>({data:[]});
 const X=ctx.__x;
-ck('APP_VERSION is v0.64.0', X.APP_VERSION==='v0.64.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.64.1', X.APP_VERSION==='v0.64.1 · live', X.APP_VERSION);
 
 // ── phone identity: app, function and SQL must agree on ONE canonical form ──
 function keyJs(raw){const d=String(raw||'').replace(/\D/g,'');return d.length>=9?d.slice(-9):d;}

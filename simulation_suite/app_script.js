@@ -497,7 +497,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.64.0 · live';
+const APP_VERSION = 'v0.64.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -5540,6 +5540,11 @@ async function handleSaveMember() {
       // link_member() (0034) does it server-side after the save and returns
       // only a boolean.
       isOnTrustnet = !!resolved.on_trustnet;
+      // SAY SO. resolve_contact answers three states and the app acted on only
+      // two: 'in_circle' refuses, 'found_person' asks, and 'on_trustnet' fell
+      // through SILENTLY — the variable was set and never read.
+      // dan: "if dshari08@hotmail.com is an app member why doesn't the app say
+      // so". Because nothing displayed it. The resolver was right all along.
     }
     // The constructor validates: no contactless member, no contact in the name
     // field, phone numbers normalised. It REFUSES rather than producing a row
@@ -5614,10 +5619,16 @@ async function handleSaveMember() {
     if (!editId) {
       // Name every circle they landed in, so a multi-tick is visibly confirmed
       // rather than silently assumed.
-      toast(extraAdded.length
+      // Name the circles AND say whether they are on Trustnet. Someone who
+      // already has an account receives the question IN THE APP, not just by
+      // email — that is worth knowing at the moment you add them.
+      const whereTo = extraAdded.length
         ? name + ' added to ' + [(AppState.circleById(circleId) || {}).name || 'this circle']
-            .concat(extraAdded).join(', ') + '.'
-        : name + ' added to circle.');
+            .concat(extraAdded).join(', ')
+        : name + ' added to circle';
+      toast(whereTo + (isOnTrustnet
+        ? ' \u2014 they are on Trustnet, so they will get your questions in the app.'
+        : '.'));
     }
   }
 

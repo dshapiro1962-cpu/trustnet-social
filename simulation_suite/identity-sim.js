@@ -83,4 +83,29 @@ ck('...and no longer decides identity from localStorage',
 ck('the ONE remaining session read is documented as legitimate',
    /THIS use of readTnSession is CORRECT/.test(respond));
 
+// ── THE APP MUST SAY WHAT IT KNOWS (v0.64.1) ────────────────────────────────
+// dan: "if dshari08@hotmail.com is an app member why doesn't the app say so".
+// BECAUSE NOTHING DISPLAYED IT. resolve_contact answers three states and the
+// client acted on TWO: 'in_circle' refuses, 'found_person' asks, and
+// 'on_trustnet' fell through in silence — isOnTrustnet was SET AND NEVER READ,
+// a dead variable introduced in v0.64.0.
+// The resolver was right all along; proven against real Postgres for an account
+// that has NO person record: state 'on_trustnet', on_trustnet true, and case
+// and spacing ignored.
+ck('the on_trustnet answer is USED, not just stored',
+   (web.match(/isOnTrustnet/g) || []).length >= 3,
+   (web.match(/isOnTrustnet/g) || []).length + ' uses');
+ck('...and the confirmation tells the user what it means',
+   /they are on Trustnet, so they will get your questions in the app/.test(web));
+// Line-break tolerant: the phrase wraps across a comment line, and a check
+// that fails on where the wrap falls tests formatting, not meaning.
+ck('...explaining in the source why it was silent',
+   /fell\s*\n?\s*\/\/\s*through SILENTLY|fell through SILENTLY/.test(web));
+
+const mig24 = fs.readFileSync('/home/claude/fx-out/supabase/migrations/0024_resolve_contact.sql', 'utf8');
+ck('resolve_contact checks the users table directly, not only person_contacts',
+   /select u\.id into v_user from public\.users u/.test(mig24));
+ck('...so an account with NO person record still resolves as on_trustnet',
+   /case when v_user is not null then 'on_trustnet' else 'free' end/.test(mig24));
+
 console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');

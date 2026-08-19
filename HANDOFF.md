@@ -2053,3 +2053,44 @@ with it. Everything was recovered from the v0.63.1 package plus dan's repo zip �
 but the sims expect a specific layout (/home/claude/app, /home/claude/functions,
 /home/claude/sim, /home/claude/respond) which had to be rebuilt by hand. Worth
 keeping that layout in the package so a reset costs minutes, not an hour.
+
+## v0.64.1 — THE APP KNEW AND NEVER SAID
+
+dan: "if dshari08@hotmail.com is an app member why doesn't the app say so".
+
+BECAUSE NOTHING DISPLAYED IT. resolve_contact answers THREE states and the
+client acted on TWO:
+  in_circle     -> refuses, with a message
+  found_person  -> asks the human to confirm
+  on_trustnet   -> FELL THROUGH IN SILENCE
+`isOnTrustnet` was SET AND NEVER READ — a dead variable I introduced in v0.64.0
+when replacing `reuseLinked = true`.
+
+I ALSO PROPOSED THE WRONG FIX FIRST. I suggested making resolve_contact check
+the users table as well as person_contacts. IT ALREADY DOES — step 2 has always
+looked up users directly, which is why an account with NO person record still
+resolves. Proven against real Postgres for dan's exact case: state
+'on_trustnet', on_trustnet true, and case/whitespace correctly ignored. The
+resolver was right the whole time.
+
+FIXED: adding someone who already has an account now says so — "they are on
+Trustnet, so they will get your questions in the app" — at the moment you add
+them. Guarded, negative-tested.
+
+Suites 51, checks 1144.
+
+## STILL OPEN — THE REAL REMAINING BUG
+THREE OF FOUR MEMBER PATHS NEVER CREATE A PERSON RECORD. handleSaveMember does;
+handleInviteNew, handleAddKnownPerson and handleAddPickedMembers do not. So the
+contact is never registered in person_contacts, resolve_contact returns 'free'
+for it, and A SECOND MEMBER WITH THE SAME EMAIL CAN BE ADDED — dan reproduced
+exactly this with "Chain Answerer" and "yossi" on dshari08@hotmail.com, both
+has_person FALSE, and the query then sent TWO emails to one address.
+THE FIX: extract the person-creation block from handleSaveMember into a shared
+helper and call it from all four, plus a repair migration for existing members
+that lack a person. Well understood, contained, NOT YET BUILT.
+
+ALSO OPEN: send-query should dedupe recipients BY CONTACT, so one address never
+receives two copies even if it appears twice in a circle. And respond.html has a
+layout fault — the conversion panel renders off the right edge, text clipped to
+single letters.
