@@ -996,7 +996,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.66.0 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.67.0 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1259,7 +1259,7 @@ const MEMBER_FIELDS = [
   ['avatar',            'avatar',           null,        null],
   ['avatar_color',      'avatarColor',      null,        null],
   ['trust_basis',       'trustBasis',       '',          null],
-  ['contact_method',    'contactMethod',    'app',       'app'],
+  ['contact_method',    'contactMethod',    null,        null],
   ['contact_value',     'contactValue',     '',          null],
   ['response_rate',     'responseRate',     'unknown',   'unknown'],
   ['is_external_source','isExternalSource', false,       false],
@@ -1590,7 +1590,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.66.0 · live';
+const APP_VERSION = 'v0.67.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -2309,7 +2309,11 @@ function renderQuery() {
 }
 
 function channelWord(ch) {
-  if (ch === 'app') return 'In-app';
+  // 'app' was never a delivery channel — it was what MEMBER_FIELDS wrote when
+  // contactMethod was empty, so "we never learned how to reach this person"
+  // rendered as "reach them in the app". 0036 nulled those rows. A missing
+  // method now SAYS it is missing. (v0.67.0)
+  if (!ch || ch === 'app') return 'no contact';
   if (ch === 'whatsapp') return 'WhatsApp';
   if (ch === 'email') return 'Email';
   if (ch === 'linkedin') return 'LinkedIn';
@@ -5170,7 +5174,7 @@ function modalAddMember(params) {
   const circle = AppState.circleById(circleId);
   const editId = params && params.editMemberId ? params.editMemberId : '';
   const em = editId ? AppState.userMembers.find(function(x) { return x.id === editId; }) : null;
-  const emMethod = em ? (em.contactMethod || 'app') : 'app';
+  const emMethod = em ? (em.contactMethod || '') : '';
   // Always visible: every person MUST have a contact, because the contact IS
   // the identity. A member with none can never be matched or invited.
   const emContactVisible = !em || !em.isExternalSource;
@@ -5202,7 +5206,7 @@ function modalAddMember(params) {
     { value: 'whatsapp',  icon: '📱', label: 'WhatsApp'  },
     { value: 'email',     icon: '✉️',  label: 'Email'     },
     { value: 'linkedin',  icon: '🔗', label: 'LinkedIn'  }
-  ], (em && !em.isExternalSource && emMethod !== 'app') ? emMethod : 'whatsapp');
+  ], (em && !em.isExternalSource && emMethod) ? emMethod : 'whatsapp');
 
   const ratePicker = segmentedPicker('nm-rate', [
     { value: 'high',   label: '🟢 High'   },
@@ -6543,7 +6547,10 @@ async function handleSaveMember() {
   } else {
     let name  = (document.getElementById('nm-name') || {}).value.trim();
     const trust = (document.getElementById('nm-trust') || {}).value.trim();
-    const method= (document.getElementById('nm-method') || {}).value || 'app';
+    // NO DEFAULT. A missing #nm-method element used to become 'app', which
+    // buildMember then refused — but only after the picker had already been
+    // bypassed. An absent element is a bug, not a delivery channel. (v0.67.0)
+    const method= (document.getElementById('nm-method') || {}).value || '';
     const rate  = (document.getElementById('nm-rate') || {}).value || 'high';
     let contact = ((document.getElementById('nm-contact') || {}).value || '').trim();
     if (!name) { toast('Please enter a name.', 'warn'); return; }

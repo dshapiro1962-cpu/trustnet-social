@@ -29,9 +29,22 @@
 // Usage: node inputzoom-sim.js [indexPath] [respondPath]
 // ═══════════════════════════════════════════════════════════════════════════
 const fs = require('fs');
+const path = require('path');
 
-const INDEX   = process.argv[2] || '/home/claude/app/index.html';
-const RESPOND = process.argv[3] || '/home/claude/respond/respond.html';
+// Default to the repo layout relative to THIS file (simulation_suite/../web),
+// so the check runs from a clone as well as from the sim container.
+const here = __dirname;
+// Runs from a clone (simulation_suite/../web) and from the sim container,
+// whichever is present. Explicit arguments always win.
+function resolve(arg, candidates) {
+  if (arg) return arg;
+  for (const c of candidates) if (fs.existsSync(c)) return c;
+  return candidates[0];
+}
+const INDEX = resolve(process.argv[2], [
+  path.join(here, '..', 'web', 'index.html'), '/home/claude/app/index.html']);
+const RESPOND = resolve(process.argv[3], [
+  path.join(here, '..', 'web', 'respond.html'), '/home/claude/respond/respond.html']);
 const MIN = 16;
 
 let pass = 0, fail = 0;
@@ -157,7 +170,14 @@ function touchSize(el, css, bodySize) {
 }
 
 function audit(path, label) {
-  if (!fs.existsSync(path)) { ck(label + ' exists', false, path); return []; }
+  // A missing file must ABORT. Reporting "no field is under 16px" after
+  // reading nothing is a check that passes on an empty set — the exact fault
+  // this project keeps finding elsewhere (an absence read as a fact).
+  if (!fs.existsSync(path)) {
+    console.log('\n  FATAL: cannot read ' + label + ' at ' + path);
+    console.log('  This check cannot pass on a file it did not read.\n');
+    process.exit(2);
+  }
   const src = fs.readFileSync(path, 'utf8');
   const css = splitCss(styles(src));
   const bodyRule = css.top.filter(function (r) { return /(^|,)\s*body\s*$/.test(r.sel); });

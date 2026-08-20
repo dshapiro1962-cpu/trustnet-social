@@ -90,7 +90,12 @@ const sparse = { id:'m-2', owner_id:'owner-1', circle_id:'c-1', name:'minimal',
 const back2 = X.memberToRow(X.memberFromRow(sparse));
 ck('a sparse row keeps its id', back2.id === 'm-2');
 ck('a null person_id stays null (never invented)', back2.person_id === null);
-ck('contact_method falls back consistently', back2.contact_method === 'app');
+// Was: `back2.contact_method === 'app'` — this check REQUIRED the fault. A
+// null method round-tripped into 'app', so "we never learned how to reach this
+// person" was persisted as "reach them in the app". 0036 nulled those rows and
+// v0.67.0 removed the defaults. An absence must survive a round trip AS an
+// absence. (20 Aug 2026)
+ck('a null contact_method stays null (an absence is not a channel)', back2.contact_method === null);
 
 // ── read-only columns must never be written back ───────────────────────────
 ck('created_at is never written back (it is the database\'s)', !('created_at' in back));
