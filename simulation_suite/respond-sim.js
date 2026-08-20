@@ -88,7 +88,7 @@ const clickSubmit = async (ctx) => {
   // ── Scenario 1: anonymous answerer — nothing changes ──
   let c = makeCtx({ localStorageData: {} });
   vm.runInContext(src, c, { filename: 'respond.js' }); await tick(); await tick();
-  ck('version marker r2.4-lib present', fs.readFileSync('/home/claude/respond/respond.html','utf8').indexOf('>r2.4-lib</div>') >= 0);
+  ck('version marker r2.5-lib present', fs.readFileSync('/home/claude/respond/respond.html','utf8').indexOf('>r2.5-lib</div>') >= 0);
   ck('anon: form shown, strip stays hidden', !c.__byId['form-view']._cls.hidden && c.__byId['lib-strip']._cls.hidden);
   ck('anon: no REST call made', !c.__fetches.some(f => f.url.indexOf('/rest/v1/') >= 0));
   ck('no debug param: panel stays hidden', c.__byId['lib-debug'].textContent === '');

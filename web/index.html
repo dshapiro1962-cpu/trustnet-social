@@ -89,6 +89,24 @@ a { color: inherit; text-decoration: none; }
    dragging the tab bar's last icon out of reach on phones. (v0.30.0) */
 html, body { max-width: 100%; overflow-x: hidden; }
 #main { max-width: 100%; overflow-x: hidden; box-sizing: border-box; }
+/* iOS Safari ZOOMS THE PAGE IN when a focused field computes under 16px, and
+   never zooms back out. The zoom makes the layout viewport wider than the
+   visual one, so the page reads as panned — content clipped down one side —
+   and every position:fixed element, the bottom nav included, is laid out
+   against the layout viewport and ends up outside what you can see.
+   Reported as two faults ("the nav disappears", "respond.html runs off the
+   right edge"); one cause. Confirmed on device: pinching out brings the nav
+   straight back. 16px is the threshold, not a preference — this is the fix,
+   not a workaround, and user-scalable=no is NOT (iOS ignores it since 10 and
+   it takes pinch-zoom away from people who need it).
+   !important because three of the offending fields carry INLINE font-size,
+   which a class rule cannot override. Touch only: desktop density unchanged.
+   Guarded by inputzoom-sim. (v0.66.0) */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not(#login-code):not(#login-wa-code),
+  textarea,
+  select { font-size: 16px !important; }
+}
 @media (max-width: 768px) {
   #main, #main * { max-width: 100%; box-sizing: border-box; }
   #main pre, #main code { white-space: pre-wrap; word-break: break-word; }
@@ -978,7 +996,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.65.0 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.66.0 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1572,7 +1590,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.65.0 · live';
+const APP_VERSION = 'v0.66.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {

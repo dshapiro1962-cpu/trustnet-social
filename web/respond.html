@@ -18,6 +18,14 @@
   label { display:block; font-size:12px; font-weight:600; color:var(--slate-light); letter-spacing:0.3px; margin-bottom:6px; text-transform:uppercase; }
   input, textarea { width:100%; padding:12px 14px; border:1.5px solid #CDD9D1; border-radius:8px; font-size:15px; font-family:inherit; margin-bottom:18px; }
   input:focus, textarea:focus { outline:none; border-color:var(--green); }
+  /* 15px is one pixel under the line: iOS zooms in on focus and never zooms
+     back, which is what put the conversion panel off the right edge. Same
+     cause as the missing bottom nav in index.html. (v0.66.0) */
+  @media (hover: none) and (pointer: coarse) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+    textarea,
+    select { font-size:16px !important; }
+  }
   textarea { resize:vertical; min-height:90px; }
   button { width:100%; background:var(--green); color:#fff; border:none; border-radius:8px; padding:14px; font-size:16px; font-weight:600; cursor:pointer; }
   button:hover { background:#1A5235; }
@@ -77,7 +85,7 @@
       </span>
     </label>
     <button id="submit-btn">Send recommendation</button>
-    <div style="font-size:9px;color:#A8BDAF;text-align:center;margin-top:10px;">r2.4-lib</div>
+    <div style="font-size:9px;color:#A8BDAF;text-align:center;margin-top:10px;">r2.5-lib</div>
   </div>
 
   <!-- Rich thank-you + conversion -->
@@ -114,7 +122,7 @@ window.TRUSTNET_CONFIG = {
 const CFG = window.TRUSTNET_CONFIG || {};
 const SUPABASE_FUNCTIONS_URL = CFG.FUNCTIONS_URL || window.TRUSTNET_FUNCTIONS_URL || "https://YOUR_PROJECT.supabase.co/functions/v1";
 const APP_URL = CFG.APP_URL || "https://trustnetsocial.netlify.app";
-const RESPOND_VERSION = "r2.4-lib";
+const RESPOND_VERSION = "r2.5-lib";
 const LIB_DEBUG = new URLSearchParams(location.search).get("debug") === "1";
 function dbg(line) {
   if (!LIB_DEBUG) return;
