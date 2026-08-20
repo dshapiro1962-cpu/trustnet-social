@@ -2094,3 +2094,58 @@ ALSO OPEN: send-query should dedupe recipients BY CONTACT, so one address never
 receives two copies even if it appears twice in a circle. And respond.html has a
 layout fault — the conversion panel renders off the right edge, text clipped to
 single letters.
+
+# ═══ 19 AUG 2026 — v0.65.0 · ONE ROW BLOCKED EVERY SAVE ═══
+
+dan: "we keep building and then destroying... what did you fix, everything still
+the same." He was right — I had DIAGNOSED this and handed him a console command
+to patch one row in one browser tab. That is not a fix.
+
+## ONE ROW, SIX SYMPTOMS
+dany could not save ANYTHING. Meribel and Champoluc never reached the database;
+"send to a member" said "the item is not yours to send"; library search found
+nothing; shapiro never received either item; and adding an item showed BOTH
+"can't add" and "added to your library".
+
+ALL OF IT was one recommendation — La Plagne, which dany ACCEPTED from dan.
+
+## THE ROUND TRIP
+  accept a suggestion -> recommended_by_user_id = dan's USER id      (correct)
+  loadUserData        -> recommendedBy = member_id || user_id        (FOLDED)
+  saveRecs            -> recommendedBy !== CURRENT_UID
+                         ? recommended_by_MEMBER_id : null           (GUESSED)
+dan's user id is not dany's, so it was written into A FOREIGN KEY TO MEMBERS.
+Postgres rejected it — 23503, "Key is not present in table members" — and
+because saveRecs UPSERTS THE WHOLE ARRAY, that single row blocked every save
+that account made, permanently.
+
+roundtrip-sim could not catch it. That suite checks every field a save WRITES is
+a key the loader PRODUCES; here the field existed on both sides. THE ASYMMETRY
+WAS TWO COLUMNS FOLDED INTO ONE FIELD, which no field-list comparison can see.
+
+## FIXED — THREE THINGS, NOT ONE
+1. The loader keeps recommendedByMember and recommendedByUser SEPARATE. The
+   saver writes each column from its own field and never guesses.
+2. The member id is VALIDATED against members we actually hold, so a member you
+   DELETED cannot leave a dangling reference that poisons future saves.
+3. saveRecs THROWS instead of returning quietly, and all ELEVEN callers are
+   guarded. They used to `await saveRecs()` and then toast "added to your
+   library" over a hard database rejection — the eighth instance of that pattern
+   this week, and the reason dan saw two contradictory notices at once.
+4. SELF-HEALING: a provenance pointing at nothing valid is dropped ON LOAD, so
+   an already-stuck account recovers on refresh with no console command.
+
+## TESTS
+provenance-sim, 11 checks, executing the REAL save mapping on dany's exact row:
+another user's provenance never reaches the members foreign key, a genuine
+member recommendation survives, and a deleted member is dropped. Negative test
+reproduces the original bug exactly ({"m":"dan-uid"}).
+Suites 52, checks 1155.
+
+## STILL OPEN (unchanged, from dan's list)
+- Three of four member paths never create a person record -> duplicate members
+  on one email, and a query sends two copies to one address.
+- "In app" vs "On Trustnet": legacy contactMethod 'app' rows with no contact.
+- e2e circles will not delete.
+- The fixed bottom nav disappears on the phone.
+- respond.html conversion panel renders off the right edge.

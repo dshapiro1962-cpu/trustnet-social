@@ -978,7 +978,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.64.1 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.65.0 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1327,9 +1327,29 @@ async function loadUserData() {
 
 
   // recs
+  // SELF-HEALING. dany's account was stuck: one row carried dan's user id in a
+  // field that got written back to a MEMBERS foreign key, so every save failed
+  // and no new item could ever be added. Rather than requiring a console
+  // command to unstick an account, a provenance that points at nothing valid is
+  // dropped here, on load. Losing "who recommended this" is a small cost; being
+  // unable to save anything ever again is not.
   const rs = await sb.from('recommendations').select('*').eq('owner_id', CURRENT_UID).order('created_at');
   AppState.userRecs = (rs.data || []).map(function(r){ return { id:r.id, canonicalId:r.canonical_id, circleId:r.circle_id||'',
-    recommendedBy: r.recommended_by_member_id || r.recommended_by_user_id || CURRENT_UID, queryId:r.query_id,
+    // TWO COLUMNS, TWO FIELDS. These used to be folded into one
+    // `recommendedBy`, and saveRecs then had to GUESS which column it came from
+    // by comparing to CURRENT_UID — so any provenance belonging to ANOTHER USER
+    // was written back into recommended_by_member_id, a foreign key to MEMBERS.
+    // Postgres rejected it (23503), and because saveRecs upserts the WHOLE
+    // array, ONE such row blocked EVERY save that account made, permanently.
+    // dany accepted La Plagne from dan; dan's user id came back as
+    // `recommendedBy`; and from then on nothing dany added ever reached the
+    // database — Meribel, Champoluc, the failed send, the empty search results
+    // and the missing inbox item were all this one row.
+    recommendedByMember: r.recommended_by_member_id || null,
+    recommendedByUser: r.recommended_by_user_id || null,
+    // Kept for the many render paths that read it, but NEVER written back.
+    recommendedBy: r.recommended_by_member_id || r.recommended_by_user_id || CURRENT_UID,
+    queryId:r.query_id,
     sourceLabel: r.source_label || '',
     note:r.note||'', rating:r.rating||0, tags:r.tags||[], status:r.status||'saved', isAnonymous:!!r.is_anonymous, sharedToNetwork:!!r.shared_to_network,
     degree:r.degree||1, date:r.rec_date, createdAt:r.created_at || r.rec_date || '' }; });
@@ -1421,12 +1441,31 @@ async function saveRecs() {
   if (arr.length) {
     const rows = arr.map(function(r){ return { id:r.id, owner_id:CURRENT_UID, canonical_id:r.canonicalId,
       circle_id:r.circleId||null, query_id:r.queryId||null,
-      recommended_by_member_id:(r.recommendedBy && r.recommendedBy!==CURRENT_UID) ? r.recommendedBy : null,
-      recommended_by_user_id:(r.recommendedBy===CURRENT_UID) ? CURRENT_UID : null,
+      // Each column from its OWN field — no guessing. And the member id is
+      // VALIDATED against members we actually hold: a member you deleted leaves
+      // a dangling reference that would poison every future save.
+      recommended_by_member_id: (function(){
+        const mid = r.recommendedByMember
+          || ((r.recommendedBy && r.recommendedBy !== CURRENT_UID
+               && (AppState.userMembers || []).some(function(m){ return m.id === r.recommendedBy; }))
+              ? r.recommendedBy : null);
+        return (mid && (AppState.userMembers || []).some(function(m){ return m.id === mid; })) ? mid : null;
+      })(),
+      recommended_by_user_id: r.recommendedByUser
+        || (r.recommendedBy === CURRENT_UID ? CURRENT_UID : null),
       note:r.note||null, rating:r.rating||null, tags:r.tags||[], status:r.status||'saved',
       is_anonymous:!!r.isAnonymous, shared_to_network:!!r.sharedToNetwork, degree:r.degree||1, rec_date:r.date||null }; });
     const res = await sb.from('recommendations').upsert(rows);
-    if (res.error) { console.error('saveRecs', res.error); toast('Could not save to library.', 'warn'); return; }
+    if (res.error) {
+      // THROW, do not return. Every caller did `await saveRecs()` and then
+      // toasted "added to your library" — so a hard database rejection was
+      // announced to the user as a success, and the item lived on in memory
+      // where the library renders it. dan saw BOTH notices at once and could
+      // not tell which was true. Eighth instance of this pattern this week.
+      console.error('saveRecs', res.error);
+      toast('Could not save to library: ' + (res.error.message || 'unknown'), 'warn');
+      throw new Error('saveRecs failed: ' + (res.error.message || 'unknown'));
+    }
     await sb.from('recommendations').delete().eq('owner_id', CURRENT_UID)
       .not('id', 'in', '(' + arr.map(function(r){return r.id;}).join(',') + ')');
   } else {
@@ -1533,7 +1572,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.64.1 · live';
+const APP_VERSION = 'v0.65.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3026,7 +3065,9 @@ async function handleSaveFromSheet(idx) {
         already.note = already.note ? (already.note + '\n\u2022 ' + line) : line;
       }
     });
-    await saveRecs();
+    // saveRecs THROWS on failure now, so the success message below cannot
+    // fire over a rejected write. It has already told the user why.
+    try { await saveRecs(); } catch (e) { return; }
     // Merged comments carry new context — refresh the catalogue entry.
     librarianCommit(canId, { force: true, note: already.note || fullNote,
       queryText: q ? q.text : '' });
@@ -3039,7 +3080,9 @@ async function handleSaveFromSheet(idx) {
       status: 'saved', isAnonymous: false, degree: 1, sharedToNetwork: shareDefault(),
       date: new Date().toISOString().slice(0, 10) });
     await saveCanonicals();
-    await saveRecs();
+    // saveRecs THROWS on failure now, so the success message below cannot
+    // fire over a rejected write. It has already told the user why.
+    try { await saveRecs(); } catch (e) { return; }
     // Persist the catalogue entry so the item is findable by search.
     librarianCommit(canId, { force: true, note: fullNote,
       queryText: q ? q.text : '' });
@@ -3663,7 +3706,9 @@ async function handleSaveEditRec(btn) {
   rec.circleId = ((document.getElementById('er-circle') || {}).value || '');
   btn.disabled = true;
   await saveCanonicals();
-  await saveRecs();
+  // saveRecs THROWS on failure now, so the success message below cannot
+  // fire over a rejected write. It has already told the user why.
+  try { await saveRecs(); } catch (e) { return; }
   // The note and name are INSIDE the search document — an edit makes it
   // stale, and backfill skips stale docs. Re-commit or search drifts.
   // (The circle is NOT re-committed: provenance, not evidence.)
@@ -3679,7 +3724,9 @@ async function handleDeleteRec(btn) {
   if (!rec) return;
   if (!confirm('Delete \u201c' + (can ? can.name : 'this item') + '\u201d from your library? This cannot be undone.')) return;
   AppState.userRecs = AppState.userRecs.filter(function(r) { return r.id !== rec.id; });
-  await saveRecs();
+  // saveRecs THROWS on failure now, so the success message below cannot
+  // fire over a rejected write. It has already told the user why.
+  try { await saveRecs(); } catch (e) { return; }
   showView('library');
   toast('Deleted.');
 }
@@ -3785,7 +3832,9 @@ async function handleDeleteCircle(btn) {
   AppState.userRecs.forEach(function(r) { if (r.circleId === c.id) r.circleId = ''; });
   AppState.userCircles = AppState.userCircles.filter(function(x) { return x.id !== c.id; });
   await saveMembers();
-  await saveRecs();
+  // saveRecs THROWS on failure now, so the success message below cannot
+  // fire over a rejected write. It has already told the user why.
+  try { await saveRecs(); } catch (e) { return; }
   await saveCircles();
   showView('circles');
   toast('Circle deleted.');
@@ -6731,7 +6780,9 @@ async function handleSaveRec() {
     if (note) dupRec.note = note;
     dupRec.rating = Math.min(5, Math.max(1, rating));
     if (tags.length) dupRec.tags = tags;
-    await saveRecs();
+    // saveRecs THROWS on failure now, so the success message below cannot
+    // fire over a rejected write. It has already told the user why.
+    try { await saveRecs(); } catch (e) { return; }
     closeModal();
     toast('"' + name + '" is already in your library — updated it.');
     renderApp();
@@ -6740,7 +6791,9 @@ async function handleSaveRec() {
   const newRec = { id: uid(), canonicalId: canId, circleId: circleId || '', recommendedBy: AppState.userProfile ? AppState.userProfile.id : 'user', note: note, rating: Math.min(5,Math.max(1,rating)), tags: tags, date: new Date().toISOString().split('T')[0], status: 'saved', degree: 1, isAnonymous: false, sharedToNetwork: shareDefault() };
   AppState.userRecs.push(newRec);
   await saveCanonicals();
-  await saveRecs();
+  // saveRecs THROWS on failure now, so the success message below cannot
+  // fire over a rejected write. It has already told the user why.
+  try { await saveRecs(); } catch (e) { return; }
   requestClassify(canId, note);
   closeModal();
   toast('"' + name + '" added to your library.');
@@ -6766,7 +6819,9 @@ async function handleToggleStatus(recId, status) {
   const rec = AppState.userRecs.find(function(r) { return r.id === recId; });
   if (rec) {
     rec.status = status;
-    await saveRecs();
+    // saveRecs THROWS on failure now, so the success message below cannot
+    // fire over a rejected write. It has already told the user why.
+    try { await saveRecs(); } catch (e) { return; }
     toast('Marked as ' + status + '.');
     renderApp();
   } else {
@@ -6917,7 +6972,9 @@ async function handleConfirmSaveToLibrary(respId) {
       finalTags.forEach(function(t) { if (merged.indexOf(t) < 0) merged.push(t); });
       dupRec2.tags = merged;
     }
-    await saveRecs();
+    // saveRecs THROWS on failure now, so the success message below cannot
+    // fire over a rejected write. It has already told the user why.
+    try { await saveRecs(); } catch (e) { return; }
     // A merged comment brings NEW context (another question, more words).
     // Re-commit so the catalogue entry grows with it — otherwise the item stays
     // findable only by its original wording. (Found by the eval, 31 Jul.)
@@ -6944,7 +7001,9 @@ async function handleConfirmSaveToLibrary(respId) {
   if (newCan) AppState.userCanonicals.push(newCan);
   AppState.userRecs.push(newRec);
   await saveCanonicals();
-  await saveRecs();
+  // saveRecs THROWS on failure now, so the success message below cannot
+  // fire over a rejected write. It has already told the user why.
+  try { await saveRecs(); } catch (e) { return; }
   // PERSIST the catalogue entry: enrich only RETURNS the entity — commit writes
   // the search document + embedding, without which the item is invisible to
   // search even though it looks perfect on screen. (Bug found 28 Jul.)
@@ -7006,7 +7065,9 @@ async function handleSaveFromFeed(idx) {
     status: 'saved', isAnonymous: false, degree: 1, sharedToNetwork: shareDefault(),
     date: new Date().toISOString().slice(0, 10)
   });
-  await saveRecs();
+  // saveRecs THROWS on failure now, so the success message below cannot
+  // fire over a rejected write. It has already told the user why.
+  try { await saveRecs(); } catch (e) { return; }
   requestClassify(f.canonical_id, f.note || '');
   renderApp();
   toast('Saved to your library.');
