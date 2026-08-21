@@ -12,28 +12,28 @@
 -- the app is force-closed — which is exactly how a client from 10 August was
 -- still able to write to this database on 20 August.
 --
+-- NO DOLLAR-QUOTED BLOCKS. The first draft used one for a pre-flight count and the
+-- Supabase SQL editor answered `syntax error at or near "v"` — it does not
+-- reliably handle dollar-quoted blocks mixed with other statements. It is not
+-- needed anyway: ADD CONSTRAINT validates every existing row, so if any 'app'
+-- row survives the ALTER itself fails and names the constraint. The check IS
+-- the pre-flight.
+--
 -- The constraint is also a detector. If something out there is still creating
 -- contactless members, this rejects the write outright instead of letting a
 -- tenth row appear quietly. members_audit (0035) says WHO; this says NO.
 -- ═══════════════════════════════════════════════════════════════════════════
 begin;
 
-do $$
-declare v_app integer;
-begin
-  select count(*) into v_app from public.members where contact_method = 'app';
-  if v_app > 0 then
-    raise exception 'ABORT: % row(s) still carry contact_method app — run 0036 first', v_app;
-  end if;
-end $$;
-
 alter table public.members drop constraint if exists members_contact_method_check;
+
 alter table public.members add constraint members_contact_method_check
   check (contact_method in ('whatsapp','email','linkedin','source'));
 
-do $$
-begin
-  raise notice 'OK — contact_method no longer accepts app; a missing contact is now null';
-end $$;
-
 commit;
+
+-- Expect: ALTER TABLE, ALTER TABLE, COMMIT.
+-- If instead you see
+--     ERROR: check constraint "members_contact_method_check" is violated by some row
+-- then 0036 has not been run, or did not finish. Nothing has changed — it is
+-- one transaction. Run 0036 first.

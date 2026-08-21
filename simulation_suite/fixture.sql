@@ -7,6 +7,20 @@ drop schema if exists public cascade; create schema public;
 create or replace function set_updated_at() returns trigger language plpgsql as $$
 begin new.updated_at = now(); return new; end $$;
 
+create or replace function phone_key(p_raw text) returns text language sql immutable as $$
+  select case
+    when p_raw is null or length(regexp_replace(p_raw,'\D','','g')) = 0 then null
+    when length(regexp_replace(p_raw,'\D','','g')) >= 9
+      then right(regexp_replace(p_raw,'\D','','g'), 9)
+    else regexp_replace(p_raw,'\D','','g') end; $$;
+
+create or replace function public.contact_key(p_method text, p_value text)
+returns text language sql immutable as $$
+  select case
+    when p_value is null or btrim(p_value) = '' then null
+    when p_method = 'whatsapp' then phone_key(p_value)
+    else lower(btrim(p_value)) end; $$;
+
 create table public.users (
   id uuid primary key, email text, phone text, phone_key text,
   name text, avatar text, avatar_color text default '#217A4B');
@@ -49,7 +63,13 @@ create table public.members (
   linked_user_id uuid references public.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  contact_key text, person_id uuid references public.people(id) on delete cascade);
+  -- GENERATED, exactly as 0017 defines it. Declaring this as plain text made
+  -- every test pass against a schema that was not production's.
+  contact_key text generated always as (
+    case when contact_method = 'whatsapp' then phone_key(contact_value)
+         when contact_method = 'email'    then lower(trim(contact_value))
+         else null end) stored,
+  person_id uuid references public.people(id) on delete cascade);
 create trigger trg_members_updated before update on public.members
   for each row execute function set_updated_at();
 
@@ -64,19 +84,6 @@ create table public.invites (
   id uuid primary key default gen_random_uuid(),
   member_id uuid references public.members(id) on delete set null, invite_token text);
 
-create or replace function phone_key(p_raw text) returns text language sql immutable as $$
-  select case
-    when p_raw is null or length(regexp_replace(p_raw,'\D','','g')) = 0 then null
-    when length(regexp_replace(p_raw,'\D','','g')) >= 9
-      then right(regexp_replace(p_raw,'\D','','g'), 9)
-    else regexp_replace(p_raw,'\D','','g') end; $$;
-
-create or replace function public.contact_key(p_method text, p_value text)
-returns text language sql immutable as $$
-  select case
-    when p_value is null or btrim(p_value) = '' then null
-    when p_method = 'whatsapp' then phone_key(p_value)
-    else lower(btrim(p_value)) end; $$;
 
 -- the wrong trigger that is live in production today
 create or replace function public.link_member_row() returns trigger

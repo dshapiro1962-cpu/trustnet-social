@@ -43,10 +43,11 @@ begin;
 drop trigger if exists trg_members_autolink on public.members;
 drop function if exists public.link_member_row();
 
--- ── 2 · contact_key on every row (it was never populated) ───────────────────
-update public.members
-   set contact_key = public.contact_key(contact_method, contact_value)
- where contact_key is distinct from public.contact_key(contact_method, contact_value);
+-- ── 2 · contact_key needs nothing: 0017 declares it GENERATED ALWAYS AS
+--        ... STORED, so Postgres maintains it and any attempt to write it
+--        fails outright. NOTE it is null for linkedin — the generated
+--        expression only covers whatsapp and email — so every step below uses
+--        public.contact_key(method, value) rather than the column. ─────────
 
 -- ── 3 · a member with a contact must have a PERSON.
 --        Reuse the person that already holds the contact; only create when the
@@ -56,19 +57,20 @@ update public.members m
    set person_id = pc.person_id
   from public.person_contacts pc
  where m.person_id is null
-   and m.contact_key is not null
+   and public.contact_key(m.contact_method, m.contact_value) is not null
    and pc.owner_id = m.owner_id
-   and pc.key = m.contact_key;
+   and pc.key = public.contact_key(m.contact_method, m.contact_value);
 
 do $$
 declare r record; v_person uuid;
 begin
   for r in
     select m.id, m.owner_id, m.name, m.avatar, m.avatar_color,
-           m.response_rate, m.contact_method, m.contact_value, m.contact_key
+           m.response_rate, m.contact_method, m.contact_value,
+           public.contact_key(m.contact_method, m.contact_value) as contact_key
       from public.members m
      where m.person_id is null
-       and m.contact_key is not null
+       and public.contact_key(m.contact_method, m.contact_value) is not null
        and m.contact_method in ('email','whatsapp','linkedin')
      order by m.created_at
   loop
@@ -154,8 +156,10 @@ declare
   v_n      integer;
   v_user   uuid;
 begin
+  -- contact_key is GENERATED; Postgres fills it. Assigning it here raises
+  -- "column can only be updated to DEFAULT". Computed locally instead, which
+  -- also covers linkedin, which the generated expression does not.
   v_key := public.contact_key(new.contact_method, new.contact_value);
-  new.contact_key := v_key;
 
   if v_key is null then
     return new;          -- no contact: no person, no link, and that is honest
@@ -236,7 +240,8 @@ do $$
 declare v_orphan integer; v_dup integer; v_app integer;
 begin
   select count(*) into v_orphan from public.members
-   where contact_key is not null and person_id is null
+   where public.contact_key(contact_method, contact_value) is not null
+     and person_id is null
      and contact_method in ('email','whatsapp','linkedin');
   select count(*) into v_dup from (
     select 1 from public.members where person_id is not null
