@@ -35,9 +35,18 @@ X.AppState.userProfile={id:'me',name:'Dan'}; X.AppState.userMembers=[]; X.AppSta
   // 1. FREE contact -> person + contact created, member saved
   rpcReply=async()=>({data:[{state:'free',person_id:null,person_name:null,membership_id:null,on_trustnet:false}],error:null});
   inserted.length=0;toasts.length=0; await X.handleSaveMember();
-  ck('new contact creates a people row', inserted.some(i=>i.t==='people'));
-  ck('...and a person_contacts row', inserted.some(i=>i.t==='person_contacts'));
-  ck('...with the normalised key', (inserted.find(i=>i.t==='person_contacts')||{row:{}}).row.key==='itamar@x.com');
+  // v0.68.0 — these three used to assert that the CLIENT inserted a people row
+  // and a person_contacts row, computing the key in JavaScript with slice(-9).
+  // It no longer does: 0038 makes a contact globally unique, so that insert hit
+  // a duplicate-key error for any contact another account already knew, and
+  // trg_member_identity (0036) already derives identity on every write from
+  // every source. The invariant is now the OPPOSITE — the client must not do
+  // identity work — and the key normalisation is covered against a real
+  // Postgres by identity-trigger-sim, not by a mock here.
+  ck('the client does NOT create a people row', !inserted.some(i=>i.t==='people'));
+  ck('...nor a person_contacts row', !inserted.some(i=>i.t==='person_contacts'));
+  ck('...but the member carries the contact, so the database can derive identity',
+     (X.AppState.userMembers[0]||{}).contactValue === 'itamar@x.com');
   // 2. IN_CIRCLE -> refuses, creates nothing
   rpcReply=async()=>({data:[{state:'in_circle',person_id:'p1',person_name:'Itamar',membership_id:'m1',on_trustnet:true}],error:null});
   inserted.length=0;toasts.length=0; X.AppState.userMembers=[]; await X.handleSaveMember();

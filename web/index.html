@@ -996,7 +996,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.67.0 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.68.0 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1590,7 +1590,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.67.0 · live';
+const APP_VERSION = 'v0.68.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -6697,29 +6697,23 @@ async function handleSaveMember() {
     // A brand-new contact needs a PERSON to belong to. Without this the schema
     // from 0022 is correct and the app keeps creating unlinked member rows —
     // right model, same old behaviour.
-    if (!existingPersonId && !editId) {
-      try {
-        const pr = await sb.from('people').insert({
-          owner_id: CURRENT_UID, name: name,
-          avatar: initials(name), avatar_color: color,
-          response_rate: rate
-        }).select('id').single();
-        if (pr.error) throw new Error(pr.error.message);
-        newMember.personId = pr.data.id;
-        const cr = await sb.from('person_contacts').insert({
-          person_id: pr.data.id, owner_id: CURRENT_UID,
-          method: method, value: contact,
-          key: method === 'whatsapp'
-            ? String(contact).replace(/\D/g, '').slice(-9)
-            : String(contact).trim().toLowerCase()
-        });
-        if (cr.error) throw new Error(cr.error.message);
-      } catch (e) {
-        console.error('create person failed:', e);
-        toast('Could not save this contact: ' + (e.message || 'unknown error'), 'warn');
-        return;
-      }
-    }
+    // THE CLIENT NO LONGER CREATES PEOPLE. (v0.68.0)
+    //
+    // It used to insert a people row and a person_contacts row here, computing
+    // the contact key in JavaScript with .slice(-9) — a FOURTH copy of a rule
+    // that already exists as contact_key() in SQL and phone_key() beneath it.
+    //
+    // Two reasons it had to go. First, 0038 makes a contact globally unique:
+    // one phone or email is ONE human across the whole app, so this insert hit
+    // "duplicate key value violates unique constraint" for any contact another
+    // account already knew — and with most humans shared across accounts, that
+    // is most saves. Second, trg_member_identity (0036) already does this
+    // correctly on every write from every source: it finds the person by key,
+    // reuses it, registers the contact, and links the account. Doing it here
+    // as well was the last place identity was decided outside the shared rule.
+    //
+    // The member row is written by saveMembers below; the trigger fills in
+    // person_id and linked_user_id on the way in.
     // Link every member just written, including the extra circles.
     await linkMemberOnServer(newMember.id);
     for (const em of extraAdded.length ? AppState.userMembers.filter(function(m) {

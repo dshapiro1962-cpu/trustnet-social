@@ -68,15 +68,27 @@ ck('declining the merge adds NOTHING', /Nothing added\. Use a different /.test(w
 
 // ── the person model is actually used ───────────────────────────────────────
 ck('an existing person is reused rather than duplicated', /existingPersonId = resolved\.person_id;/.test(web));
-ck('a new contact creates a person row', /sb\.from\('people'\)\.insert\(/.test(web));
-ck('...and its contact row', /sb\.from\('person_contacts'\)\.insert\(/.test(web));
+// v0.68.0 — INVERTED. These asserted that the client inserted people and
+// person_contacts itself. 0038 makes a contact globally unique (one phone or
+// email is one human across the whole app), so that insert failed with a
+// duplicate key for any contact another account already knew. Identity is now
+// derived by trg_member_identity on every write from every source, and the
+// client doing it too was the last copy of the rule outside the shared one.
+ck('the client does NOT insert people rows', !/sb\.from\('people'\)\.insert\(/.test(web));
+ck('...nor person_contacts rows', !/sb\.from\('person_contacts'\)\.insert\(/.test(web));
+ck('...and computes no contact key in JavaScript',
+   !/key:\s*method === 'whatsapp'/.test(web));
 // v0.46.0: the hand-written save list is GONE. person_id now travels via the
 // single MEMBER_FIELDS map, so it CANNOT reach save without also reaching load
 // — which is precisely the asymmetry that nulled 14 person links.
 ck('person_id is persisted via the shared field map',
    /\['person_id',\s*'personId'/.test(web) && /const rows = arr\.map\(memberToRow\);/.test(web));
-ck('a failure to create the person aborts instead of saving a stranger',
-   /Could not save this contact: /.test(web));
+// The invariant this protected — never save a member nobody can reach — still
+// holds, but it is enforced earlier and harder: buildMember refuses a missing
+// method, and 0037 removed 'app' from the contact_method check constraint so
+// the database rejects it too.
+ck('an unreachable member is still refused before anything is saved',
+   /no_contact_method/.test(web));
 
 // ── errors surface everywhere, never silently ───────────────────────────────
 ck('search failure shows a message instead of an empty list',
