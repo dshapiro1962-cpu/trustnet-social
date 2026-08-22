@@ -996,7 +996,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.68.0 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.69.0 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1124,6 +1124,10 @@ const TASTE_MATCH_RECS = [
    ═══════════════════════════════════════════════ */
 
 const AppState = {
+  // Set when a load failed. Every whole-array save refuses while it is true:
+  // an empty AppState after a dropped request must never be written back over
+  // good data. (v0.69.0)
+  dataLoadFailed: false,
   currentView: 'home',
   viewParams: {},
   activeFilter: 'all',
@@ -1308,8 +1312,31 @@ async function loadUserData() {
   });
 
   // circles + members
+  //
+  // THESE TWO ERRORS WERE NEVER CHECKED, AND THEY FEED A DESTRUCTIVE SAVE.
+  // `(ms.data || [])` turned a dropped request into "this user has no members".
+  // saveMembers then saw an empty array and ran an UNFILTERED
+  //     delete ... where owner_id = CURRENT_UID
+  // wiping every member in every circle, with a toast that said nothing —
+  // because from the database's point of view the delete succeeded.
+  //
+  // Same `|| []` shape the comment forty lines below already names for people
+  // and suggestions: an UNLOADED collection and an EMPTY one are
+  // indistinguishable. Those two checked their errors. The two wired to a
+  // DELETE did not.
+  //
+  // On failure AppState is LEFT EXACTLY AS IT WAS — a stale view is recoverable
+  // by reloading, an emptied one is not — and the flag stops any save writing
+  // over good data with a false picture. (v0.69.0)
   const cs = await sb.from('circles').select('*').eq('owner_id', CURRENT_UID).order('created_at');
   const ms = await sb.from('members').select('*').eq('owner_id', CURRENT_UID);
+  if (cs.error || ms.error) {
+    AppState.dataLoadFailed = true;
+    console.error('load failed:', cs.error || ms.error);
+    toast('Could not load your circles. Nothing has been changed \u2014 please reload.', 'warn');
+    throw new Error('load_failed: ' + ((cs.error || ms.error).message || 'unknown'));
+  }
+  AppState.dataLoadFailed = false;
   AppState.userMembers = (ms.data || []).map(memberFromRow);
   AppState.userCircles = (cs.data || []).map(function(c){ return { id:c.id, ownerId:'me', name:c.name, domain:c.domain,
     description:c.description||'', color:c.color||'#217A4B', location:c.location||'', isOwn:true, createdAt:c.created_at,
@@ -1351,7 +1378,16 @@ async function loadUserData() {
   // command to unstick an account, a provenance that points at nothing valid is
   // dropped here, on load. Losing "who recommended this" is a small cost; being
   // unable to save anything ever again is not.
+  // Same unchecked error as circles and members, on the LIBRARY. `|| []` turned
+  // a dropped request into "this user has saved nothing", and saveRecs then
+  // deleted every recommendation they had. (v0.69.0)
   const rs = await sb.from('recommendations').select('*').eq('owner_id', CURRENT_UID).order('created_at');
+  if (rs.error) {
+    AppState.dataLoadFailed = true;
+    console.error('recommendations load failed:', rs.error);
+    toast('Could not load your library. Nothing has been changed \u2014 please reload.', 'warn');
+    throw new Error('load_failed: ' + (rs.error.message || 'unknown'));
+  }
   AppState.userRecs = (rs.data || []).map(function(r){ return { id:r.id, canonicalId:r.canonical_id, circleId:r.circle_id||'',
     // TWO COLUMNS, TWO FIELDS. These used to be folded into one
     // `recommendedBy`, and saveRecs then had to GUESS which column it came from
@@ -1406,32 +1442,63 @@ async function saveProfile() {
     share_by_default: p.shareByDefault !== false });
   if (r.error) { console.error('saveProfile', r.error); toast('Could not save profile.', 'warn'); }
 }
+// A WHOLE-ARRAY SAVE NEVER DELETES. (v0.69.0)
+//
+// saveCircles and saveMembers used to upsert the array and then delete every
+// row not in it — reconstructing "what was removed" by diffing against the
+// database. That made a FAILED LOAD indistinguishable from A USER DELETING
+// EVERYTHING, and the empty branch issued an unfiltered delete.
+//
+// Removal is now explicit and says what it is removing. Only two paths remove
+// members (handleDeleteCircle and remove-member) and one removes a circle, and
+// all three already know the exact ids — the diff was throwing that away and
+// making the delete guess it back.
+//
+// Consequence, deliberately accepted: a row in the database that the client
+// never loaded is no longer reaped. Nine such rows exist in production and
+// nobody has identified what wrote them; silently deleting rows we do not
+// understand is how data disappears. 0036 nulled those rows rather than
+// deleting them, for the same reason.
 async function saveCircles() {
   if (!CURRENT_UID) return;
-  const arr = AppState.userCircles;
-  if (arr.length) {
-    const rows = arr.map(function(c){ return { id:c.id, owner_id:CURRENT_UID, name:c.name, domain:c.domain,
-      description:c.description||null, color:c.color||null, location:c.location||null }; });
-    const r = await sb.from('circles').upsert(rows);
-    if (r.error) { console.error('saveCircles', r.error); toast('Could not save circles.', 'warn'); return; }
-    await sb.from('circles').delete().eq('owner_id', CURRENT_UID)
-      .not('id', 'in', '(' + arr.map(function(c){return c.id;}).join(',') + ')');
-  } else {
-    await sb.from('circles').delete().eq('owner_id', CURRENT_UID);
+  if (AppState.dataLoadFailed) {
+    toast('Not saving \u2014 your data did not load. Please reload first.', 'warn');
+    return;
   }
+  const arr = AppState.userCircles;
+  if (!arr.length) return;
+  const rows = arr.map(function(c){ return { id:c.id, owner_id:CURRENT_UID, name:c.name, domain:c.domain,
+    description:c.description||null, color:c.color||null, location:c.location||null }; });
+  const r = await sb.from('circles').upsert(rows);
+  if (r.error) { console.error('saveCircles', r.error); toast('Could not save circles.', 'warn'); }
+}
+
+// Explicit removal. Takes the ids the user actually removed — an empty list
+// deletes NOTHING, which is the whole point.
+async function deleteCircleById(id) {
+  if (!CURRENT_UID || !id) return false;
+  const r = await sb.from('circles').delete().eq('owner_id', CURRENT_UID).eq('id', id);
+  if (r.error) { console.error('deleteCircleById', r.error); toast('Could not delete the circle.', 'warn'); return false; }
+  return true;
+}
+
+async function deleteMembersById(ids) {
+  if (!CURRENT_UID || !ids || !ids.length) return true;
+  const r = await sb.from('members').delete().eq('owner_id', CURRENT_UID).in('id', ids);
+  if (r.error) { console.error('deleteMembersById', r.error); toast('Could not remove: ' + r.error.message, 'warn'); return false; }
+  return true;
 }
 async function saveMembers() {
   if (!CURRENT_UID) return;
-  const arr = AppState.userMembers;
-  if (arr.length) {
-    const rows = arr.map(memberToRow);
-    const r = await sb.from('members').upsert(rows);
-    if (r.error) { console.error('saveMembers', r.error); toast('Could not save members.', 'warn'); return; }
-    await sb.from('members').delete().eq('owner_id', CURRENT_UID)
-      .not('id', 'in', '(' + arr.map(function(m){return m.id;}).join(',') + ')');
-  } else {
-    await sb.from('members').delete().eq('owner_id', CURRENT_UID);
+  if (AppState.dataLoadFailed) {
+    toast('Not saving \u2014 your data did not load. Please reload first.', 'warn');
+    return;
   }
+  const arr = AppState.userMembers;
+  if (!arr.length) return;
+  const rows = arr.map(memberToRow);
+  const r = await sb.from('members').upsert(rows);
+  if (r.error) { console.error('saveMembers', r.error); toast('Could not save members.', 'warn'); }
 }
 async function saveCanonicals() {
   if (!CURRENT_UID) return;
@@ -1455,6 +1522,10 @@ async function saveCanonicals() {
 }
 async function saveRecs() {
   if (!CURRENT_UID) return;
+  if (AppState.dataLoadFailed) {
+    toast('Not saving \u2014 your library did not load. Please reload first.', 'warn');
+    throw new Error('save refused: data did not load');
+  }
   const arr = AppState.userRecs;
   if (arr.length) {
     const rows = arr.map(function(r){ return { id:r.id, owner_id:CURRENT_UID, canonical_id:r.canonicalId,
@@ -1484,11 +1555,22 @@ async function saveRecs() {
       toast('Could not save to library: ' + (res.error.message || 'unknown'), 'warn');
       throw new Error('saveRecs failed: ' + (res.error.message || 'unknown'));
     }
-    await sb.from('recommendations').delete().eq('owner_id', CURRENT_UID)
-      .not('id', 'in', '(' + arr.map(function(r){return r.id;}).join(',') + ')');
-  } else {
-    await sb.from('recommendations').delete().eq('owner_id', CURRENT_UID);
   }
+}
+
+// Explicit removal, same reasoning as deleteMembersById. saveRecs used to
+// delete everything not in the array, and its empty branch was an UNFILTERED
+// delete of the entire library — 98 items and the answers attached to them —
+// reachable from one failed load. (v0.69.0)
+async function deleteRecsById(ids) {
+  if (!CURRENT_UID || !ids || !ids.length) return true;
+  const r = await sb.from('recommendations').delete().eq('owner_id', CURRENT_UID).in('id', ids);
+  if (r.error) {
+    console.error('deleteRecsById', r.error);
+    toast('Could not remove: ' + (r.error.message || 'unknown'), 'warn');
+    return false;
+  }
+  return true;
 }
 async function saveQueries() {
   if (!CURRENT_UID) return;
@@ -1590,7 +1672,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.68.0 · live';
+const APP_VERSION = 'v0.69.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3745,10 +3827,21 @@ async function handleDeleteRec(btn) {
   const can = rec ? AppState.canonicalById(rec.canonicalId) : null;
   if (!rec) return;
   if (!confirm('Delete \u201c' + (can ? can.name : 'this item') + '\u201d from your library? This cannot be undone.')) return;
+  // The id is captured before the filter. saveRecs no longer deletes by diffing
+  // against the database — that diff is what made a failed load look like the
+  // user having emptied their library. (v0.69.0)
+  const goneRecId = rec.id;
   AppState.userRecs = AppState.userRecs.filter(function(r) { return r.id !== rec.id; });
   // saveRecs THROWS on failure now, so the success message below cannot
   // fire over a rejected write. It has already told the user why.
   try { await saveRecs(); } catch (e) { return; }
+  if (!(await deleteRecsById([goneRecId]))) {
+    // Still in the database. Show the truth rather than a library that
+    // disagrees with it.
+    try { await loadUserData(); } catch (e) {}
+    renderApp();
+    return;
+  }
   showView('library');
   toast('Deleted.');
 }
@@ -3850,14 +3943,28 @@ async function handleDeleteCircle(btn) {
   if (!c) return;
   const memberCount = AppState.userMembers.filter(function(m) { return m.circleId === c.id; }).length;
   if (!confirm('Delete the \u201c' + c.name + '\u201d circle? Its ' + memberCount + ' member' + (memberCount !== 1 ? 's' : '') + ' will be removed; saved items stay in your library (moved to Needs Filing).')) return;
+  // The ids are captured BEFORE they are filtered out of AppState. The saves
+  // used to work out what had gone by diffing against the database, which is
+  // what made a failed load look like a deliberate mass deletion. (v0.69.0)
+  const goneMemberIds = AppState.userMembers
+    .filter(function(m) { return m.circleId === c.id; })
+    .map(function(m) { return m.id; });
+
   AppState.userMembers = AppState.userMembers.filter(function(m) { return m.circleId !== c.id; });
   AppState.userRecs.forEach(function(r) { if (r.circleId === c.id) r.circleId = ''; });
   AppState.userCircles = AppState.userCircles.filter(function(x) { return x.id !== c.id; });
-  await saveMembers();
-  // saveRecs THROWS on failure now, so the success message below cannot
-  // fire over a rejected write. It has already told the user why.
+
+  // Recommendations first: they must be re-pointed away from this circle
+  // BEFORE it is deleted, or the write races the removal.
+  // saveRecs THROWS on failure, so the success message below cannot fire over
+  // a rejected write. It has already told the user why.
   try { await saveRecs(); } catch (e) { return; }
+  await saveMembers();
   await saveCircles();
+
+  if (!(await deleteMembersById(goneMemberIds))) return;
+  if (!(await deleteCircleById(c.id))) return;
+
   showView('circles');
   toast('Circle deleted.');
 }
@@ -7335,13 +7442,28 @@ document.addEventListener('click', function(e) {
     const rm = AppState.userMembers.find(function(x) { return x.id === target.dataset.memberId; });
     if (rm && confirm('Remove ' + rm.name + ' from this circle?')) {
       const rid = rm.id;
-      AppState.userMembers = AppState.userMembers.filter(function(x) { return x.id !== rid; });
-      AppState.userCircles.forEach(function(c) {
-        if (c.memberIds) c.memberIds = c.memberIds.filter(function(i) { return i !== rid; });
-      });
-      saveMembers(); saveCircles();
-      renderApp();
-      toast(rm.name + ' removed.');
+      // WAS: `saveMembers(); saveCircles();` with no await and no error check,
+      // then "removed." regardless. A failed delete was announced as a success
+      // and the member reappeared on the next load with nothing to explain it.
+      // Ninth instance of a write being reported before it was known to have
+      // happened. (v0.69.0)
+      (async function() {
+        const nameWas = rm.name;
+        AppState.userMembers = AppState.userMembers.filter(function(x) { return x.id !== rid; });
+        AppState.userCircles.forEach(function(c) {
+          if (c.memberIds) c.memberIds = c.memberIds.filter(function(i) { return i !== rid; });
+        });
+        await saveCircles();
+        if (!(await deleteMembersById([rid]))) {
+          // The row is still in the database. Put it back in view rather than
+          // leaving the screen disagreeing with the truth.
+          try { await loadUserData(); } catch (e) {}
+          renderApp();
+          return;
+        }
+        renderApp();
+        toast(nameWas + ' removed.');
+      })();
     }
   }
   else if (action === 'send-rec-in-app') {
