@@ -996,7 +996,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.69.0 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.70.0 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1052,6 +1052,15 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 <div id="modal-root"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<!-- libphonenumber-js, min metadata: 43KB gzipped, 245 countries. Phone number
+     rules are NOT regular — a regex cannot know which leading digits to strip
+     without country-specific metadata, and Italy KEEPS its trunk zero in E.164
+     while Israel, France, Germany and the UK drop theirs. A hand-written rule
+     would have corrupted every Italian number. Verified against dan's real
+     rows before adopting. `defer` so it never blocks first paint, and every
+     use is wrapped: if this script fails to load, the number is stored exactly
+     as typed rather than the field refusing to work. (v0.70.0) -->
+<script defer src="https://cdn.jsdelivr.net/npm/libphonenumber-js@1.13.11/bundle/libphonenumber-min.js"></script>
 <script>
 /* ═══ SUPABASE CONFIG (production) ═══ */
 const SUPABASE_URL = 'https://kgsdtfrcyjrxeyqqxoic.supabase.co';
@@ -1672,7 +1681,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.69.0 · live';
+const APP_VERSION = 'v0.70.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3537,6 +3546,101 @@ function libUpdateResultsInPlace() {
   resultsEl.innerHTML = libResultsHtml(f);
 }
 
+// ═══ PHONE NUMBERS: ONE LEGAL FORM (v0.70.0) ════════════════════════════════
+//
+// dan's rule: a phone number is entered the way every other form on the
+// internet does it — pick the country, type the national number — and the app
+// stores ONE canonical value. What the user types is accepted generously:
+// +972 0505543402, 0505543402, 054-554-3107 and (646) 384-6833 are all fine.
+// What gets STORED is strict E.164.
+//
+// WHY THIS EXISTS: `+9720545543107` sat in production for eleven days. It has
+// a spurious trunk zero after country code 972, so it is NOT DIALABLE — and
+// phone_key() folds it onto the same last-nine key as the correct number, so
+// identity looked right while delivery was broken. The app displayed it as
+// fine. normalizeIlPhone accepted it because its rule was "starts with + and
+// is at least 11 characters".
+//
+// WHY A LIBRARY AND NOT A RULE: Israel, France, Germany and the UK DROP the
+// trunk zero in E.164. ITALY KEEPS IT — +39 06... is correct. A hand-written
+// "strip the leading zero" rule corrupts every Italian number, and I would
+// have shipped it without noticing.
+//
+// FAIL OPEN: if the CDN is slow, blocked or down, phoneLib() returns null and
+// every caller falls back to storing what was typed. A contact field that
+// refuses to work is worse than one that stores a number we cannot canonicalise
+// — the merge in 0038 can clean a bad value later; a member never added cannot
+// be recovered.
+function phoneLib() {
+  try {
+    const L = (typeof window !== 'undefined') ? window.libphonenumber : null;
+    return (L && typeof L.parsePhoneNumber === 'function') ? L : null;
+  } catch (e) { return null; }
+}
+
+// The country list, in dialling-code order within a short "likely" set first.
+// Built from the library when it is present so it stays correct as metadata
+// updates, with a small hard-coded fallback for when it is not.
+const PHONE_COMMON = ['IL', 'US', 'GB', 'FR', 'DE', 'IT', 'ES', 'CA', 'AU', 'NL', 'CH', 'BE', 'AT', 'SE', 'DK', 'NO', 'PT', 'GR', 'PL', 'RU', 'UA', 'TR', 'IN', 'CN', 'JP', 'BR', 'MX', 'ZA', 'AE', 'TH'];
+const PHONE_FALLBACK_CODES = { IL: '972', US: '1', GB: '44', FR: '33', DE: '49', IT: '39', ES: '34', CA: '1', AU: '61', NL: '31', CH: '41', BE: '32', AT: '43', SE: '46', DK: '45', NO: '47', PT: '351', GR: '30', PL: '48', RU: '7', UA: '380', TR: '90', IN: '91', CN: '86', JP: '81', BR: '55', MX: '52', ZA: '27', AE: '971', TH: '66' };
+
+function phoneCountries() {
+  const L = phoneLib();
+  if (!L) {
+    return PHONE_COMMON.map(function(c) { return { iso: c, code: PHONE_FALLBACK_CODES[c] }; });
+  }
+  const all = L.getCountries();
+  const common = PHONE_COMMON.filter(function(c) { return all.indexOf(c) >= 0; });
+  const rest = all.filter(function(c) { return common.indexOf(c) < 0; }).sort();
+  return common.concat(rest).map(function(c) {
+    let code = '';
+    try { code = L.getCountryCallingCode(c); } catch (e) { code = PHONE_FALLBACK_CODES[c] || ''; }
+    return { iso: c, code: String(code) };
+  }).filter(function(x) { return x.code; });
+}
+
+// Returns { e164, ok, reason }. NEVER throws, and never returns empty for a
+// non-empty input: worst case it hands back what the user typed.
+function toE164(raw, iso) {
+  const typed = String(raw || '').trim();
+  if (!typed) return { e164: '', ok: false, reason: 'empty' };
+  const L = phoneLib();
+  if (!L) {
+    // Library unavailable. Store as typed and say nothing — the value is still
+    // usable, and 0038's canonicalisation can tidy it later.
+    return { e164: typed, ok: true, reason: 'no_library' };
+  }
+  try {
+    const p = L.parsePhoneNumber(typed, iso || 'IL');
+    if (!p) return { e164: typed, ok: false, reason: 'unparseable' };
+    if (!p.isPossible()) return { e164: p.number || typed, ok: false, reason: 'impossible' };
+    return { e164: p.number, ok: true, reason: 'ok' };
+  } catch (e) {
+    return { e164: typed, ok: false, reason: 'unparseable' };
+  }
+}
+
+// For display: the national form, so a member's number reads the way its owner
+// would write it rather than as a wall of digits.
+function phoneNational(e164) {
+  const L = phoneLib();
+  if (!L || !e164) return e164 || '';
+  try {
+    const p = L.parsePhoneNumber(String(e164));
+    return p ? p.formatNational() : e164;
+  } catch (e) { return e164; }
+}
+
+// <option> list for the country picker. Selected country first-class so an edit
+// reopens on the number's own country rather than defaulting to Israel.
+function countryOptions(selectedIso) {
+  const sel = selectedIso || 'IL';
+  return phoneCountries().map(function(c) {
+    return '<option value="' + c.iso + '"' + (c.iso === sel ? ' selected' : '') + '>'
+      + c.iso + ' +' + c.code + '</option>';
+  }).join('');
+}
+
 function normalizeIlPhone(raw) {
   let d = String(raw || '').replace(/[^0-9+]/g, '');
   if (!d) return '';
@@ -5286,7 +5390,25 @@ function modalAddMember(params) {
   // the identity. A member with none can never be matched or invited.
   const emContactVisible = !em || !em.isExternalSource;
   const emContactLabel = emMethod === 'whatsapp' ? 'THEIR WHATSAPP NUMBER' : (emMethod === 'linkedin' ? 'THEIR LINKEDIN URL' : 'THEIR EMAIL');
-  const emContactPh = emMethod === 'whatsapp' ? '+972 50 123 4567 (with country code)' : (emMethod === 'linkedin' ? 'linkedin.com/in/their-name' : 'name@example.com');
+  const emContactPh = emMethod === 'whatsapp' ? '50 123 4567' : (emMethod === 'linkedin' ? 'linkedin.com/in/their-name' : 'name@example.com');
+
+  // Editing a member who already has a number: split the stored E.164 back into
+  // country + national so the field shows what they would recognise, not a wall
+  // of digits. Falls back to IL and the raw value if the library is absent.
+  const emIsPhone = emMethod === 'whatsapp';
+  let emCountry = 'IL', emNational = '';
+  if (emIsPhone && em && em.contactValue) {
+    const L = phoneLib();
+    if (L) {
+      try {
+        const parsed = L.parsePhoneNumber(String(em.contactValue));
+        if (parsed) { emCountry = parsed.country || 'IL'; emNational = parsed.nationalNumber || ''; }
+        else { emNational = em.contactValue; }
+      } catch (e) { emNational = em.contactValue; }
+    } else {
+      emNational = em.contactValue;
+    }
+  }
 
   // Segmented button builder — renders a row of clickable option buttons
   function segmentedPicker(id, options, defaultVal) {
@@ -5349,7 +5471,19 @@ function modalAddMember(params) {
     + '<div class="field"><div class="field-label">FULL NAME</div><input class="field-input" id="nm-name" placeholder="e.g. Yael Ben-David" maxlength="60" value="' + esc(em && !isSourceEdit ? em.name : '') + '"></div>'
     + '<div class="field"><div class="field-label">WHY DO YOU TRUST THEM?</div><textarea class="field-input field-textarea" id="nm-trust" placeholder="e.g. Food journalist, same taste in wine. Or: Managed her team for 3 years." style="min-height:60px;">' + esc(em && !isSourceEdit ? (em.trustBasis || '') : '') + '</textarea></div>'
     + '<div class="field"><div class="field-label">HOW TO REACH THEM</div>' + methodPicker + '</div>'
-    + '<div class="field" id="nm-contact-wrap" style="display:' + (emContactVisible ? 'block' : 'none') + ';"><div class="field-label" id="nm-contact-label">' + emContactLabel + '</div><input class="field-input" id="nm-contact" placeholder="' + emContactPh + '" maxlength="80" value="' + esc(em && !isSourceEdit ? (em.contactValue || '') : '') + '"><div style="font-size:11px;color:#7A9086;margin-top:5px;">Queries you send will be delivered here.</div></div>'
+    + '<div class="field" id="nm-contact-wrap" style="display:' + (emContactVisible ? 'block' : 'none') + ';">'
+      + '<div class="field-label" id="nm-contact-label">' + emContactLabel + '</div>'
+      // COUNTRY + NATIONAL NUMBER, the way every other form does it. Shown only
+      // for WhatsApp; hidden for email and linkedin. The picker carries the
+      // country code so the user never types one, which is what made
+      // +9720545543107 — a spurious trunk zero after 972 — possible. (v0.70.0)
+      + '<div id="nm-phone-row" style="display:' + (emIsPhone ? 'flex' : 'none') + ';gap:8px;align-items:stretch;">'
+      +   '<select class="field-input" id="nm-country" style="flex:0 0 42%;min-width:0;">' + countryOptions(emCountry) + '</select>'
+      +   '<input class="field-input" id="nm-phone" inputmode="tel" placeholder="50 123 4567" maxlength="24" style="flex:1;min-width:0;" value="' + esc(emNational) + '">'
+      + '</div>'
+      + '<input class="field-input" id="nm-contact" placeholder="' + emContactPh + '" maxlength="80" style="display:' + (emIsPhone ? 'none' : 'block') + ';" value="' + esc(em && !isSourceEdit ? (em.contactValue || '') : '') + '">'
+      + '<div id="nm-phone-hint" style="font-size:11px;color:#7A9086;margin-top:5px;">Queries you send will be delivered here.</div>'
+      + '</div>'
     + '<div class="field"><div class="field-label">RESPONSE RATE</div>' + ratePicker + '</div>'
     + '</div>';
 
@@ -6670,15 +6804,24 @@ async function handleSaveMember() {
       }
     }
     if (method === 'whatsapp') {
-      contact = contact.replace(/[\s()-]/g, '');
-      // Accept the way Israelis actually type numbers (0501234567) and
-      // normalise, instead of rejecting it — otherwise the duplicate check
-      // never even runs on a number the user entered in local format.
-      const norm2 = normalizeIlPhone(contact);
-      if (norm2) contact = norm2;
-      if (!contact || contact.charAt(0) !== '+' || contact.length < 8) {
-        toast('Please enter their WhatsApp number with country code, e.g. +972501234567.', 'warn'); return;
+      // The number comes from the country picker + national field now, so the
+      // user never types a country code and cannot produce the trunk-zero fault
+      // that put +9720545543107 into production. Typed generously, stored
+      // strictly: 0545543107, 054-554-3107 and +972 054 554 3107 all become
+      // +972545543107. Italy keeps its zero; the library knows, a rule would
+      // not. (v0.70.0)
+      const iso = (document.getElementById('nm-country') || {}).value || 'IL';
+      const nat = ((document.getElementById('nm-phone') || {}).value || '').trim();
+      if (!nat) { toast('Please enter their WhatsApp number.', 'warn'); return; }
+      const r = toE164(nat, iso);
+      if (!r.ok && r.reason === 'impossible') {
+        toast('That does not look like a valid number for the country selected.', 'warn'); return;
       }
+      // reason 'no_library' and 'unparseable' both STORE AS TYPED rather than
+      // blocking the save: a member never added cannot be recovered, a value
+      // we could not canonicalise can be cleaned later.
+      contact = r.e164;
+      if (!contact) { toast('Please enter their WhatsApp number.', 'warn'); return; }
     }
 
     // The full matrix: already here / elsewhere / is you / already linked.
@@ -7572,13 +7715,19 @@ document.addEventListener('click', function(e) {
       const label = document.getElementById('nm-contact-label');
       const input = document.getElementById('nm-contact');
       if (wrap && label && input) {
+        const phoneRow = document.getElementById('nm-phone-row');
+        const showPhone = function(on) {
+          if (phoneRow) phoneRow.style.display = on ? 'flex' : 'none';
+          input.style.display = on ? 'none' : 'block';
+        };
         if (val === 'email') {
           wrap.style.display = 'block'; label.textContent = 'THEIR EMAIL';
-          input.placeholder = 'name@example.com';
+          input.placeholder = 'name@example.com'; showPhone(false);
         } else if (val === 'whatsapp') {
           wrap.style.display = 'block'; label.textContent = 'THEIR WHATSAPP NUMBER';
-          input.placeholder = '+972 50 123 4567 (with country code)';
+          showPhone(true);
         } else if (val === 'linkedin') {
+          showPhone(false);
           wrap.style.display = 'block'; label.textContent = 'THEIR LINKEDIN URL';
           input.placeholder = 'linkedin.com/in/their-name';
         } else {
