@@ -65,7 +65,7 @@ function phoneCtx(withLibrary) {
   }
   // lift the phone layer out of index.html by name, so the test runs THE REAL
   // FUNCTIONS rather than a copy that can drift from them
-  const names = ['phoneLib', 'phoneCountries', 'toE164', 'phoneNational', 'countryOptions'];
+  const names = ['phoneLib', 'phoneCountries', 'toE164', 'phoneNational', 'countryOptions', 'waLoginPhoneOk'];
   let src = '';
   for (const n of names) {
     const re = new RegExp('function ' + n + '\\s*\\(');
@@ -164,6 +164,46 @@ ck('the save path calls toE164', /toE164\(nat, iso\)/.test(web));
 ck('the library is loaded with defer', /defer src="[^"]*libphonenumber/.test(web));
 ck('an impossible number blocks the save',
    /r\.reason === 'impossible'[\s\S]{0,160}return;/.test(web));
+
+// ── 8 · SIGN-IN MUST NOT LOCK ANYONE OUT ──────────────────────────────────
+// wa-signin resolves an account with phoneKey() — the LAST NINE DIGITS. The
+// login field now sends E.164 instead of whatever the user typed. That is only
+// safe if the key is identical either way, for every existing account.
+console.log('\n  sign-in:');
+const serverPhoneKey = function(v) {
+  const d = String(v || '').replace(/\D/g, '');
+  return d.length >= 9 ? d.slice(-9) : d;
+};
+const signin = [['0505543402','IL'],['050-554-3402','IL'],['+972505543402','IL'],
+                ['0545543107','IL'],['6463846833','US']];
+let allSame = true, drift = [];
+for (const [typed, iso] of signin) {
+  const e164 = L.toE164(typed, iso).e164;
+  if (serverPhoneKey(typed) !== serverPhoneKey(e164)) {
+    allSame = false; drift.push(typed + ' -> ' + e164);
+  }
+}
+ck('E.164 produces the SAME server key as the old typed form', allSame, drift.join(', '));
+ck('the login validator accepts E.164', L.waLoginPhoneOk('+972505543402'));
+ck('...and still accepts an as-typed number', L.waLoginPhoneOk('0505543402'));
+ck('sign-in still works with the library absent',
+   N.waLoginPhoneOk(N.toE164('0505543402', 'IL').e164)
+   && serverPhoneKey(N.toE164('0505543402', 'IL').e164) === '505543402');
+ck('the login field has a country picker', /id="login-country"/.test(web));
+ck('...and the send path normalises before sending',
+   /toE164\(typed, iso\)/.test(web));
+
+// KNOWN AND ACCEPTED RISK, recorded here so it is not rediscovered as a
+// mystery: phone_key is the last nine digits GLOBALLY. Two numbers in
+// different countries sharing their last nine digits collide, and since 0038
+// made identity global with person_contacts unique on (method, key), a
+// collision FUSES TWO HUMANS. dan accepted this on 22 Aug 2026 rather than
+// re-key every contact today. The fix is to key on full E.164.
+// Matched on a short phrase that cannot straddle a line break — the first
+// version looked for wording that wraps across two comment lines and failed
+// against a comment that was present and correct.
+ck('the accepted phone_key collision risk is documented in the code',
+   /KNOWN AND ACCEPTED RISK/.test(web) && /FUSE TWO HUMANS/.test(web));
 
 console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed\n');
 process.exit(fail ? 1 : 0);

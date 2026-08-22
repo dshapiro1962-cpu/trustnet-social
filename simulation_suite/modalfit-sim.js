@@ -32,7 +32,7 @@ let pass=0,fail=0; const ck=(n,c,x)=>{ if(c){pass++;console.log('  ✓',n);}else
 vm.runInContext(app,ctx,{filename:'app.js'});
 vm.runInContext('renderApp=function(){};showView=function(){};toast=function(){};CURRENT_UID="me";',ctx);
 const X=ctx.__x;
-ck('APP_VERSION is v0.70.0', X.APP_VERSION==='v0.70.0 · live', X.APP_VERSION);
+ck('APP_VERSION is v0.71.0', X.APP_VERSION==='v0.71.0 · live', X.APP_VERSION);
 
 // THE VERSION MUST BE VISIBLE ON A PHONE. It lived in #sidebar, which
 // `@media (max-width:768px) { #sidebar { display:none !important } }` hides on

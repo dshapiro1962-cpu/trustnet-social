@@ -724,26 +724,9 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .color-swatch.selected { border-color: #1C2420; border-color: var(--slate-800); }
 
 /* ── Mobile ── */
-#mobile-nav {
-  display: none;
-  position: fixed; bottom: 0; left: 0; right: 0;
-  background: #fff; border-top: 1px solid #E5EDE8; border-top: 1px solid var(--slate-100);
-  z-index: 50; padding: 8px 0 env(safe-area-inset-bottom);
-}
-.mobile-nav-items { display: flex; }
-.mobile-nav-item {
-  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
-  padding: 6px 0; cursor: pointer;
-  color: #A8BDAF; color: var(--slate-300);
-  font-size: 10px; font-weight: 600;
-  transition: color var(--transition);
-}
-.mobile-nav-item.active { color: #217A4B; color: var(--green-500); }
-.mobile-nav-item svg { width: 22px; height: 22px; }
 
 @media (max-width: 640px) {
   #sidebar { display: none; }
-  #mobile-nav { display: block; }
   .view-body { padding: 16px; padding-bottom: 80px; }
   .topbar { padding: 0 16px; }
   .stat-row { flex-wrap: wrap; }
@@ -832,7 +815,10 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
       </div>
 
       <div id="login-wa-pane">
-        <input class="field-input" id="login-phone" type="tel" inputmode="tel" dir="ltr" placeholder="050 123 4567" style="width:100%;margin-bottom:14px;">
+        <div style="display:flex;gap:8px;margin-bottom:14px;">
+          <select class="field-input" id="login-country" style="flex:0 0 42%;min-width:0;"></select>
+          <input class="field-input" id="login-phone" type="tel" inputmode="tel" dir="ltr" placeholder="50 123 4567" style="flex:1;min-width:0;">
+        </div>
         <button class="btn btn-primary" id="login-wa-send" style="width:100%;">Send code on WhatsApp</button>
         <p style="font-size:11.5px;color:#7A9086;margin-top:10px;line-height:1.6;">We'll message you from Trustnet's number. Most people here sign in this way.</p>
       </div>
@@ -996,7 +982,7 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
       <div class="nav-section-label">DEMO USERS</div>
       <div id="sb-demo-users"></div>
-      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.70.0 · live</div>
+      <div id="app-version-footer" style="font-size:9px;color:#4E6157;padding:10px 12px 0;">v0.71.0 · live</div>
     </div>
 
     <div class="sidebar-footer">
@@ -1019,30 +1005,17 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
   </div>
 
   <!-- Mobile nav -->
-  <div id="mobile-nav">
-    <div class="mobile-nav-items">
-      <div class="mobile-nav-item active" data-action="nav" data-view="home">
-        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h4a1 1 0 001-1v-3h2v3a1 1 0 001 1h4a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/></svg>
-        Home
-      </div>
-      <div class="mobile-nav-item" data-action="nav" data-view="circles">
-        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/></svg>
-        Circles
-      </div>
-      <div class="mobile-nav-item" data-action="nav" data-view="query">
-        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd"/></svg>
-        Ask
-      </div>
-      <div class="mobile-nav-item" data-action="nav" data-view="library">
-        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"/></svg>
-        Library
-      </div>
-      <div class="mobile-nav-item" data-action="nav" data-view="profile">
-        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/></svg>
-        Profile
-      </div>
-    </div>
-  </div>
+  <!-- #mobile-nav DELETED (v0.71.0)
+     There were TWO fixed bottom bars. #mobile-tabbar (above, z-index 100)
+     shows under 768px and carries the FAB; this one showed under 640px at
+     z-index 50 and was therefore COMPLETELY COVERED on every phone — while
+     still occupying layout and still being the only place linking to Profile.
+     That is why Profile was unreachable on mobile: its door existed, behind
+     an opaque bar.
+     Nothing is lost. home / circles / library are in #mobile-tabbar; `query`
+     is reached by the FAB (data-action="fab-ask"); `profile` now has a labelled
+     row on Home. Verified by the door guard in modalfit-sim: every routed view
+     still has a way in. -->
 </div>
 
 <!-- Toast container -->
@@ -1681,7 +1654,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.70.0 · live';
+const APP_VERSION = 'v0.71.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -1715,9 +1688,8 @@ function renderApp() {
   document.querySelectorAll('.nav-item[data-view]').forEach(function(el) {
     el.classList.toggle('active', el.dataset.view === AppState.currentView);
   });
-  document.querySelectorAll('.mobile-nav-item[data-view]').forEach(function(el) {
-    el.classList.toggle('active', el.dataset.view === AppState.currentView);
-  });
+  // (.mobile-nav-item removed with #mobile-nav in v0.71.0 — the visible bar
+  //  is #mobile-tabbar, whose active state is handled by .mtab below.)
 
   // Update topbar
   const ttEl = document.getElementById('topbar-title');
@@ -8153,11 +8125,47 @@ function wireWhatsAppLogin() {
   tabWa.addEventListener('click', function() { activate('wa'); });
   tabEm.addEventListener('click', function() { activate('email'); });
 
+  // Same country picker as add-member. (v0.71.0)
+  //
+  // MATCHING IS UNCHANGED AND NOBODY CAN BE LOCKED OUT: wa-signin resolves an
+  // account with phoneKey(), the LAST NINE DIGITS, so +972501234567 and
+  // 0501234567 have always been the same key and still are. This only changes
+  // what gets TYPED and what gets STORED in users.phone — from whatever the
+  // user happened to write, to canonical E.164.
+  //
+  // KNOWN AND ACCEPTED RISK (dan, 22 Aug 2026): phone_key is the last nine
+  // digits GLOBALLY, so two numbers in different countries sharing their last
+  // nine digits produce the same key. Before 0038 that mislabelled one row in
+  // one address book. Now identity is global and person_contacts is unique on
+  // (method, key), so a collision would FUSE TWO HUMANS into one identity.
+  // Opening the country picker to 245 countries makes it likelier. The fix is
+  // to key on full E.164, which means re-keying every contact and changing a
+  // generated column; dan has accepted the risk for now rather than take that
+  // change today. IF A COLLISION IS EVER SEEN, THIS IS THE CAUSE.
+  // Defensive: an exception thrown here aborts wireWhatsAppLogin and takes the
+  // WHOLE login screen's wiring with it — the send button, the verify button,
+  // the back link. A missing or unexpected element must degrade to "no picker",
+  // never to "cannot sign in". Caught by addsearch-sim, which renders the login
+  // screen against a DOM stub where `.options` does not exist. (v0.71.0)
+  try {
+    const lc = document.getElementById('login-country');
+    if (lc && lc.options && !lc.options.length && typeof countryOptions === 'function') {
+      lc.innerHTML = countryOptions('IL');
+    }
+  } catch (e) { console.error('country picker unavailable:', e); }
+
   const sendBtn = document.getElementById('login-wa-send');
   sendBtn.addEventListener('click', async function() {
-    const phone = (document.getElementById('login-phone') || {}).value || '';
+    const iso = (document.getElementById('login-country') || {}).value || 'IL';
+    const typed = (document.getElementById('login-phone') || {}).value || '';
+    const parsed = toE164(typed, iso);
+    // Fail open, exactly as add-member does: if libphonenumber did not load we
+    // send what was typed, and phoneKey() on the server reduces it the same way
+    // it always has. A sign-in that refuses to work is worse than one that
+    // sends an unnormalised number.
+    const phone = parsed.e164 || typed;
     if (!waLoginPhoneOk(phone)) {
-      err.textContent = 'Enter your WhatsApp number, e.g. 050 123 4567.';
+      err.textContent = 'Enter your WhatsApp number, e.g. 50 123 4567.';
       err.style.display = 'block'; return;
     }
     err.style.display = 'none';
