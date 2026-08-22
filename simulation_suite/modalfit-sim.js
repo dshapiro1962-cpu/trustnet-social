@@ -34,6 +34,49 @@ vm.runInContext('renderApp=function(){};showView=function(){};toast=function(){}
 const X=ctx.__x;
 ck('APP_VERSION is v0.70.0', X.APP_VERSION==='v0.70.0 · live', X.APP_VERSION);
 
+// THE VERSION MUST BE VISIBLE ON A PHONE. It lived in #sidebar, which
+// `@media (max-width:768px) { #sidebar { display:none !important } }` hides on
+// every phone — so for four releases "check the footer reads vX" was a
+// verification step that could not render on the device it was checked on,
+// and it was treated as proof a deploy had landed. (22 Aug 2026)
+const webSrc = fs.readFileSync('/home/claude/app/index.html','utf8');
+ck('the version is rendered on the HOME view', /id="home-version"/.test(webSrc));
+ck('...from APP_VERSION, not a hard-coded string',
+   /id="home-version"[\s\S]{0,200}esc\(APP_VERSION\)/.test(webSrc));
+// It must live on a view the visible bottom bar can actually reach. It was in
+// #sidebar (hidden under 768px), then moved to Profile — which #mobile-tabbar
+// does not offer at all. Home is the one screen that always opens.
+const tabbar = (webSrc.match(/<div id="mobile-tabbar">[\s\S]*?<\/div>\s*<\/div>/) || [''])[0];
+const reachable = (tabbar.match(/data-view="([a-z-]+)"/g) || []).map(function(m){
+  return m.replace(/.*data-view="([a-z-]+)".*/, '$1'); });
+const versionView = /id="home-version"/.test(webSrc) ? 'home'
+                  : (/id="profile-version"/.test(webSrc) ? 'profile' : 'nowhere');
+ck('...on a view the visible mobile bar can reach',
+   reachable.indexOf(versionView) >= 0,
+   versionView + ' not in [' + reachable.join(', ') + ']');
+
+// EVERY VIEW MUST HAVE A DOOR. renderProfile() and its route both worked from
+// the beginning; what did not exist was any way in. On a laptop the only entry
+// was the unlabelled user pill in the sidebar; on a phone there was none —
+// #mobile-tabbar offers home/circles/inbox/library, and the Profile entry sits
+// in #mobile-nav, the second bottom bar, covered at z-index 50. So nobody could
+// edit their own name, location or bio on the device they use. (22 Aug 2026)
+const routed = (webSrc.match(/currentView === '([a-z-]+)'/g) || [])
+  .map(function(m){ return m.replace(/.*'([a-z-]+)'.*/, '$1'); });
+// A door is EITHER a data-view link OR a programmatic showView() call. 'sheet'
+// is opened only by showView('sheet', {queryId}) from an answered-query card —
+// a real door, just not a declarative one. The first version of this check
+// counted only data-view and reported it as an orphan.
+const doors = (webSrc.match(/data-view="([a-z-]+)"/g) || [])
+  .map(function(m){ return m.replace(/.*"([a-z-]+)".*/, '$1'); })
+  .concat((webSrc.match(/showView\('([a-z-]+)'/g) || [])
+  .map(function(m){ return m.replace(/.*'([a-z-]+)'.*/, '$1'); }));
+const orphans = routed.filter(function(v){ return doors.indexOf(v) < 0; });
+ck('every routed view has at least one link to it', orphans.length === 0, orphans.join(', '));
+ck('profile is reachable from a view the mobile bar can open',
+   /data-view="profile"/.test(webSrc)
+   && /id="home-profile-link"/.test(webSrc));
+
 // ── one scroll container, not two ──
 ck('the modal itself no longer scrolls (nested scrollers removed)',
    /\.modal \{[^}]*overflow: hidden;[^}]*display: flex; flex-direction: column;/s.test(src));

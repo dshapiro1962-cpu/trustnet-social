@@ -1967,6 +1967,51 @@ function renderHome() {
     + '<p style="font-size:12px;color:var(--slate-500);line-height:1.6;margin-bottom:12px;">Discover anonymous recommendations from people across the network whose tastes align with yours — without ever knowing who they are.</p>'
     + '<button class="btn btn-secondary btn-sm" data-action="nav" data-view="taste-match">Explore Taste Match →</button>'
     + '</div>'
+    // PROFILE IS REACHED FROM HERE. (v0.70.0)
+    //
+    // renderProfile() and its route at renderApp() both work and always have.
+    // What did not exist was any way IN. On a laptop the only entry was the
+    // user pill at the top of the sidebar — an avatar and a name, which do not
+    // look like a button and are labelled nothing. On a phone there was no
+    // route at all: #mobile-tabbar offers home, circles, inbox and library, and
+    // the Profile entry lives in #mobile-nav, the second bottom bar, which sits
+    // at z-index 50 underneath the visible one and is completely covered.
+    //
+    // So users could not edit their own name, location or bio on the device
+    // they actually use. Not a rendering bug — a missing door.
+    //
+    // A fifth tab was the other option and was rejected: the bar is already
+    // four items plus the FAB, and the v0.30.0 note in this file records a
+    // horizontal swipe dragging its last icon out of reach on a narrow phone.
+    // Profile is opened occasionally; it does not deserve permanent furniture.
+    + '<div class="card" style="margin-top:16px;">'
+    +   '<button type="button" data-action="nav" data-view="profile" id="home-profile-link"'
+    +     ' style="display:flex;width:100%;box-sizing:border-box;min-width:0;align-items:center;gap:12px;'
+    +     'background:none;border:none;padding:14px 16px;text-align:left;cursor:pointer;">'
+    +     '<div class="avatar" style="background:' + esc((user && user.avatarColor) || '#217A4B') + ';flex:none;">'
+    +       esc(user && user.name ? user.name.split(' ').map(function(w){ return w[0] || ''; }).join('').slice(0,2).toUpperCase() : '?') + '</div>'
+    +     '<div style="flex:1;min-width:0;">'
+    +       '<div style="font-weight:700;font-size:14px;color:#0D2B1F;" dir="auto">'
+    +         esc(user ? user.name : 'Your profile') + '</div>'
+    +       '<div style="font-size:11px;color:#7A9086;">Name, location and bio</div>'
+    +     '</div>'
+    +     '<div style="color:#7A9086;font-size:16px;flex:none;">\u203A</div>'
+    +   '</button>'
+    + '</div>'
+    // THE VERSION MARKER LIVES ON HOME. It was in #sidebar, which
+    // `@media (max-width:768px){#sidebar{display:none!important}}` hides on
+    // every phone — so for four releases "check the footer reads vX" was a
+    // verification step that COULD NOT RENDER on the device it was checked on,
+    // and it was treated as proof a deploy had landed.
+    //
+    // It was then moved to Profile, which is WORSE: #mobile-tabbar (the bar
+    // actually visible on a phone) offers Home, Circles, Inbox and Library
+    // only. The Profile entry is in #mobile-nav, the second bottom bar, which
+    // sits at z-index 50 underneath and is completely covered. Profile is
+    // unreachable from a phone. Home is the one screen that always opens.
+    // (v0.70.0)
+    + '<div id="home-version" style="font-size:10px;color:#7A9086;text-align:center;padding:20px 0 4px;">'
+      + esc(APP_VERSION) + '</div>'
     + '</div>';
 }
 
