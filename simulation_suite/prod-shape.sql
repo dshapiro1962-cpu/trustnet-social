@@ -1,0 +1,20 @@
+-- The 22 Aug library, reconstructed from the pairs query 7 returned.
+insert into canonicals (type,name,location,phone,created_by) values
+ ('place','Tony Vespa',null,null,null),('place','Tony vespa',null,null,null),
+ ('place','Tony Vespa',null,null,null),('place','Tony Vespa',null,null,null),
+ ('place','Art Pizza',null,null,null),('place','art pizza',null,null,null),
+ ('place','Artzieli Pizza',null,null,null),('place','artzieli',null,null,null),
+ ('place','K2',null,null,null),('place','k2',null,null,null),
+ ('place','ROK',null,null,null),('place','ROK',null,null,null),
+ ('place','Avoriaz 1800',null,null,null),('place','Avoriaz 1800',null,null,null),
+ ('place','אבו חסן',null,null,null),('place','אבו חסן',null,null,null),
+ ('place','רומן טמיר',null,null,null),('place','רומן טמיר',null,null,null),
+ ('place','בית ספר אלחריזי',null,null,null),('place','בית ספר אלחריזי',null,null,null),
+ ('place','yes in shevach street 34 tel aviv',null,null,null),
+ ('place','yes in shevach street 34 tel aviv',null,null,null),
+ ('place','שושן שמוליק',null,'+972505303690',null),
+ ('place','שושן-שמוליק',null,'050-530-3690',null),
+ ('place','Eli מיזוג אוויר',null,'+972545666006',null),
+ ('place','Eli מזוג אויר',null,'054-566-6006',null),
+ ('place','Caffe Tamati',null,null,null),('place','tamati',null,null,null),
+ ('place','ד"ר לירן חורב-יקיר',null,null,null),('place','דר לירן חורב',null,null,null);
