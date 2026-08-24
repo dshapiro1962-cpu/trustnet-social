@@ -13,7 +13,6 @@
 // Auth: caller JWT. Secrets: OPENAI_API_KEY
 // ============================================================================
 import { adminClient, getUserId, json, err, handleOptions } from "../_shared/utils.ts";
-import { norm } from "../_shared/enrich_core.ts";
 
 const ENGINE = "search-v1";
 const RERANK_MODEL = () => Deno.env.get("RERANK_MODEL") ?? "gpt-4o";
@@ -113,45 +112,15 @@ Deno.serve(async (req: Request) => {
     ? order.map((o) => ({ c: candidates[o.i], why: o.why }))
     : candidates.slice(0, limit).map((c) => ({ c, why: "" })); // graceful: blended order
 
-  // NEVER hand back a blank screen when the user typed the NAME of something
-  // they actually have. That is the one case where an empty result is a bug
-  // rather than an answer - and it is the only case.
-  //
-  // WAS: a blanket net over `kw_sim >= 0.4 || vec_sim >= 0.45`, labelled
-  // "closest match in your library". kw_sim is similarity(search_doc, query)
-  // over the WHOLE catalogue document, so a note reading "great archeology"
-  // answered a search for "greta" at 0.500 while the vector arm - which was
-  // right - scored it 0.139. The Israel Museum came back as the closest match
-  // for a name that is not in the library at all. Measured on production,
-  // 24 Aug 2026.
-  //
-  // Worse, it could only ever fire when the reranker was RIGHT. If the rerank
-  // fails, `order` is null and `pick` is already the blended top-N; if there
-  // are no candidates the function has already returned. So the sole reachable
-  // trigger was the model obeying the instruction fifteen lines above - "If
-  // NOTHING fits, return {\"results\":[]} - an empty answer beats a wrong one"
-  // - and this overrode that verdict every single time.
-  //
-  // The net now matches the NAME, and only by whole-word containment. No fuzzy
-  // scoring: fuzzy scoring is what produced the bug. The accepted cost is that
-  // a misspelled name ("hakosm") returns nothing - a failure the user can see
-  // and fix in a second, unlike a confident wrong answer.
+  // NEVER hand back a blank screen when the library clearly holds something
+  // matching the words. A model silently deleting every result is unacceptable
+  // in a product whose promise is that your library remembers.
   let fellBack = false;
   if (!pick.length) {
-    const q = norm(query);
-    const named = candidates.filter((c) => {
-      const n = norm(String(c.name || ""));
-      if (!n || !q) return false;
-      if (n === q) return true;
-      // Whole words both ways: "hakosem" finds "Hakosem Falafel", and
-      // "hakosem falafel" still finds the row named "Hakosem". Padding is what
-      // stops a canonical named "a" from answering every search.
-      return (" " + n + " ").includes(" " + q + " ")
-          || (" " + q + " ").includes(" " + n + " ");
-    });
-    if (named.length) {
+    const strong = candidates.filter((c) => Number(c.kw_sim) >= 0.4 || Number(c.vec_sim) >= 0.45);
+    if (strong.length) {
       fellBack = true;
-      pick = named.slice(0, limit).map((c) => ({ c, why: "in your library by name" }));
+      pick = strong.slice(0, limit).map((c) => ({ c, why: "closest match in your library" }));
     }
   }
 
