@@ -47,9 +47,18 @@ from `origin/main` automatically; there is no build step.
 session: `receive-response`, `send-query`, `wa-signin`, `complete-join`,
 `resend-member`, `librarian`, `extract-chat-recs`, `search-library`.
 
-**Four functions bundle `_shared/enrich_core.ts`** and must be redeployed
-whenever it changes: `librarian`, `receive-response`, `extract-chat-recs`, and
-now `search-library` (it imports `norm`).
+**SIX functions bundle `_shared/enrich_core.ts`** and must be redeployed
+whenever it changes:
+
+```
+extract-chat-recs   librarian        receive-response
+search-library      suggest-sweep    whatsapp-webhook
+```
+
+`search-library` joined the list on 24 Aug (it imports `norm`). This handover
+first said four; the deploy output named six, and
+`grep -rl "_shared/enrich_core.ts" supabase/functions` confirms it. Re-run that
+grep rather than trusting this list.
 
 **End-to-end suggestion flow: measured working.** dshapiro8 saves a ski item →
 appears in dshapiro1962's inbox. That is the first time this session that the
