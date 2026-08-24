@@ -40,13 +40,10 @@ Deno.serve(async (req) => {
   for (const [userId, p] of profiles) {
     const topTags = Object.entries(p.tags)
       .sort((a, b) => b[1] - a[1]).slice(0, 50).map(([t]) => t);
-    // One user's profile failing must not abort the rebuild for everyone else,
-    // but it must not be invisible either: that user simply stops matching.
-    const { error: profErr } = await admin.from("taste_match_profiles").upsert({
+    await admin.from("taste_match_profiles").upsert({
       user_id: userId, category_vector: p.cats, tag_fingerprint: topTags,
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id" });
-    if (profErr) console.error("taste_profile_upsert_failed", userId, profErr.message);
   }
 
   // 3. Reciprocal pairs to exclude
@@ -68,20 +65,7 @@ Deno.serve(async (req) => {
   }
 
   // 5. Keep top N per user, replace taste_matches
-  //
-  // THIS DELETE EMPTIES THE WHOLE TABLE. It was unchecked, and so was the
-  // insert that refills it below - so a delete that succeeded followed by an
-  // insert that failed wiped every taste match in the system and reported
-  // success. Nothing in the response would have shown it.
-  //
-  // A failed delete aborts before anything is removed, which leaves the old
-  // matches standing - stale beats absent.
-  const { error: delErr } = await admin.from("taste_matches")
-    .delete().neq("id", "00000000-0000-0000-0000-000000000000");
-  if (delErr) {
-    console.error("taste_matches_clear_failed", delErr.message);
-    return err("taste_matches_clear_failed: " + delErr.message, 500);
-  }
+  await admin.from("taste_matches").delete().neq("id", "00000000-0000-0000-0000-000000000000");
   const byUser = new Map<string, typeof matches>();
   for (const m of matches) {
     const arr = byUser.get(m.user_id) ?? [];
@@ -92,17 +76,7 @@ Deno.serve(async (req) => {
     arr.sort((x, y) => y.score - x.score);
     toInsert.push(...arr.slice(0, MAX_MATCHES_PER_USER));
   }
-  if (toInsert.length) {
-    const { error: insErr } = await admin.from("taste_matches").insert(toInsert);
-    if (insErr) {
-      // The table has ALREADY been cleared by this point, so this is the one
-      // branch that loses data. It must be loud and it must say what state the
-      // system is in, not merely that something failed.
-      console.error("taste_matches_refill_failed", insErr.message);
-      return err("taste_matches_refill_failed \u2014 matches were cleared and NOT "
-        + "replaced; re-run this function: " + insErr.message, 500);
-    }
-  }
+  if (toInsert.length) await admin.from("taste_matches").insert(toInsert);
 
   return json({ profiles: profiles.size, matches: toInsert.length });
 });

@@ -264,23 +264,13 @@ Deno.serve(async (req) => {
     await sendText(from, "Something went wrong saving that — try again.");
     return json({ ok: true });
   }
-  // THE LIBRARY ROW. Unchecked until now, while the canonical insert above WAS
-  // checked - so a failure here left a canonical with no recommendation behind
-  // it and still replied "Saved to your library". Same shape as the answer bug
-  // in receive-response, in another channel where the person is on WhatsApp
-  // with no app and no way to tell anyone it did not work.
-  const { error: recErr } = await admin.from("recommendations").insert({
+  await admin.from("recommendations").insert({
     owner_id: user.id, canonical_id: canRow.id, circle_id: null,
     recommended_by_user_id: user.id,
     note, rating: null, tags, status: "saved", is_anonymous: false, degree: 1,
     shared_to_network: user.share_by_default !== false,
     rec_date: new Date().toISOString().slice(0, 10),
   });
-  if (recErr) {
-    console.error("wa_rec_insert_failed", user.id, recErr.message);
-    await sendText(from, "Something went wrong saving that \u2014 try sending it again.");
-    return json({ ok: true });
-  }
 
   const catLabel = category.charAt(0).toUpperCase() + category.slice(1);
   await sendText(from, "✓ Saved to your library: " + name + (location ? " · " + location : "") + " (" + catLabel + ")");

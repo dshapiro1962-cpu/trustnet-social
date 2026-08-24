@@ -298,20 +298,8 @@ Deno.serve(async (req) => {
   const seenUpTo = contributions.map((c) => c.at).filter(Boolean).sort().pop() ?? null;
   let watermarkMoved = false;
   if (seenUpTo && why.insert_failed === 0 && !dryRun) {
-    // watermark_moved was set to true without asking whether the write
-    // succeeded. In a function whose entire design is about being diagnosable -
-    // every drop-out counted, every error returned - the one line that reported
-    // its own progress was taking it on faith. A failed update here means the
-    // next run reprocesses the same window, which is harmless, but a run that
-    // SAYS it advanced and did not is how five diagnoses chased a moving target.
-    const { error: wmErr } = await admin.from("sweep_state")
-      .update({ last_at: seenUpTo }).eq("name", "suggestions");
-    if (wmErr) {
-      console.error("sweep_watermark_write_failed", wmErr.message);
-      if (errors.length < 5) errors.push("watermark: " + wmErr.message.slice(0, 160));
-    } else {
-      watermarkMoved = true;
-    }
+    await admin.from("sweep_state").update({ last_at: seenUpTo }).eq("name", "suggestions");
+    watermarkMoved = true;
   }
   return json({ engine: ENGINE, scanned: contributions.length,
                 from_saves: (recs ?? []).length, from_answers: (answers ?? []).length,

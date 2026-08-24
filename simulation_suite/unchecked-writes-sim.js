@@ -24,7 +24,9 @@ const useOld = process.argv.indexOf('--old') > -1;
 const F = path.join(__dirname, '..', 'supabase', 'functions');
 const B = path.join(__dirname, 'baseline-v0.72.2');
 
-const targets = ['receive-response', 'send-query', 'wa-signin', 'complete-join', 'resend-member'];
+const targets = ['receive-response', 'send-query', 'wa-signin', 'complete-join',
+                 'resend-member', 'whatsapp-webhook', 'update-taste-match',
+                 'suggest-sweep', 'extract-chat-recs'];
 const read = (name) => {
   const p = useOld ? path.join(B, name + '.index.ts') : path.join(F, name, 'index.ts');
   if (!fs.existsSync(p)) { console.error('missing fixture: ' + p); process.exit(2); }
@@ -43,11 +45,26 @@ const ck = (n, c, x) => {
   else { fail++; console.log('  FAIL  ' + n + (x !== undefined ? '   ' + x : '')); }
 };
 
-// A write statement whose result is discarded: `await admin.from(` at the head
-// of a statement, with nothing capturing what comes back.
-const discarded = (src) => src.split('\n')
-  .map((line, i) => ({ line: line.trim(), n: i + 1 }))
-  .filter(o => /^await\s+admin\.from\(/.test(o.line));
+// A write whose result is discarded: `await admin.from(` with nothing capturing
+// what comes back.
+//
+// THE FIRST VERSION ANCHORED ON THE START OF THE LINE and therefore missed
+// `if (toInsert.length) await admin.from("taste_matches").insert(toInsert);` —
+// the refill after a delete that empties the whole table. A detector that only
+// finds the tidy cases is worth very little, so this looks at what precedes the
+// call anywhere on the line: an assignment or destructure ends with `=`, and a
+// ternary arm ends with `?` or `:`. Anything else throws the result away.
+const discarded = (src) => {
+  const out = [];
+  src.split('\n').forEach((line, i) => {
+    const at = line.indexOf('await admin.from(');
+    if (at < 0) return;
+    const before = line.slice(0, at).trim();
+    if (/[=?:]$/.test(before)) return;      // result is captured
+    out.push({ line: line.trim(), n: i + 1 });
+  });
+  return out;
+};
 
 console.log('\n── every write reports its own refusal ──\n');
 for (const name of targets) {
@@ -78,6 +95,50 @@ ck('...and returns an error BEFORE notifying the asker',
 const iSuccess = rr.indexOf('success: true');
 ck('...so success:true is unreachable when the answer did not save',
    iReturn > 0 && iSuccess > iReturn, 'return@' + iReturn + ' success@' + iSuccess);
+
+console.log('\n── the two that lose data outright ──\n');
+
+// whatsapp-webhook: the canonical insert was checked and the recommendation
+// insert was not, so a failure left a canonical with no library row behind it
+// and still replied "Saved to your library".
+const ww = read('whatsapp-webhook');
+ck('whatsapp-webhook binds the error of the recommendation insert',
+   /const\s*\{\s*error:\s*\w+\s*\}\s*=\s*await admin\.from\("recommendations"\)\.insert\(/.test(ww));
+// STRUCTURAL, not a string search. The first version looked for the identifier
+// `recErr` anywhere in the file - and the BASELINE passes that, because it
+// already has an unrelated `recErr` at line 101 for the invite-claim write. A
+// guard that passes for the wrong reason is the exact failure this suite exists
+// to prevent. What matters is that a failure RETURNS before the reply.
+const iRecIns = ww.indexOf('.from("recommendations").insert(');
+// Searched FROM the insert: the phrase also appears in the comment above it,
+// which this sim matched first and failed on. Anchoring on prose you wrote
+// yourself is not anchoring.
+const iSaved  = iRecIns > 0 ? ww.indexOf('Saved to your library', iRecIns) : -1;
+const between = (iRecIns > 0 && iSaved > iRecIns) ? ww.slice(iRecIns, iSaved) : '';
+ck('...and returns before replying "Saved to your library"',
+   /if\s*\(\s*\w*[Ee]rr\w*\s*\)[\s\S]{0,400}?return\s+json\(/.test(between),
+   'insert@' + iRecIns + ' saved@' + iSaved);
+
+// update-taste-match: delete-everything then refill. Unchecked on both sides,
+// a successful delete plus a failed insert wiped every match in the system and
+// returned success.
+const tm = read('update-taste-match');
+ck('update-taste-match binds the error of the full-table delete',
+   /const\s*\{\s*error:\s*\w+\s*\}\s*=\s*await admin\.from\("taste_matches"\)\s*\n?\s*\.delete\(/.test(tm)
+   || /const\s*\{\s*error:\s*\w+\s*\}\s*=\s*await admin\.from\("taste_matches"\)[\s\S]{0,40}?\.delete\(/.test(tm));
+ck('...and aborts before clearing when the delete fails',
+   /taste_matches_clear_failed/.test(tm));
+ck('...binds the error of the refill insert too',
+   /const\s*\{\s*error:\s*\w+\s*\}\s*=\s*await admin\.from\("taste_matches"\)\.insert\(/.test(tm));
+ck('...and says the table was cleared and NOT replaced',
+   /cleared and NOT/.test(tm));
+
+console.log('\n── the sweep must not claim progress it did not make ──\n');
+const sw = read('suggest-sweep');
+const iWm = sw.indexOf('watermarkMoved = true');
+const iWmErr = sw.indexOf('sweep_watermark_write_failed');
+ck('suggest-sweep sets watermark_moved only after a successful write',
+   iWmErr > 0 && iWm > iWmErr, 'err@' + iWmErr + ' moved@' + iWm);
 
 console.log('\n── the send path ──\n');
 const sq = read('send-query');

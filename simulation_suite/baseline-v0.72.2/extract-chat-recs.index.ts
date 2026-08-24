@@ -169,14 +169,9 @@ Deno.serve(async (req: Request) => {
         // fill it. Never overwrite an existing number — the first recorded
         // contact is the one that has been in use.
         if ((it.phone || "").trim()) {
-          // Best-effort enrichment of a reused row: it legitimately affects
-          // ZERO rows whenever the canonical already has a number, so the ERROR
-          // is what is checked, never the row count. Non-fatal - the import
-          // must not fail over a missing phone - but never silent.
-          const { error: phErr } = await admin.from("canonicals")
+          await admin.from("canonicals")
             .update({ phone: it.phone.trim() })
             .eq("id", canonicalId).is("phone", null);
-          if (phErr) console.error("chat_import_phone_backfill_failed", canonicalId, phErr.message);
         }
       }
 

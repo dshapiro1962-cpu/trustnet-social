@@ -154,27 +154,23 @@ Columns that look useful and are not: `type` is uniformly `place` on every row.
 
 ## Known broken, in priority order
 
-Items 1 and 4 of the previous list were fixed on 24 Aug (v0.73.0 / v0.73.1).
-Item 2 was not fixed — it turned out never to have happened. Item 3 survives,
-restated as item 4 below. What remains:
+Everything on the 23 Aug list is resolved. Items 1 and 4 were fixed on 24 Aug
+(v0.73.0 / v0.73.1); item 2 turned out never to have happened; item 3 survives
+restated below. All fifteen unchecked writes across nine edge functions were
+fixed on 24 Aug, guarded by `unchecked-writes-sim.js`. What remains:
 
-1. **Five unchecked writes outside the audited loop.** Notably
-   `whatsapp-webhook:267` (inserts a recommendation) and
-   `update-taste-match:68` (an unchecked full-table delete). Nine of this shape
-   were fixed on 24 Aug; these were left as out of scope. Same three-line fix:
-   destructure `error`, log it, return a real failure.
-2. **`migrations/0044_identity_security_definer.sql` does not exist** in the
+1. **`migrations/0044_identity_security_definer.sql` does not exist** in the
    working tree or in any git history, yet the previous handover says its
    statements are applied to production. Live functions may have no source in
    version control.
-3. **Nothing in the repo schedules `suggest-sweep`.** No cron migration, no
+2. **Nothing in the repo schedules `suggest-sweep`.** No cron migration, no
    `config.toml`, no `schedule:` trigger in either workflow. Something runs it
    (measured), but it lives in the Supabase dashboard where it can vanish
    silently.
-4. **Identity Tier 1 needs a discriminator** before the triggers are armed.
+3. **Identity Tier 1 needs a discriminator** before the triggers are armed.
    `primary_category` does not work — `other` is the fallback, not a category.
    Normalised name **plus exact location** gets all five live collision groups
    right. Not needed for beta.
-5. **`saveCircles` still writes the whole array.** Left deliberately: `circles`
+4. **`saveCircles` still writes the whole array.** Left deliberately: `circles`
    has no foreign key except `owner_id`, so no poison vector. Same shape, no
    known risk.
