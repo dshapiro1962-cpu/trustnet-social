@@ -11,11 +11,20 @@ Live at trustnetsocial.netlify.app. Postgres on Supabase, project
 
 ## Start here
 
-Read `docs/HANDOVER-2026-08-24.md` before touching anything. It records what is
-live, what is applied but deliberately inert, and what is known to be broken.
+Read `docs/HANDOVER-2026-08-24-evening.md` before touching anything. It records
+what is live, what was fixed on 24 Aug, and what is still open.
+`docs/HANDOVER-2026-08-24.md` is the previous session and is **superseded** —
+three of its central claims were disproved; it carries a banner saying which.
 
-**Three identity triggers are dropped on purpose.** Do not arm them. The reason
-is in the handover.
+**All data in the app is test data.** dan, 24 Aug: it "has no real value... what
+we need is for the app to work properly from now on so we can release it for
+beta". Do not spend time correcting rows. If a row is wrong, fix what produced
+it and leave the row.
+
+**Three identity triggers are dropped on purpose.** Do not arm them. Identity is
+no longer *blocked* — nothing is rewriting canonicals underneath it — but Tier 1
+still folds on normalised name alone, and the whole live problem is five
+collision groups. Not what beta needs.
 
 ---
 
@@ -101,6 +110,22 @@ Use these instead:
 - `simulation_suite/save-scope-sim.js` — asserts the payload ROW COUNT
 - `simulation_suite/neuter-tests.sh` — nine sabotages, each must break a guard
 
+Added 24 Aug. Every one has a CONTROL that must FAIL (`--old`, exit 1):
+
+- `save-scope-recs-sim.js` — asserts EQUALITY WITH THE CALLER'S LIST, not a row
+  count: `handleDeleteCircle` legitimately writes many rows, and a count-based
+  assertion would both forbid that and pass while writing the wrong rows
+- `enrich-anchor-sim.js` — runs **the real body of `enrichOne`**
+- `search-namenet-sim.js` — runs **the real fallback block** of `search-library`
+- `circle-interest-seed-sim.js` — runs **the real seeding function**
+- `unchecked-writes-sim.js` — source structure only, and says so in its header;
+  there is no Deno or TypeScript runtime on dan's machine
+
+**Each sim names the baseline its OWN fix was made against.** A single shared
+"original" snapshot already contains the sibling fix, and its control passes —
+which by the rule above means the suite is measuring nothing. That happened once
+on 24 Aug and was caught only because this file says to check.
+
 Postgres is not installed in a fresh container and `/tmp` is wiped between
 sessions. See `simulation_suite/REPRODUCE.md`.
 
@@ -129,15 +154,27 @@ Columns that look useful and are not: `type` is uniformly `place` on every row.
 
 ## Known broken, in priority order
 
-1. **`saveRecs` writes the whole array.** Same fault fixed in `saveCanonicals`
-   at v0.72.2. Its own comment at line ~1378 has documented it since 6 Jul.
-   Ten call sites; four legitimately touch multiple recs. `saveMembers` and
-   `saveQueries` too.
-2. **Something rewrote a Tel Aviv pizza answer into an Indianapolis
-   consultant** and lost its query link. Not recoverable from the data — no
-   history table. Blocks all identity work.
-3. **Identity needs a redesign** before the triggers are armed. Tier 1 folds on
-   normalised name alone and would merge two different things that share a name.
-4. **The two filter rows are indistinguishable.** Circles are named `ski`,
-   `dining`, `test`, `health` — the same words as the categories — and `health`
-   and `test` both have domain `dining`. Label them, and no dropdown under All.
+Items 1 and 4 of the previous list were fixed on 24 Aug (v0.73.0 / v0.73.1).
+Item 2 was not fixed — it turned out never to have happened. Item 3 survives,
+restated as item 4 below. What remains:
+
+1. **Five unchecked writes outside the audited loop.** Notably
+   `whatsapp-webhook:267` (inserts a recommendation) and
+   `update-taste-match:68` (an unchecked full-table delete). Nine of this shape
+   were fixed on 24 Aug; these were left as out of scope. Same three-line fix:
+   destructure `error`, log it, return a real failure.
+2. **`migrations/0044_identity_security_definer.sql` does not exist** in the
+   working tree or in any git history, yet the previous handover says its
+   statements are applied to production. Live functions may have no source in
+   version control.
+3. **Nothing in the repo schedules `suggest-sweep`.** No cron migration, no
+   `config.toml`, no `schedule:` trigger in either workflow. Something runs it
+   (measured), but it lives in the Supabase dashboard where it can vanish
+   silently.
+4. **Identity Tier 1 needs a discriminator** before the triggers are armed.
+   `primary_category` does not work — `other` is the fallback, not a category.
+   Normalised name **plus exact location** gets all five live collision groups
+   right. Not needed for beta.
+5. **`saveCircles` still writes the whole array.** Left deliberately: `circles`
+   has no foreign key except `owner_id`, so no poison vector. Same shape, no
+   known risk.
