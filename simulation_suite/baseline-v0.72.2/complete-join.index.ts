@@ -140,30 +140,21 @@ Deno.serve(async (req) => {
     // invisible to every check except reading it.
     const { data: linkRow } = await admin.from("circle_invite_links")
       .select("uses").eq("token", token).maybeSingle();
-    const { error: useErr } = await admin.from("circle_invite_links")
+    await admin.from("circle_invite_links")
       .update({ uses: (linkRow?.uses ?? 0) + 1 })
       .eq("token", token);
-    if (useErr) console.error("invite_uses_increment_failed", token, useErr.message);
 
-    const { error: joinNotifErr } = await admin.from("notifications").insert({
+    await admin.from("notifications").insert({
       user_id: circle.owner_id, type: "invite_accepted",
       title: (me?.name ?? ("+" + e164)) + " joined your " + circle.name + " circle",
       body: "They joined via your invite link and can now receive your queries.",
       circle_id: circle.id, actor_name: me?.name ?? null,
     });
-    if (joinNotifErr) console.error("join_notify_failed", circle.id, joinNotifErr.message);
   }
 
   // ── 5. consume the claim, so a forward cannot reuse it ───────────────────
-  // SECURITY-RELEVANT, and unchecked until v0.73.0. This is the only thing
-  // stopping a forwarded invite from being claimed twice; a silent failure
-  // defeats the stated purpose of the step. The join above has already
-  // succeeded and must not be rolled back, so this is loud rather than fatal.
-  const { error: claimErr2 } = await admin.from("invite_claims")
+  await admin.from("invite_claims")
     .update({ consumed_at: new Date().toISOString() }).eq("id", claim.id);
-  if (claimErr2) {
-    console.error("invite_claim_not_consumed", claim.id, claimErr2.message);
-  }
 
   // ── 6. mint a session — same mechanism wa-signin already uses ────────────
   const { data: linkData, error: lErr } = await admin.auth.admin.generateLink({

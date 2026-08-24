@@ -130,23 +130,10 @@ Deno.serve(async (req: Request) => {
 
     const expected = await sha256(key + ":" + code);
     if (expected !== String(otp.code_hash)) {
-      // The brute-force counter. A silent failure here means MAX_ATTEMPTS is
-      // never reached and wrong guesses become unlimited.
-      const { error: atErr } = await admin.from("wa_otp")
-        .update({ attempts: Number(otp.attempts) + 1 }).eq("id", otp.id as string);
-      if (atErr) console.error("wa_otp_attempt_count_failed", otp.id, atErr.message);
+      await admin.from("wa_otp").update({ attempts: Number(otp.attempts) + 1 }).eq("id", otp.id as string);
       return err("wrong_code");
     }
-    // SPENDING THE CODE. The lookup above filters on `is("consumed_at", null)`,
-    // so if this write is refused the same code stays valid until it expires
-    // and can be used again. Loud, and it refuses the sign-in: handing back a
-    // session on a code that was never spent is the wrong side to fail on.
-    const { error: consErr } = await admin.from("wa_otp")
-      .update({ consumed_at: new Date().toISOString() }).eq("id", otp.id as string);
-    if (consErr) {
-      console.error("wa_otp_not_consumed", otp.id, consErr.message);
-      return err("signin_failed: code could not be spent", 500);
-    }
+    await admin.from("wa_otp").update({ consumed_at: new Date().toISOString() }).eq("id", otp.id as string);
 
     // The account: find by phone, else create one keyed to this number.
     const { data: existing } = await admin
@@ -180,21 +167,12 @@ Deno.serve(async (req: Request) => {
     }
 
     // Make sure the phone is recorded even for accounts that predate this path.
-    const { error: phErr } = await admin.from("users")
-      .update({ phone: rawPhone }).eq("id", userId).is("phone", null);
-    if (phErr) console.error("wa_signin_phone_backfill_failed", userId, phErr.message);
+    await admin.from("users").update({ phone: rawPhone }).eq("id", userId).is("phone", null);
 
     // Any circle member holding this number is this person — link them now.
-    // Unchecked until v0.73.0. Sign-in still succeeds when this fails, but the
-    // member rows stay unlinked - and send-query then treats a real Trustnet
-    // user as a stranger, mailing them a link instead of the in-app question.
-    // That is the "app_doorways: 0" failure this codebase already paid a day
-    // for. It legitimately affects ZERO rows when nobody holds this number, so
-    // the error is what is checked, never the row count.
-    const { error: linkErr2 } = await admin.from("members")
+    await admin.from("members")
       .update({ linked_user_id: userId })
       .eq("contact_method", "whatsapp").eq("contact_key", key).is("linked_user_id", null);
-    if (linkErr2) console.error("wa_signin_member_link_failed", userId, linkErr2.message);
 
     // Mint a session through Supabase auth itself.
     const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({

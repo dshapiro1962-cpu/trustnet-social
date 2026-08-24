@@ -325,14 +325,6 @@ $("submit-btn").addEventListener("click", async () => {
         }
       }
       show("thanks-view");
-    } else if (data.error && String(data.error).indexOf("response_not_saved") === 0) {
-      // The answer did NOT reach the database. receive-response used to return
-      // success here anyway, so this screen thanked her for a recommendation
-      // that no longer existed anywhere. The token is not spent - the statement
-      // that spends it is the one that failed - so pressing send again works.
-      $("submit-btn").disabled = false;
-      $("submit-btn").textContent = "Send recommendation";
-      alert("That didn't save — nothing was lost. Please press send again.");
     } else if (data.error === "token_already_used") {
       showError("This link was already used", "Each response link works exactly once \u2014 a recommendation has already been sent from this one.");
     } else if (data.error === "token_expired") {

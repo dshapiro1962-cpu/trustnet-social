@@ -346,25 +346,6 @@ html, body { max-width: 100%; overflow-x: hidden; }
   display: flex; gap: 6px; flex-wrap: wrap;
   margin-bottom: 20px;
   max-width: 100%;
-  align-items: center;
-}
-/* THE TWO FILTER ROWS WERE INDISTINGUISHABLE. One filters on the CIRCLE a rec
-   was filed in, the other on what the thing IS, and nothing on screen said so.
-   The circles are named ski, dining, test and health - the same words as the
-   categories - so "dining" appeared in both rows meaning two different things,
-   and picking the wrong one looked like the library was broken. That is exactly
-   what happened on 23 Aug: cafe italya vanished from a "dining" filter because
-   the chip was a CIRCLE with no members, and four explanations were offered
-   before anyone read activeFilter. Hardcoded colour: this label carries the
-   whole distinction, so it must never depend on a variable that failed to load. */
-.filter-row-label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #7A9086;
-  margin-right: 2px;
-  white-space: nowrap;
 }
 /* The library must never require a horizontal swipe (v0.30.0). */
 .lib-wrap {
@@ -1489,36 +1470,17 @@ async function deleteMembersById(ids) {
   if (r.error) { console.error('deleteMembersById', r.error); toast('Could not remove: ' + r.error.message, 'warn'); return false; }
   return true;
 }
-// Narrowed for the same reason as saveRecs: members.circle_id is a foreign key
-// and is written back unvalidated, so one member row holding a circle deleted
-// elsewhere refuses every member write the account makes.
-//
-// It THROWS now. It used to log, warn, and return NORMALLY, so
-// handleDeleteCircle went on to delete the members and the circle after the
-// write meant to re-point them had already failed.
-async function saveMembers(ids) {
+async function saveMembers() {
   if (!CURRENT_UID) return;
   if (AppState.dataLoadFailed) {
     toast('Not saving \u2014 your data did not load. Please reload first.', 'warn');
-    throw new Error('save refused: data did not load');
+    return;
   }
-  if (ids === undefined || ids === null) {
-    throw new Error('saveMembers(ids) requires the ids to write \u2014 refusing to guess');
-  }
-  const want = Array.isArray(ids) ? ids.filter(Boolean) : [ids].filter(Boolean);
-  if (!want.length) return;
-  const arr = AppState.userMembers.filter(function(m) { return want.indexOf(m.id) > -1; });
-  if (arr.length < want.length) {
-    console.debug('saveMembers: asked for', want.length, 'found', arr.length);
-  }
+  const arr = AppState.userMembers;
   if (!arr.length) return;
   const rows = arr.map(memberToRow);
   const r = await sb.from('members').upsert(rows);
-  if (r.error) {
-    console.error('saveMembers', r.error);
-    toast('Could not save people: ' + (r.error.message || 'database refused the write'), 'warn');
-    throw new Error('saveMembers failed: ' + (r.error.message || r.error.code));
-  }
+  if (r.error) { console.error('saveMembers', r.error); toast('Could not save members.', 'warn'); }
 }
 // ONE SAVE WRITES ONE ROW.
 //
@@ -1568,41 +1530,13 @@ async function saveCanonicals(ids) {
     }
   }
 }
-// ONE SAVE WRITES THE ROWS THE CALLER NAMED.
-//
-// Same fault and same fix as saveCanonicals (v0.72.2). The load path has
-// carried the diagnosis since 6 Jul: "because saveRecs upserts the WHOLE
-// array, ONE such row blocked EVERY save that account made, permanently."
-// That was answered then by correcting the columns; the write itself stayed
-// wide, so the next bad row does it again.
-//
-// The live vector is circle_id. It is a foreign key, and unlike
-// recommended_by_member_id below it is written back UNVALIDATED. Delete a
-// circle on one device and any other device still holding those recs in memory
-// sends a dead circle_id with every future save: 23503, one statement, every
-// row refused, permanently, and nothing in the UI shows which row is at fault.
-// Measured 24 Aug on dan's account: zero such rows. Several people on several
-// devices is what arms it.
-//
-// The ids are EXPLICIT at every call site. Not a dirty-set: a dirty-set is
-// state, state goes stale, and stale state is what produced the bug above.
-// A caller that forgets gets an exception, not a silent whole-library write.
-async function saveRecs(ids) {
+async function saveRecs() {
   if (!CURRENT_UID) return;
   if (AppState.dataLoadFailed) {
     toast('Not saving \u2014 your library did not load. Please reload first.', 'warn');
     throw new Error('save refused: data did not load');
   }
-  if (ids === undefined || ids === null) {
-    throw new Error('saveRecs(ids) requires the ids to write \u2014 refusing to guess');
-  }
-  const want = Array.isArray(ids) ? ids.filter(Boolean) : [ids].filter(Boolean);
-  if (!want.length) return;
-  const arr = AppState.userRecs.filter(function(r) { return want.indexOf(r.id) > -1; });
-  if (arr.length < want.length) {
-    // A caller named a rec that is no longer in memory. Logged, never silent.
-    console.debug('saveRecs: asked for', want.length, 'found', arr.length);
-  }
+  const arr = AppState.userRecs;
   if (arr.length) {
     const rows = arr.map(function(r){ return { id:r.id, owner_id:CURRENT_UID, canonical_id:r.canonicalId,
       circle_id:r.circleId||null, query_id:r.queryId||null,
@@ -1648,24 +1582,21 @@ async function deleteRecsById(ids) {
   }
   return true;
 }
-// Takes the response ids to mark. It used to walk EVERY query and re-write
-// saved_to_library on every already-saved response, so marking one answer
-// issued one statement per answer the account had ever saved.
-async function saveQueries(responseIds) {
+async function saveQueries() {
   if (!CURRENT_UID) return;
-  if (responseIds === undefined || responseIds === null) {
-    throw new Error('saveQueries(responseIds) requires the ids to write \u2014 refusing to guess');
-  }
-  const want = Array.isArray(responseIds) ? responseIds.filter(Boolean) : [responseIds].filter(Boolean);
-  if (!want.length) return;
-  for (const rid of want) {
-    // Observability doctrine: a refused write must never pass silently.
-    // (Saved-state kept reverting after reload because this was unchecked.)
-    const r = await sb.from('query_responses').update({ saved_to_library: true }).eq('id', rid);
-    if (r && r.error) {
-      console.error('saveQueries: could not mark response saved', rid, r.error);
-      toast('Saved to library, but the "already saved" mark did not stick: '
-        + (r.error.message || r.error.code || 'refused'), 'warn');
+  const arr = AppState.userQueries;
+  for (const q of arr) {
+    for (const resp of (q.responses || [])) {
+      if (resp.savedToLibrary && resp.id) {
+        // Observability doctrine: a refused write must never pass silently.
+        // (Saved-state kept reverting after reload because this was unchecked.)
+        const r = await sb.from('query_responses').update({ saved_to_library: true }).eq('id', resp.id);
+        if (r && r.error) {
+          console.error('saveQueries: could not mark response saved', resp.id, r.error);
+          toast('Saved to library, but the "already saved" mark did not stick: '
+            + (r.error.message || r.error.code || 'refused'), 'warn');
+        }
+      }
     }
   }
 }
@@ -1751,7 +1682,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.73.0 · live';
+const APP_VERSION = 'v0.72.2 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3294,15 +3225,14 @@ async function handleSaveFromSheet(idx) {
     });
     // saveRecs THROWS on failure now, so the success message below cannot
     // fire over a rejected write. It has already told the user why.
-    try { await saveRecs([already.id]); } catch (e) { return; }
+    try { await saveRecs(); } catch (e) { return; }
     // Merged comments carry new context — refresh the catalogue entry.
     librarianCommit(canId, { force: true, note: already.note || fullNote,
       queryText: q ? q.text : '' });
   } else {
     const viaMember = it.member_id && AppState.userMembers.some(function(m) { return m.id === it.member_id; })
       ? it.member_id : (AppState.userProfile ? AppState.userProfile.id : null);
-    const sheetRecId = uid();
-    AppState.userRecs.push({ id: sheetRecId, canonicalId: canId,
+    AppState.userRecs.push({ id: uid(), canonicalId: canId,
       circleId: q ? q.circleId : '', queryId: s.queryId || null, recommendedBy: viaMember,
       note: fullNote, rating: it.rating || 0, tags: [],
       status: 'saved', isAnonymous: false, degree: 1, sharedToNetwork: shareDefault(),
@@ -3310,7 +3240,7 @@ async function handleSaveFromSheet(idx) {
     await saveCanonicals(canId);
     // saveRecs THROWS on failure now, so the success message below cannot
     // fire over a rejected write. It has already told the user why.
-    try { await saveRecs([sheetRecId]); } catch (e) { return; }
+    try { await saveRecs(); } catch (e) { return; }
     // Persist the catalogue entry so the item is findable by search.
     librarianCommit(canId, { force: true, note: fullNote,
       queryText: q ? q.text : '' });
@@ -3325,19 +3255,14 @@ async function handleSaveFromSheet(idx) {
     voices.forEach(function(v) { said[(v.note || '').trim()] = true; });
     const byWho = {};
     voices.forEach(function(v) { if (v.by) byWho[v.by] = true; });
-    const markedRespIds = [];
+    let touched = false;
     q.responses.forEach(function(resp) {
       if (resp.savedToLibrary) return;
       const who = (AppState.memberById(resp.contactId) || {}).name;
       const text = (resp.recNote || resp.recName || '').trim();
-      if ((text && said[text]) || (who && byWho[who])) {
-        resp.savedToLibrary = true;
-        if (resp.id) markedRespIds.push(resp.id);
-      }
+      if ((text && said[text]) || (who && byWho[who])) { resp.savedToLibrary = true; touched = true; }
     });
-    if (markedRespIds.length) {
-      try { await saveQueries(markedRespIds); } catch (e) { /* local state is correct */ }
-    }
+    if (touched) { try { await saveQueries(); } catch (e) { /* local state is correct */ } }
   }
   toast('\u201c' + it.name + '\u201d saved with ' + voices.length + ' comment' + (voices.length === 1 ? '' : 's') + '.');
 }
@@ -3813,9 +3738,6 @@ async function handleAddPickedMembers(btn) {
   // Never drop someone silently: the old code returned early on a bad row and
   // reported only how many succeeded.
   const skippedAdds = [];
-  // The ids of the rows this call actually created - saveMembers writes these
-  // and nothing else.
-  const addedMemberIds = [];
   document.querySelectorAll('.pc-cb').forEach(function(cb) {
     if (!cb.checked) return;
     const nm = cb.dataset.name || ''; const tel = cb.dataset.tel || '';
@@ -3832,7 +3754,6 @@ async function handleAddPickedMembers(btn) {
     if (!builtP.ok) { skippedAdds.push(nm + ' \u2014 ' + builtP.detail); return; }
     const m = builtP.member;
     AppState.userMembers.push(m);
-    addedMemberIds.push(m.id);
     if (circle) { if (!circle.memberIds) circle.memberIds = []; circle.memberIds.push(m.id); }
     added++;
   });
@@ -3846,7 +3767,7 @@ async function handleAddPickedMembers(btn) {
   }
   btn.disabled = true;
   await saveCircles();
-  try { await saveMembers(addedMemberIds); } catch (e) { btn.disabled = false; return; }
+  await saveMembers();
   // A contact from the phone book may well be on Trustnet already.
   for (const m of AppState.userMembers.filter(function(x) { return x.circleId === circleId; })) {
     if (!m.linkedUserId) await linkMemberOnServer(m.id);
@@ -4040,7 +3961,7 @@ async function handleSaveEditRec(btn) {
   await saveCanonicals(can.id);
   // saveRecs THROWS on failure now, so the success message below cannot
   // fire over a rejected write. It has already told the user why.
-  try { await saveRecs([rec.id]); } catch (e) { return; }
+  try { await saveRecs(); } catch (e) { return; }
   // The note and name are INSIDE the search document — an edit makes it
   // stale, and backfill skips stale docs. Re-commit or search drifts.
   // (The circle is NOT re-committed: provenance, not evidence.)
@@ -4060,11 +3981,9 @@ async function handleDeleteRec(btn) {
   // user having emptied their library. (v0.69.0)
   const goneRecId = rec.id;
   AppState.userRecs = AppState.userRecs.filter(function(r) { return r.id !== rec.id; });
-  // NO saveRecs HERE. The rec is already out of the array, so the whole-array
-  // write only re-asserted every OTHER rec - 94 rows written to delete one,
-  // and 94 chances for an unrelated bad row to refuse the deletion. Under an
-  // id-scoped save there is nothing to write; deleteRecsById does the removal
-  // and reports its own failure below.
+  // saveRecs THROWS on failure now, so the success message below cannot
+  // fire over a rejected write. It has already told the user why.
+  try { await saveRecs(); } catch (e) { return; }
   if (!(await deleteRecsById([goneRecId]))) {
     // Still in the database. Show the truth rather than a library that
     // disagrees with it.
@@ -4181,24 +4100,15 @@ async function handleDeleteCircle(btn) {
     .map(function(m) { return m.id; });
 
   AppState.userMembers = AppState.userMembers.filter(function(m) { return m.circleId !== c.id; });
-  // Captured BEFORE the field is cleared: afterwards nothing in memory records
-  // which recs used to point at this circle. Same reasoning as goneMemberIds.
-  const refiledRecIds = AppState.userRecs
-    .filter(function(r) { return r.circleId === c.id; })
-    .map(function(r) { return r.id; });
   AppState.userRecs.forEach(function(r) { if (r.circleId === c.id) r.circleId = ''; });
   AppState.userCircles = AppState.userCircles.filter(function(x) { return x.id !== c.id; });
 
   // Recommendations first: they must be re-pointed away from this circle
-  // BEFORE it is deleted, or the write races the removal. This is the ONE
-  // caller that legitimately writes many recs, and it names every one of them.
+  // BEFORE it is deleted, or the write races the removal.
   // saveRecs THROWS on failure, so the success message below cannot fire over
   // a rejected write. It has already told the user why.
-  try { await saveRecs(refiledRecIds); } catch (e) { return; }
-  // NO saveMembers here: this circle's members are already out of the array, so
-  // the call only re-asserted every OTHER member. deleteMembersById below does
-  // the removal. It also used to SWALLOW its own failure and let the deletes
-  // proceed anyway, which is how a failed re-point became a real deletion.
+  try { await saveRecs(); } catch (e) { return; }
+  await saveMembers();
   await saveCircles();
 
   if (!(await deleteMembersById(goneMemberIds))) return;
@@ -4508,8 +4418,7 @@ function renderLibrary() {
   });
   const catBar = catsPresent.length
     ? '<div class="filter-bar" style="margin-top:-6px;">'
-      + '<span class="filter-row-label">Type:</span>'
-      + '<button class="filter-chip cat-tab' + (catFilter === 'all' ? ' active' : '') + '" data-action="set-cat-filter" data-cat="all">All</button>'
+      + '<button class="filter-chip cat-tab' + (catFilter === 'all' ? ' active' : '') + '" data-action="set-cat-filter" data-cat="all">All types</button>'
       + catsPresent.map(function(c) {
         const h = CAT_HUES[c] || CAT_HUES.other;
         const isActive = catFilter === c;
@@ -4520,7 +4429,6 @@ function renderLibrary() {
     : '';
 
   const filterBar = '<div class="filter-bar">'
-    + '<span class="filter-row-label">In circle:</span>'
     + '<button class="filter-chip' + (filter === 'all' ? ' active' : '') + '" data-action="set-filter" data-filter="all">All</button>'
     + filterCircles.map(function(c) {
       const isActive = filter === c.id;
@@ -6178,7 +6086,7 @@ async function handleInviteNew(btn) {
   // and naama landed in dany's circle as "+972545543467".
   // Now they are a member with their real name from the moment you invite them,
   // in EVERY ticked circle. dan: she does not need to know about the others.
-  const madeIn = [], madeInIds = [], couldNot = [];
+  const madeIn = [], couldNot = [];
   for (const cid of targetCircles) {
     const circle = AppState.circleById(cid);
     const cname = circle ? circle.name : cid;
@@ -6192,7 +6100,6 @@ async function handleInviteNew(btn) {
     });
     if (!built.ok) { couldNot.push(cname + ' \u2014 ' + built.detail); continue; }
     AppState.userMembers.push(built.member);
-    madeInIds.push(built.member.id);
     if (circle) {
       circle.memberIds = circle.memberIds || [];
       circle.memberIds.push(built.member.id);
@@ -6200,8 +6107,7 @@ async function handleInviteNew(btn) {
     madeIn.push(cname);
   }
   if (madeIn.length) {
-    try { await saveMembers(madeInIds); } catch (e) { return; }
-    await saveCircles();
+    await saveMembers(); await saveCircles();
     // An invited person may ALREADY be on Trustnet — the dialog says so — and
     // then they should get the in-app doorway, not just an email.
     for (const m of AppState.userMembers.filter(function(x) {
@@ -6440,7 +6346,7 @@ async function handleAddKnownPerson(btn) {
   btn.disabled = true;
   const original = btn.textContent;
   btn.textContent = 'Adding\u2026';
-  const added = [], addedIds = [], failed = [];
+  const added = [], failed = [];
   try {
     for (const cid of circleIds) {
       const circle = AppState.circleById(cid);
@@ -6455,7 +6361,6 @@ async function handleAddKnownPerson(btn) {
       });
       if (!built.ok) { failed.push(cname + ' \u2014 ' + built.detail); continue; }
       AppState.userMembers.push(built.member);
-      addedIds.push(built.member.id);
       if (circle) {
         circle.memberIds = circle.memberIds || [];
         circle.memberIds.push(built.member.id);
@@ -6463,7 +6368,7 @@ async function handleAddKnownPerson(btn) {
       added.push(cname);
     }
     if (added.length) {
-      await saveMembers(addedIds); await saveCircles();
+      await saveMembers(); await saveCircles();
       // These are people the dialog has ALREADY confirmed are on Trustnet, so
       // the link matters most here: without it they receive email instead of
       // the in-app question they expect.
@@ -6529,7 +6434,7 @@ async function handleAddExistingPerson(btn) {
       circle.memberIds.push(built.member.id);
       await saveCircles();
     }
-    await saveMembers([built.member.id]);
+    await saveMembers();
     await linkMemberOnServer(built.member.id);
     await loadUserData();
     closeModal();
@@ -6909,11 +6814,6 @@ async function handleSaveMember() {
   const color = palette[Math.floor(Math.random() * palette.length)];
 
   let newMember;
-  // Every member row this save touches, named explicitly. One person ticked
-  // into three circles is three rows, and all three must be written. Declared
-  // at FUNCTION scope: the extras are collected inside a branch, the save that
-  // reads them is outside it.
-  const touchedMemberIds = [];
 
   if (isSource) {
     const srcName = (document.getElementById('nm-srcname') || {}).value.trim();
@@ -7079,7 +6979,6 @@ async function handleSaveMember() {
           return m.circleId === cid && normContact(m.contactValue) === normContact(contact); });
         if (dup2) return;
         AppState.userMembers.push(b2.member);
-        touchedMemberIds.push(b2.member.id);
         const c2 = AppState.circleById(cid);
         if (c2) { c2.memberIds = c2.memberIds || []; c2.memberIds.push(b2.member.id); }
         extraAdded.push(c2 ? c2.name : cid);
@@ -7151,10 +7050,7 @@ async function handleSaveMember() {
       await saveCircles();
     }
   }
-  // newMember covers BOTH branches above: on edit its id was set to the
-  // existing row's id, on add it is the row just pushed.
-  if (newMember && newMember.id) touchedMemberIds.push(newMember.id);
-  try { await saveMembers(touchedMemberIds); } catch (e) { return; }
+  await saveMembers();
   // Is this person already on Trustnet? Linking used to happen ONLY at signup,
   // so adding an EXISTING user left them unlinked — no in-app doorway for them,
   // no indication for you. Ask the server; it answers only yes/no.
@@ -7200,7 +7096,7 @@ async function handleSaveRec() {
     if (tags.length) dupRec.tags = tags;
     // saveRecs THROWS on failure now, so the success message below cannot
     // fire over a rejected write. It has already told the user why.
-    try { await saveRecs([dupRec.id]); } catch (e) { return; }
+    try { await saveRecs(); } catch (e) { return; }
     closeModal();
     toast('"' + name + '" is already in your library — updated it.');
     renderApp();
@@ -7211,7 +7107,7 @@ async function handleSaveRec() {
   await saveCanonicals(canId);
   // saveRecs THROWS on failure now, so the success message below cannot
   // fire over a rejected write. It has already told the user why.
-  try { await saveRecs([newRec.id]); } catch (e) { return; }
+  try { await saveRecs(); } catch (e) { return; }
   requestClassify(canId, note);
   closeModal();
   toast('"' + name + '" added to your library.');
@@ -7239,7 +7135,7 @@ async function handleToggleStatus(recId, status) {
     rec.status = status;
     // saveRecs THROWS on failure now, so the success message below cannot
     // fire over a rejected write. It has already told the user why.
-    try { await saveRecs([rec.id]); } catch (e) { return; }
+    try { await saveRecs(); } catch (e) { return; }
     toast('Marked as ' + status + '.');
     renderApp();
   } else {
@@ -7392,14 +7288,14 @@ async function handleConfirmSaveToLibrary(respId) {
     }
     // saveRecs THROWS on failure now, so the success message below cannot
     // fire over a rejected write. It has already told the user why.
-    try { await saveRecs([dupRec2.id]); } catch (e) { return; }
+    try { await saveRecs(); } catch (e) { return; }
     // A merged comment brings NEW context (another question, more words).
     // Re-commit so the catalogue entry grows with it — otherwise the item stays
     // findable only by its original wording. (Found by the eval, 31 Jul.)
     librarianCommit(dupRec2.canonicalId, { force: true, note: dupRec2.note || note,
       queryText: AppState.queryState.text || '' });
     resp.savedToLibrary = true;
-    await saveQueries([resp.id]);
+    await saveQueries();
     closeModal();
     toast('Added your circle\'s comment to \u201c' + finalName + '\u201d.');
     renderApp();
@@ -7421,7 +7317,7 @@ async function handleConfirmSaveToLibrary(respId) {
   await saveCanonicals(canId);
   // saveRecs THROWS on failure now, so the success message below cannot
   // fire over a rejected write. It has already told the user why.
-  try { await saveRecs([recId]); } catch (e) { return; }
+  try { await saveRecs(); } catch (e) { return; }
   // PERSIST the catalogue entry: enrich only RETURNS the entity — commit writes
   // the search document + embedding, without which the item is invisible to
   // search even though it looks perfect on screen. (Bug found 28 Jul.)
@@ -7431,7 +7327,7 @@ async function handleConfirmSaveToLibrary(respId) {
   // Mark response as saved so button changes to ✓ — and PERSIST it,
   // or the 60s heartbeat re-fetch resurrects the button (bug fixed v0.16.1)
   resp.savedToLibrary = true;
-  await saveQueries([resp.id]);
+  await saveQueries();
 
   closeModal();
   toast('"' + name + '" saved to your library.');
@@ -7475,9 +7371,8 @@ async function handleSaveFromFeed(idx) {
   }
   const viaMember = AppState.userMembers.find(function(m) { return m.linkedUserId === f.recommender_id; });
   const myCircle = AppState.userCircles.find(function(c) { return c.domain === f.domain; });
-  const feedRecId = uid();
   AppState.userRecs.push({
-    id: feedRecId, canonicalId: f.canonical_id,
+    id: uid(), canonicalId: f.canonical_id,
     circleId: myCircle ? myCircle.id : '',
     recommendedBy: viaMember ? viaMember.id : (AppState.userProfile ? AppState.userProfile.id : null),
     note: f.note || '', rating: f.rating || 0, tags: f.tags || [],
@@ -7486,7 +7381,7 @@ async function handleSaveFromFeed(idx) {
   });
   // saveRecs THROWS on failure now, so the success message below cannot
   // fire over a rejected write. It has already told the user why.
-  try { await saveRecs([feedRecId]); } catch (e) { return; }
+  try { await saveRecs(); } catch (e) { return; }
   requestClassify(f.canonical_id, f.note || '');
   renderApp();
   toast('Saved to your library.');
@@ -7556,7 +7451,7 @@ async function handleConfirmAddReciprocal(recipId, circleChoice) {
 
   AppState.addedReciprocals.push(recipId);
   await saveCircles();
-  try { await saveMembers([newMember.id]); } catch (e) { return; }
+  await saveMembers();
   closeModal();
   renderApp();
   toast(recip.name + ' added to your ' + circle.name + ' circle.');
@@ -7708,20 +7603,10 @@ document.addEventListener('click', function(e) {
   else if (action === 'toggle-share-rec') {
     const tr = AppState.userRecs.find(function(x) { return x.id === target.dataset.recId; });
     if (tr) {
-      // WAS: an un-awaited saveRecs() with no catch, so the toast announced
-      // "shared" over a write the database had refused. Every other caller was
-      // fixed for this; this one was missed. The click handler is not async, so
-      // the await lives in an IIFE - same shape as revoke-circle-link above.
-      // On failure the flag goes back, so the screen never disagrees with the
-      // database (the rollback pattern from handleTriageAssign).
-      const wantShared = !tr.sharedToNetwork;
-      (async function() {
-        tr.sharedToNetwork = wantShared;
-        try { await saveRecs([tr.id]); }
-        catch (e) { tr.sharedToNetwork = !wantShared; renderApp(); return; }
-        renderApp();
-        toast(wantShared ? 'Shared with people who trust you.' : 'No longer shared.');
-      })();
+      tr.sharedToNetwork = !tr.sharedToNetwork;
+      saveRecs();
+      renderApp();
+      toast(tr.sharedToNetwork ? 'Shared with people who trust you.' : 'No longer shared.');
     }
   }
   else if (action === 'save-from-feed') {
@@ -8062,11 +7947,8 @@ document.addEventListener('click', function(e) {
   }
   else if (action === 'set-filter') {
     AppState.activeFilter = target.dataset.filter;
-    // Update chip active states in place. Scoped to chips that ARE circle
-    // filters: ':not(.cat-tab)' also matched "Needs filing" and "More", which
-    // carry no data-filter, so every circle click silently stripped the
-    // highlight off an open Needs-filing tray while leaving the tray open.
-    document.querySelectorAll('.filter-chip[data-filter]').forEach(function(chip) {
+    // Update chip active states in place
+    document.querySelectorAll('.filter-chip:not(.cat-tab)').forEach(function(chip) {
       chip.classList.toggle('active', chip.dataset.filter === AppState.activeFilter);
     });
     libUpdateResultsInPlace();

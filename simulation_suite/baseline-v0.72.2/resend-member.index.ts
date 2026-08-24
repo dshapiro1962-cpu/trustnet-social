@@ -111,13 +111,10 @@ Deno.serve(async (req: Request) => {
     result = nErr ? { ok: false, error: nErr.message } : { ok: true };
   }
 
-  const { error: stErr } = await admin.from("query_responses").update({
+  await admin.from("query_responses").update({
     send_status: result.ok ? "sent" : "failed",
     send_error: result.ok ? null : (result.error ?? "unknown"),
   }).eq("response_token", qr.response_token);
-  // The resend itself has already happened; an unrecorded status is how the
-  // delivery list comes to disagree with what was actually sent.
-  if (stErr) console.error("resend_status_write_failed", member.name, stErr.message);
 
   if (!result.ok) {
     console.error("resend_failed", member.name, result.error);

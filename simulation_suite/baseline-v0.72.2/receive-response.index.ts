@@ -64,17 +64,7 @@ Deno.serve(async (req) => {
   }
 
   // 5. Update the response row
-  //
-  // THE ANSWER ITSELF. Unchecked until v0.73.0, and the function returned
-  // success regardless - so a failure here left the reply nowhere, notified the
-  // asker from the REQUEST BODY for an answer that was never stored, and showed
-  // the answerer the thanks screen. The answerer is a person with no account,
-  // no error and no way to tell anyone. Eighth-and-ninth instance of announcing
-  // success over a rejected write, in the one place the user is a stranger.
-  //
-  // Nothing below this line is worth doing if the answer was not stored, so
-  // this returns rather than continuing to enrich and notify.
-  const { error: respErr } = await admin.from("query_responses").update({
+  await admin.from("query_responses").update({
     rec_name: body.rec_name.trim(),
     rec_note: body.rec_note?.trim() ?? null,
     rec_location: body.rec_location?.trim() ?? null,
@@ -90,13 +80,6 @@ Deno.serve(async (req) => {
     // they were wired up.
     shared_to_network: body.shared_to_network !== false,
   }).eq("response_token", body.token);
-  if (respErr) {
-    console.error("response_write_failed", body.token, respErr.message);
-    // token_used is set BY the statement that just failed, so the token is
-    // still unspent and this is genuinely retryable. Say so, and let
-    // respond.html put the form back rather than thanking her for nothing.
-    return err("response_not_saved: " + respErr.message, 500);
-  }
 
   // ── ENRICH THE ANSWER (v0.59.0) ───────────────────────────────────────────
   // WHY THIS EXISTS: an answer became a canonical here and was NEVER enriched.
@@ -141,17 +124,13 @@ Deno.serve(async (req) => {
 
   // 6. Notify the querying user (in-app) — real-time subscription also fires
   if (query) {
-    const { error: notifErr } = await admin.from("notifications").insert({
+    await admin.from("notifications").insert({
       user_id: query.sent_by, type: "query_response",
       title: "New recommendation",
       body: `${member?.name ?? "Someone"} recommended ${body.rec_name.trim()}`,
       query_id: query.id,
       actor_name: member?.name ?? null,
     });
-    // The answer IS saved by now, so a failed notification must not fail the
-    // response - but it must not be invisible either: the asker simply never
-    // hears that an answer arrived.
-    if (notifErr) console.error("response_notify_failed", query.id, notifErr.message);
   }
 
   // TELL THE PAGE WHO THE ANSWERER IS — authoritatively.

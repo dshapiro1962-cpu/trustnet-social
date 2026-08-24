@@ -108,25 +108,10 @@ Deno.serve(async (req: Request) => {
     // gets notified about their own query.
     const linkedOther = !!m.linked_user_id && m.linked_user_id !== userId;
 
-    // THE ROW THAT MAKES THE LINK ANSWERABLE. Unchecked until v0.73.0: if this
-    // failed, the WhatsApp or email still went out carrying ?t=<token>, and
-    // receive-response resolves that token by looking the row up - so the
-    // recipient tapped a seconds-old link and was told it had expired, while
-    // this function counted them as "sent". Never send a link nobody can use.
-    const { error: qrErr } = await admin.from("query_responses").insert({
+    await admin.from("query_responses").insert({
       query_id: queryId, member_id: m.id, response_token: token,
       degree, send_status: "pending",
     });
-    if (qrErr) {
-      console.error("response_row_failed", m.name, qrErr.message);
-      const detail = "response_row_failed: " + qrErr.message;
-      failures.push({ member: m.name, error: detail });
-      deliveries.push({
-        member_id: m.id, member: m.name, channel: m.contact_method ?? "unknown",
-        status: "failed", error: detail,
-      });
-      continue;
-    }
 
     let result: { ok: boolean; error?: string } = { ok: false, error: "unsupported_channel" };
     let channelUsed = m.contact_method ?? "unknown";
@@ -164,13 +149,10 @@ Deno.serve(async (req: Request) => {
       else app_doorway_errors.push({ member: m.name, error: d.error ?? "unknown" });
     }
 
-    const { error: stErr } = await admin.from("query_responses").update({
+    await admin.from("query_responses").update({
       send_status: result.ok ? "sent" : "failed",
       send_error: result.ok ? null : result.error,
     }).eq("response_token", token);
-    // The message has already gone out, so this cannot fail the send - but an
-    // unrecorded status is why a delivery list can disagree with reality.
-    if (stErr) console.error("send_status_write_failed", m.name, stErr.message);
 
     deliveries.push({
       member_id: m.id, member: m.name, channel: channelUsed,

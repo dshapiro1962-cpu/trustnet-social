@@ -13,8 +13,14 @@ const vm = require('vm');
 const path = require('path');
 
 const useOld = process.argv.indexOf('--old') > -1;
-const file = useOld ? 'index.original.html' : 'index.html';
-const html = fs.readFileSync(path.join(__dirname, file), 'utf8');
+// The patched client is read from the repo, not from a copy that was never
+// committed: this pointed at simulation_suite/index.html, which has never
+// existed here, so the v0.72.2 guard could not be run from a clean checkout.
+const file = useOld
+  ? path.join(__dirname, 'index.pre-v0.72.2.html')
+  : path.join(__dirname, '..', 'web', 'index.html');
+if (!fs.existsSync(file)) { console.error('missing fixture: ' + file); process.exit(2); }
+const html = fs.readFileSync(file, 'utf8');
 const blocks = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]);
 let src = blocks.reduce((a, b) => (b.length > a.length ? b : a), '');
 src += ';globalThis.__x = { saveCanonicals, AppState, APP_VERSION };';

@@ -285,28 +285,7 @@ export async function enrichOne(key: string, input: {
   // EVIDENCE BEFORE WRITING. The old order let the model guess and hoped a
   // later Places lookup would correct it; Places cannot see anything that is
   // not a business with an address.
-  //
-  // NO ANCHOR, NO EVIDENCE (v0.73.0).
-  // webGround searches the web for the NAME. Given nothing but a name it
-  // returns whoever is most prominent with that name, and aiEnrich is
-  // instructed that evidence OUTRANKS its own recollection - so a bare name is
-  // resolved confidently to a stranger and then written with verified:true.
-  //
-  // Measured on production 24 Aug 2026: three canonicals named "Tony Vespa",
-  // created with an empty location and no note, were enriched into an
-  // Indianapolis technology consultant - kind, location, tags and category all
-  // invented, all verified:true. "Art Pizza" became a New Haven pizzeria the
-  // same way. The same enricher, the same day, handled "tony vespa" WITH
-  // location "tel aviv" correctly: it found nothing, returned kind:"" and left
-  // verified false, exactly as the prompt's "an empty field is correct; a
-  // plausible guess is not" rule requires.
-  //
-  // The difference is an ANCHOR. With a location, a note or a question the
-  // search is constrained and the answer can be checked. With nothing but a
-  // name there is no evidence to be had - only a coincidence of spelling.
-  const anchor = [input.location, input.note, input.query_text]
-    .map((v) => (v || "").trim()).filter(Boolean).join(" ");
-  const evidence = (key && anchor) ? await webGround(key, input.name, anchor) : "";
+  const evidence = key ? await webGround(key, input.name, [input.query_text, input.note].filter(Boolean).join(" ")) : "";
   const ai = key ? await aiEnrich(key, { ...input, evidence }) : null;
   let name = ai?.name || input.name;
   // Never let a sentence become an entity; fall back to the question's subject
@@ -323,14 +302,7 @@ export async function enrichOne(key: string, input: {
   // were indistinguishable downstream. v0.42.0 writes it to canonicals.verified.
   let resolved = !!evidence;
 
-  // resolvePlace is the SECOND HALF of the same failure. It runs a Places text
-  // search and takes results[0] unconditionally - no name comparison, no score
-  // threshold - so a bare name lands on whichever business ranks first
-  // anywhere on earth, and its address then overwrites the location. Only look
-  // it up when there is something to look it up WITH; with no anchor above,
-  // kind is "" and location is "" and the hint would be empty.
-  const placeHint = [kind, location].filter(Boolean).join(" ");
-  const place = placeHint ? await resolvePlace(name, placeHint) : null;
+  const place = await resolvePlace(name, [kind, location].filter(Boolean).join(" "));
   if (place) {
     resolved = true;
     name = place.name || name;
