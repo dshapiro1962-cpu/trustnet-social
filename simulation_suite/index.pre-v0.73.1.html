@@ -1434,53 +1434,6 @@ async function loadUserData() {
     degree:q.degree||1, status:q.status||'sent', sentAt:q.sent_at,
     resolvedAt:q.resolved_at||null, chosenResponseId:q.chosen_response_id||null,
     responses:(q.query_responses||[]).filter(function(r){return r.responded_at;}).map(mapResponse) }; });
-
-  // A CIRCLE NAMED "ski" IS ABOUT SKIING. (v0.73.1)
-  //
-  // The suggestion sweep matches only circle_interests rows with
-  // source='confirmed', and nothing wrote them unless the owner found a grey
-  // "Set what this circle is about" link and used it. dan had two circles named
-  // "ski", one described "resorts, equipment", and NEITHER had a single
-  // interest row - so a member's ski recommendation could never reach him and
-  // nothing on screen said why.
-  //
-  // The owner naming their OWN circle "ski" is a statement about their own
-  // circle. That is not the same as the product law "circles are provenance,
-  // not evidence", which is about never classifying someone ELSE'S item by the
-  // folder they filed it in. That law still holds and is untouched.
-  await seedCircleInterestsFromNames();
-}
-
-// Derives interests from the circle's own name and description, through the
-// SAME vocabulary the sweep matches with. Seeds only a circle that has said
-// NOTHING: an owner who chose interests, or explicitly declined, is never
-// overridden. A name that matches nothing is left alone for the picker.
-async function seedCircleInterestsFromNames() {
-  if (!CURRENT_UID || AppState.isDemoMode || AppState.dataLoadFailed) return 0;
-  const own = (AppState.userCircles || []).filter(function(c) { return c.id; });
-  let seeded = 0;
-  for (const c of own) {
-    const has = (AppState.circleInterests || []).some(function(r) { return r.circle_id === c.id; });
-    if (has) continue;
-    const derived = interestsForKind((c.name || '') + ' ' + (c.description || ''));
-    if (!derived.length) continue;
-    const rows = derived.map(function(i) {
-      return { circle_id: c.id, owner_id: CURRENT_UID, interest: i,
-               source: 'confirmed', is_custom: false, terms: [] };
-    });
-    const ins = await sb.from('circle_interests').insert(rows);
-    if (ins.error) {
-      // Never silent: a refused write here means the circle stays inert.
-      console.error('seedCircleInterests', c.name, ins.error);
-      continue;
-    }
-    AppState.circleInterests = (AppState.circleInterests || []).concat(rows.map(function(r) {
-      return { circle_id: r.circle_id, interest: r.interest, source: r.source,
-               terms: r.terms, is_custom: r.is_custom };
-    }));
-    seeded++;
-  }
-  return seeded;
 }
 
 async function saveProfile() {
@@ -1798,7 +1751,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.73.1 · live';
+const APP_VERSION = 'v0.73.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -2370,14 +2323,8 @@ function circleInterestCardHtml(cid) {
   // STRICT majority: 2 of 4 is not "a restaurant circle". A tie between kinds
   // means there is no dominant one, so ask nothing and let the owner say.
   if (g.known < 3 || !g.top || g.topN / g.known <= 0.5) {
-    // WAS a bare grey "Set what this circle is about" link, which said nothing
-    // about the consequence. A circle with no interest receives no suggestions
-    // at all, and dan lost an evening to a ski circle that was silently inert.
-    return '<div style="background:#FFF8E8;border:1px solid #F0DCA8;border-radius:10px;padding:10px 12px;margin-bottom:12px;">'
-      + '<div style="font-size:12px;color:#0D2B1F;line-height:1.5;">'
-      + '<strong>Not receiving suggestions.</strong> People in this circle can only '
-      + 'send you things once you say what it is about.</div>'
-      + '<button class="btn btn-secondary btn-sm" data-action="edit-interests" data-circle-id="' + esc(cid) + '" style="margin-top:8px;">Set what this circle is about</button></div>';
+    return '<div style="font-size:11px;color:#7A9086;margin-bottom:12px;">'
+      + '<button class="btn btn-ghost btn-sm" data-action="edit-interests" data-circle-id="' + esc(cid) + '">Set what this circle is about</button></div>';
   }
   const label = INTEREST_LABEL[g.top] || g.top;
   const alsoBig = g.second && g.secondN / g.known >= 0.3;
@@ -6470,9 +6417,6 @@ async function handleSaveCircle() {
   const newCircle = { id: uid(), ownerId: 'me', name: name, domain: domain, description: desc, color: color, memberIds: [], isOwn: true, createdAt: new Date().toISOString() };
   AppState.userCircles.push(newCircle);
   await saveCircles();
-  // The circle is about what its owner just called it. Doing this here rather
-  // than only on the next load means it works from the moment it is created.
-  try { await seedCircleInterestsFromNames(); } catch (e) { console.error('seed on create', e); }
   closeModal();
   toast('Circle "' + name + '" created!');
   showView('circle-detail', { circleId: newCircle.id });

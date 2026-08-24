@@ -61,7 +61,10 @@ const ck = (n, c, x) => {
 
 // ── the lookups, returning what the live ones returned on 6 Jul ───────────
 let groundCalls = [], placeCalls = [];
-const mkDeps = () => ({
+// When `selfDescribing` is set, aiEnrich behaves the way the v0.73 prompt tells
+// it to with no evidence: it READS the name ("rossignol forza skis" is skis)
+// and still offers a location it has no source for.
+const mkDeps = (selfDescribing) => ({
   webGround: async (k, name, hint) => {
     groundCalls.push({ name, hint });
     // What a live web search returns for the bare string "Tony Vespa".
@@ -75,6 +78,10 @@ const mkDeps = () => ({
       return { name: inp.name, kind: 'founder', category: 'professional',
                location: 'Indianapolis', tags: ['technology','consulting','Vespa Group'] };
     }
+    if (selfDescribing) {
+      return { name: inp.name, kind: 'skis', category: 'hobbies',
+               location: 'Chamonix', tags: ['ski', 'equipment'] };
+    }
     return { name: inp.name, kind: '', category: 'other',
              location: inp.location || '', tags: [] };
   },
@@ -86,9 +93,9 @@ const mkDeps = () => ({
     .filter(Boolean).join(' · '),
   looksLikeSentence: (s) => (s || '').trim().split(/\s+/).length >= 7,
 });
-const run = (input) => {
+const run = (input, selfDescribing) => {
   groundCalls = []; placeCalls = [];
-  const d = mkDeps();
+  const d = mkDeps(selfDescribing);
   return enrichOne('KEY', input, d.webGround, d.aiEnrich, d.resolvePlace,
                    d.buildSearchDoc, d.looksLikeSentence);
 };
@@ -137,6 +144,21 @@ const run = (input) => {
   ck('a one-word name is not resolved to the first business on earth',
      placeCalls.length === 0 && (e.location || '') === '',
      JSON.stringify(e.location));
+
+  // CLASSIFYING IS NOT INVENTING.
+  // The first version of this guard suppressed the web lookup and, through it,
+  // the KIND as well - so "rossignol forza skies" classified as nothing, and
+  // the suggestion sweep, whose first gate is `if (!kind) continue`, could
+  // never pass it to anyone. Reading a name is not guessing about the world.
+  e = await run({ name: 'rossignol forza skies', note: '', location: '', query_text: '' }, true);
+  ck('a self-describing name KEEPS its kind with no anchor',
+     e.kind === 'skis', JSON.stringify(e.kind));
+  ck('...so the suggestion sweep can still match it',
+     !!e.kind && e.kind.length > 0, JSON.stringify(e.kind));
+  ck('...but a location it has no source for is still discarded',
+     (e.location || '') === '', JSON.stringify(e.location));
+  ck('...and it is still not stamped verified',
+     e.resolved === false, String(e.resolved));
 
   console.log('\n  ' + (useOld ? 'ORIGINAL (must FAIL)' : 'PATCHED') + ': '
     + pass + ' passed, ' + fail + ' failed');

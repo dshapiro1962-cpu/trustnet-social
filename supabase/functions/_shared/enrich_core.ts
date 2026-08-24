@@ -212,9 +212,17 @@ export async function aiEnrich(key: string, input: {
             "given. NEVER from which circle or folder it was saved in \u2014 a restaurant discussed "+
             "in a ski circle is just a restaurant (circles are the user's filing, not content). "+
             "EVIDENCE, when present, is from a live web search and OUTRANKS your own "+
-            "recollection: use it for kind, category and location. When there is NO "+
-            "evidence and you do not actually recognise the item, return kind:\"\" and "+
-            "only tags you can justify from the note and the question. An EMPTY field is "+
+            "recollection: use it for kind, category and location. "+
+            "With NO evidence, CLASSIFYING and INVENTING are different things. "+
+            "If the NAME ITSELF says what the thing is, give that plain kind: "+
+            "\"rossignol forza skis\" is skis, \"Cafe Italya\" is a cafe, "+
+            "\"The Israel Museum\" is a museum. That is READING the name, not guessing. "+
+            "But when the name is only a proper noun that could be anyone or anything "+
+            "- \"Tony Vespa\", \"Greta\", \"Jacob\" - it tells you nothing: return kind:\"\". "+
+            "With no evidence NEVER state a location unless it is in the note, the "+
+            "question, or the name itself: return location:\"\". Claim no identity: "+
+            "a name is not a person you know things about. "+
+            "Tag only what you can justify from the name, the note and the question. An EMPTY field is "+
             "correct; a plausible guess is not. Never blend a guess with real context — "+
             "\"מתכון לקארי hair removal machine\" is the failure this rule exists to stop. "+
             "Words implied by the CONTENT do belong: an item praised for children must carry "+
@@ -313,7 +321,16 @@ export async function enrichOne(key: string, input: {
   // when the answer text is testimony rather than a name.
   if (looksLikeSentence(name)) name = (ai?.name && !looksLikeSentence(ai.name)) ? ai.name : input.name;
 
-  let location = ai?.location || input.location || "";
+  // WITH NO ANCHOR, NO LOCATION. The prompt says so too, but a prompt is
+  // guidance and this is a guarantee - it is the line that stops "Tony Vespa"
+  // becoming Indianapolis. Note what it does NOT suppress: `kind`. A name that
+  // says what the thing IS can be classified with no external source at all, and
+  // suppressing that broke the suggestion sweep, whose first gate is
+  // `if (!kind) continue`: "rossignol forza skies" got no kind and could never
+  // be suggested to anyone. Measured 24 Aug 2026.
+  // (With no anchor, input.location is empty by definition, so this only ever
+  // discards a location the model invented.)
+  let location = anchor ? (ai?.location || input.location || "") : "";
   let category = ai?.category || "other";
   const kind = ai?.kind || "";
   const tags = ai?.tags || [];
@@ -326,11 +343,20 @@ export async function enrichOne(key: string, input: {
   // resolvePlace is the SECOND HALF of the same failure. It runs a Places text
   // search and takes results[0] unconditionally - no name comparison, no score
   // threshold - so a bare name lands on whichever business ranks first
-  // anywhere on earth, and its address then overwrites the location. Only look
-  // it up when there is something to look it up WITH; with no anchor above,
-  // kind is "" and location is "" and the hint would be empty.
-  const placeHint = [kind, location].filter(Boolean).join(" ");
-  const place = placeHint ? await resolvePlace(name, placeHint) : null;
+  // anywhere on earth, and its address then overwrites the location.
+  //
+  // GATED ON THE ANCHOR, not on the hint. The first version of this guard
+  // tested `placeHint` instead, which worked only for as long as an unanchored
+  // item also had an empty kind. The moment a self-describing name was allowed
+  // to keep kind:"skis", the hint was non-empty again and Places went back to
+  // searching the whole world for "rossignol forza skies" - and handed back an
+  // Indianapolis address. Caught by enrich-anchor-sim, not by reading it.
+  //
+  // The rule is one rule: with no location, note or question, NOTHING external
+  // is consulted. Reading the name is allowed; asking the world about it is not.
+  const place = anchor
+    ? await resolvePlace(name, [kind, location].filter(Boolean).join(" "))
+    : null;
   if (place) {
     resolved = true;
     name = place.name || name;
