@@ -1482,17 +1482,45 @@ async function saveMembers() {
   const r = await sb.from('members').upsert(rows);
   if (r.error) { console.error('saveMembers', r.error); toast('Could not save members.', 'warn'); }
 }
-async function saveCanonicals() {
+// ONE SAVE WRITES ONE ROW.
+//
+// This used to upsert the ENTIRE library on every save — 95 rows for a single
+// new item, measured 23 Aug. An upsert is one SQL statement, so one unwritable
+// row anywhere in the array refused the whole statement and every save in it
+// was lost together. dan's library carried four rows with created_by NULL,
+// none of which the UI displays, so the poison was invisible AND unremovable
+// from the app; saving was broken from 6 Jul to 23 Aug.
+//
+// This is the same fault already documented on saveRecs at line ~1378 — "one
+// such row blocked EVERY save that account made, permanently" — which was
+// fixed there by correcting the columns rather than by narrowing the write.
+// saveRecs still writes the whole array and still has it.
+//
+// The ids are EXPLICIT at every call site. Not a dirty-set: a dirty-set is
+// state, state goes stale, and stale state is what produced every bug above.
+// A caller that forgets gets an exception, not a silent whole-library write.
+async function saveCanonicals(ids) {
   if (!CURRENT_UID) return;
-  // RLS: canonicals_update_creator requires created_by = auth.uid(). Rows made
-  // by server functions belong to someone else — including them in the upsert
-  // makes the WHOLE batch 403 and silently loses every save. (Bug found 28 Jul.)
+  if (ids === undefined || ids === null) {
+    throw new Error('saveCanonicals(ids) requires the ids to write — refusing to guess');
+  }
+  const want = Array.isArray(ids) ? ids.filter(Boolean) : [ids].filter(Boolean);
+  if (!want.length) return;
+  // RLS: canonicals_update_creator requires created_by = auth.uid() or NULL.
+  // Rows made by another user belong to them — including one in the upsert
+  // makes the WHOLE batch 403. (Bug found 28 Jul; cause found 23 Aug.)
   const rows = AppState.userCanonicals.filter(function(c){
-    return !c._noSync && (!c.createdBy || c.createdBy === CURRENT_UID);
+    return want.indexOf(c.id) > -1
+      && !c._noSync && (!c.createdBy || c.createdBy === CURRENT_UID);
   }).map(function(c){ return { id:c.id, type:c.type||'place', name:c.name,
     category:c.category||null, location:c.location||null, description:c.description||null,
     website_url:c.websiteUrl||null,
     image_emoji:c.imageEmoji||'📌', image_url:c.imageUrl||null, created_by:CURRENT_UID }; });
+  if (rows.length < want.length) {
+    // Normal when accepting someone else's recommendation: the canonical is
+    // already theirs and is not ours to write. Logged, never silent.
+    console.debug('saveCanonicals: asked for', want.length, 'writable', rows.length);
+  }
   if (rows.length) {
     const r = await sb.from('canonicals').upsert(rows, { ignoreDuplicates: false });
     if (r.error) {
@@ -1654,7 +1682,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.71.0 · live';
+const APP_VERSION = 'v0.72.2 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3209,7 +3237,7 @@ async function handleSaveFromSheet(idx) {
       note: fullNote, rating: it.rating || 0, tags: [],
       status: 'saved', isAnonymous: false, degree: 1, sharedToNetwork: shareDefault(),
       date: new Date().toISOString().slice(0, 10) });
-    await saveCanonicals();
+    await saveCanonicals(canId);
     // saveRecs THROWS on failure now, so the success message below cannot
     // fire over a rejected write. It has already told the user why.
     try { await saveRecs(); } catch (e) { return; }
@@ -3930,7 +3958,7 @@ async function handleSaveEditRec(btn) {
   rec.tags = (((document.getElementById('er-tags') || {}).value || '')).split(',').map(function(t) { return t.trim(); }).filter(Boolean);
   rec.circleId = ((document.getElementById('er-circle') || {}).value || '');
   btn.disabled = true;
-  await saveCanonicals();
+  await saveCanonicals(can.id);
   // saveRecs THROWS on failure now, so the success message below cannot
   // fire over a rejected write. It has already told the user why.
   try { await saveRecs(); } catch (e) { return; }
@@ -7076,7 +7104,7 @@ async function handleSaveRec() {
   }
   const newRec = { id: uid(), canonicalId: canId, circleId: circleId || '', recommendedBy: AppState.userProfile ? AppState.userProfile.id : 'user', note: note, rating: Math.min(5,Math.max(1,rating)), tags: tags, date: new Date().toISOString().split('T')[0], status: 'saved', degree: 1, isAnonymous: false, sharedToNetwork: shareDefault() };
   AppState.userRecs.push(newRec);
-  await saveCanonicals();
+  await saveCanonicals(canId);
   // saveRecs THROWS on failure now, so the success message below cannot
   // fire over a rejected write. It has already told the user why.
   try { await saveRecs(); } catch (e) { return; }
@@ -7286,7 +7314,7 @@ async function handleConfirmSaveToLibrary(respId) {
 
   if (newCan) AppState.userCanonicals.push(newCan);
   AppState.userRecs.push(newRec);
-  await saveCanonicals();
+  await saveCanonicals(canId);
   // saveRecs THROWS on failure now, so the success message below cannot
   // fire over a rejected write. It has already told the user why.
   try { await saveRecs(); } catch (e) { return; }
