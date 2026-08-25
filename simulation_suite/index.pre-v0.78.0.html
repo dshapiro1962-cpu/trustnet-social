@@ -1364,7 +1364,7 @@ async function loadUserData() {
     // `canonicalById(...)` and returned '' when it found nothing, so a correct
     // row rendered as an empty string. Silently, again.
     const sg = await sb.from('suggestions')
-      .select('id, canonical_id, from_person_id, from_user_id, from_name, via, source_note, query_text, matched_circles, matched_interest, status, canonicals(' + CANONICAL_FIELDS + ')')
+      .select('id, canonical_id, from_person_id, from_user_id, from_name, via, source_note, query_text, matched_circles, matched_interest, status, canonicals(name, kind, location, image_emoji, primary_category, website_url, google_url, image_url, search_doc)')
       .eq('status', 'pending').order('created_at', { ascending: false });
     if (sg.error) console.error('suggestions load failed:', sg.error);
     AppState.suggestions = sg.data || [];
@@ -1828,7 +1828,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.78.0 · live';
+const APP_VERSION = 'v0.77.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3606,38 +3606,6 @@ function tnTile(name, cat, imageUrl, px) {
   return '<div class="tn-tile" style="width:' + size + 'px;height:' + size + 'px;background:' + h.bg + ';color:' + h.fg + ';font-size:' + Math.round(size * 0.44) + 'px;">' + esc(letter) + '</div>';
 }
 
-// ═══ THE FIELD CONTRACT ═════════════════════════════════════════════════════
-// Which field answers which question. Getting this backwards is the single most
-// productive source of bugs in this app - five of the seven found on 25 Aug were
-// one field being asked two questions.
-//
-//   canonicals.kind             WHAT THE THING IS. Free text from the
-//                               librarian. "ski boots", "falafel restaurant".
-//                               Drives what you can usefully DO with it.
-//   canonicals.category         WHAT THE OWNER CALLS IT, typed in the edit
-//                               panel. Beats kind for display.
-//   recommendations.category    YOUR category (0045). Per member, a use-case.
-//                               Beats both for filtering and the chip.
-//   canonicals.primary_category ONE OF EIGHT, SHARED. Exists so suggestions and
-//                               taste-match can compare across accounts. It is
-//                               NOT a statement about the thing - "ski boots"
-//                               landed in `travel` because the eight have no
-//                               bucket for equipment.
-//
-// DISPLAY reads category || kind. AFFORDANCES read kind. MATCHING reads
-// primary_category. Never crossed. itemFindLinks may consult primary_category
-// only as a last resort when kind is absent, which is 72 of 146 rows today.
-//
-// ═══ ONE FIELD LIST FOR AN EMBEDDED CANONICAL ═══════════════════════════════
-// loadUserData uses select('*'), so it gets everything. Every OTHER query that
-// embeds a canonical must use this. The suggestions query listed its fields by
-// hand and omitted `category`, so the same ski boots said "ski boots" in the
-// inbox and "skiing" in the library - a shared renderer reading different data.
-// Sharing the function without sharing the query just moves the divergence one
-// layer down.
-const CANONICAL_FIELDS = 'name, kind, category, location, image_emoji, '
-  + 'primary_category, website_url, google_url, image_url, search_doc';
-
 // ONE SHAPE FOR A CANONICAL, WHICHEVER DOOR IT CAME THROUGH.
 //
 // The same row reaches the client two ways: camelCase from loadUserData's
@@ -3657,68 +3625,6 @@ function canonFacts(can) {
     link: can.websiteUrl || can.website_url || can.googleUrl || can.google_url || '',
     imageUrl: can.imageUrl || can.image_url || ''
   };
-}
-
-// AFFORDANCES FOLLOW WHAT THE THING IS, NOT WHICH OF EIGHT BUCKETS IT LANDED IN.
-//
-// Measured 25 Aug: `Dalbello Cabrio mv 130 3dwrap alpine ski boots` was stored
-// with primary_category 'travel' - the eight have no bucket for equipment - so
-// the detail view offered "Find on Booking" for a pair of boots and a map link
-// for an object with no location at all. The tags were perfectly correct
-// ("skiing, alpine, winter sports, Dalbello, footwear, outdoor, equipment");
-// the damage happened when that understanding was squeezed into one of eight.
-//
-// primary_category exists so suggestions can be compared ACROSS ACCOUNTS. It
-// was never a statement about what you can usefully do with a thing. `kind` is:
-// "ski boots" tells you Booking.com is wrong, "travel" does not. See THE FIELD
-// CONTRACT above.
-//
-// THE HARD RULE COMES FIRST, and it needs no vocabulary at all: A LINK THAT
-// NEEDS A PLACE REQUIRES A PLACE. No location means no map and no hotel
-// booking, whatever any category says. That one line is what stops the boots.
-function itemFindLinks(can, rec, circle) {
-  const f = canonFacts(can);
-  const kinds = interestsForKind(can.kind || '');
-  const has = function(i) { return kinds.indexOf(i) > -1; };
-  const name = encodeURIComponent(f.name);
-  const withPlace = encodeURIComponent(f.name + (f.location ? ' ' + f.location : ''));
-  // kind is absent on 72 of 146 canonicals, so the shared category is allowed
-  // as a LAST resort - never ahead of kind, and never to override the rule above.
-  const fallback = kinds.length ? '' : (f.category || (circle && circle.domain) || '');
-  let out = '';
-
-  if (has('book') || fallback === 'culture' || can.type === 'content') {
-    out += extLink('https://www.amazon.com/s?k=' + name, 'Find on Amazon');
-  } else if (!f.location) {
-    // NOT A PLACE. It is a thing, or a person we have no address for. Offering
-    // a map for it is nonsense, and offering a hotel booking is worse.
-    if (fallback === 'professional' || has('doctor') || has('service')) {
-      if (!can.linkedinUrl) {
-        out += extLink('https://www.linkedin.com/search/results/all/?keywords=' + name, 'LinkedIn search');
-      }
-    } else {
-      out += extLink('https://www.google.com/search?q=' + name + '&tbm=shop', 'Find to buy');
-    }
-  } else if (has('hotel') || has('destination') || has('ski') || fallback === 'travel') {
-    out += extLink('https://www.booking.com/searchresults.html?ss=' + withPlace, 'Find on Booking');
-    if (!can.googleUrl) {
-      out += extLink('https://www.google.com/maps/search/?api=1&query=' + withPlace, 'Google Maps');
-    }
-  } else {
-    // It has a place, so a map is always useful whatever it is.
-    if (!can.googleUrl) {
-      out += extLink('https://www.google.com/maps/search/?api=1&query=' + withPlace, 'Google Maps');
-    }
-  }
-
-  // Always last, always useful: the thing plus wherever it is, or failing that
-  // the first tag, so a bare name is not searched on its own.
-  const tag0 = (can.aiTags && can.aiTags.length) ? String(can.aiTags[0])
-             : ((rec && rec.tags && rec.tags.length) ? String(rec.tags[0]) : '');
-  const disambig = f.location || tag0 || '';
-  out += extLink('https://www.google.com/search?q='
-    + encodeURIComponent(f.name + (disambig ? ' ' + disambig : '')), 'Search Google');
-  return out;
 }
 
 // THE FACTS LINE. Every card that names an item uses this, so a field cannot be
@@ -5445,7 +5351,28 @@ function renderRecDetail() {
   if (can.websiteUrl) linksHtml += extLink(can.websiteUrl, '🌐 Website');
   if (can.googleUrl) linksHtml += extLink(can.googleUrl, 'Google Maps');
   if (can.linkedinUrl) linksHtml += extLink(can.linkedinUrl, 'LinkedIn');
-  linksHtml += itemFindLinks(can, rec, circle);
+  // Smart "find it" links, routed by the circle's domain
+  const findQ = encodeURIComponent(can.name + (can.location ? ' ' + can.location : ''));
+  const findName = encodeURIComponent(can.name);
+  // Item's own category first; circle domain is only a fallback (v0.17.1)
+  const findDom = can.primaryCategory || (circle && circle.domain) || (can.type === 'content' ? 'culture' : '');
+  const findTag0 = (can.aiTags && can.aiTags.length) ? String(can.aiTags[0]) : (rec.tags && rec.tags.length ? String(rec.tags[0]) : '');
+  const FIND_SEARCHABLE = { dining: 1, travel: 1, healthcare: 1, professional: 1, culture: 1 };
+  const findDis = can.location ? can.location : (findTag0 ? findTag0 : (FIND_SEARCHABLE[findDom] ? findDom : ''));
+  const findGq = encodeURIComponent(can.name + (findDis ? ' ' + findDis : ''));
+  if (findDom === 'culture' || can.type === 'content') {
+    linksHtml += extLink('https://www.amazon.com/s?k=' + findName, 'Find on Amazon');
+  } else if (findDom === 'travel') {
+    linksHtml += extLink('https://www.booking.com/searchresults.html?ss=' + findQ, 'Find on Booking');
+    if (!can.googleUrl) linksHtml += extLink('https://www.google.com/maps/search/?api=1&query=' + findQ, 'Google Maps');
+  } else if (findDom === 'professional') {
+    if (!can.linkedinUrl) linksHtml += extLink('https://www.linkedin.com/search/results/all/?keywords=' + findName, 'LinkedIn search');
+  } else if (findDom === 'dining' || findDom === 'healthcare' || findDom === 'home') {
+    if (!can.googleUrl) linksHtml += extLink('https://www.google.com/maps/search/?api=1&query=' + findQ, 'Google Maps');
+  } else {
+    if (!can.googleUrl) linksHtml += extLink('https://www.google.com/maps/search/?api=1&query=' + findQ, 'Google Maps');
+  }
+  linksHtml += extLink('https://www.google.com/search?q=' + findGq, 'Search Google');
   // Context: what is this, where did it come from.
   // v0.38.0: an item can answer MANY questions — three people answering three
   // different questions with "Silverton" is the point of the product, not a
