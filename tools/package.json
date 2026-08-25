@@ -1,0 +1,6 @@
+{
+  "name": "trustnet-tools",
+  "private": true,
+  "description": "Local operator tools. Not part of the app; not deployed.",
+  "dependencies": { "pg": "^8.11.0" }
+}
