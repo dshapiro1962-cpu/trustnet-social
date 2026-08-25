@@ -1715,29 +1715,13 @@ async function saveQueries(responseIds) {
   const want = Array.isArray(responseIds) ? responseIds.filter(Boolean) : [responseIds].filter(Boolean);
   if (!want.length) return;
   for (const rid of want) {
-    // ASSERT THE ROW OUTCOME, NOT THE ABSENCE OF AN ERROR.
-    //
-    // This was `.update({saved_to_library:true}).eq('id', rid)` with a check on
-    // r.error alone. query_responses has exactly ONE policy, from 0001, and it
-    // is `for select`. There is no UPDATE policy, so the statement matched ZERO
-    // ROWS and returned NO ERROR - PostgREST does not fail, the row is simply
-    // invisible to the update. The check passed every time and the flag never
-    // once stuck: fifteen answers going back to 19 Aug all read false.
-    //
-    // 0046 replaces the write with a security-definer RPC that returns whether
-    // it marked anything, because a blanket UPDATE policy would also let the
-    // asker rewrite the ANSWER ITSELF - RLS is row-level and cannot restrict
-    // columns.
-    const r = await sb.rpc('mark_response_saved', { p_response_id: rid });
+    // Observability doctrine: a refused write must never pass silently.
+    // (Saved-state kept reverting after reload because this was unchecked.)
+    const r = await sb.from('query_responses').update({ saved_to_library: true }).eq('id', rid);
     if (r && r.error) {
       console.error('saveQueries: could not mark response saved', rid, r.error);
       toast('Saved to library, but the "already saved" mark did not stick: '
         + (r.error.message || r.error.code || 'refused'), 'warn');
-    } else if (!r || r.data !== true) {
-      // No error AND nothing marked. This is the case that hid for six days.
-      console.error('saveQueries: marked nothing for', rid, r && r.data);
-      toast('Saved to your library, but it could not be marked as saved \u2014 '
-        + 'you may be offered it again.', 'warn');
     }
   }
 }
@@ -1823,7 +1807,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.76.0 · live';
+const APP_VERSION = 'v0.75.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3071,10 +3055,7 @@ function renderInbox() {
       icon = '💬';
       title = esc(it.who) + ' answered your query';
       body = '"' + esc(it.queryText) + '" → recommended <b>' + esc(it.recName) + '</b>';
-      actions = (it.saved
-          ? '<span style="font-size:12px;color:#2D9460;font-weight:600;margin-right:8px;">\u2713 In your library</span>'
-          : '<button class="btn btn-primary btn-sm" data-action="save-to-library" data-resp-id="' + esc(it.respId) + '">+ Save to Library</button> ')
-        + '<button class="btn btn-ghost btn-sm" data-action="open-sheet" data-query-id="' + esc(it.queryId) + '">\ud83d\udccb Answer sheet</button> '
+      actions = '<button class="btn btn-primary btn-sm" data-action="open-sheet" data-query-id="' + esc(it.queryId) + '">📋 Answer sheet</button> '
         + '<button class="btn btn-ghost btn-sm" data-action="nav-history-detail" data-query-id="' + esc(it.queryId) + '">View query</button>';
     } else {
       const _svgs = {
@@ -3088,17 +3069,8 @@ function renderInbox() {
       title = esc(it.title || 'Notification');
       body = esc(it.body || '');
       if (it.type === 'query' && it.token) {
-        // NEVER OFFER A BUTTON THAT CANNOT WORK. Answered requests kept a live
-        // Answer button that produced "This link was already used"; requests
-        // past 72 hours produced "This link has expired". The card stays - you
-        // were asked, and that is worth keeping - but it says what happened
-        // instead of inviting a click that fails.
-        actions = it.handled
-          ? '<span style="font-size:12px;color:#2D9460;font-weight:600;">\u2713 Answered</span>'
-          : (it.lapsed
-              ? '<span style="font-size:12px;color:#7A9086;">This request has expired</span>'
-              : '<a class="btn btn-primary btn-sm" style="text-decoration:none;" '
-                + 'href="respond.html?t=' + esc(it.token) + '" target="_blank" rel="noopener">Answer</a>');
+        actions = '<a class="btn btn-primary btn-sm" style="text-decoration:none;" '
+          + 'href="respond.html?t=' + esc(it.token) + '" target="_blank" rel="noopener">Answer</a>';
       } else if (it.type === 'collection_shared' && it.linkUrl && /^https:\/\//.test(it.linkUrl)) {
         actions = '<a class="btn btn-primary btn-sm" style="text-decoration:none;" '
           + 'href="' + esc(it.linkUrl) + '" target="tn_ext" rel="noopener">View list</a>';
@@ -5044,33 +5016,18 @@ async function refreshLive() {
     const qs = await sb.from('queries').select('*, query_responses!query_id(*)')
       .eq('sent_by', CURRENT_UID).order('sent_at');
     const ns = await sb.from('notifications')
-      .select('id,type,title,body,circle_id,actor_name,created_at,response_token,query_id,link_url,handled_at')
+      .select('id,type,title,body,circle_id,actor_name,created_at,response_token,query_id,link_url')
       .eq('user_id', CURRENT_UID).order('created_at', { ascending: false }).limit(40);
     mergeLiveData(qs.data || null, ns.data || null);
   } catch (e) { /* next beat */ }
 }
 
-// The response token lives 72 hours: `token_expires_at timestamptz not null
-// default (now() + interval '72 hours')` in 0001_initial_schema.sql:195. If that
-// default ever changes, change this with it - there is no way for the client to
-// read it, short of a round trip per card.
-const RESPONSE_TOKEN_TTL_MS = 72 * 60 * 60 * 1000;
-
 function inboxItems() {
   const items = [];
   (AppState._notifications || []).forEach(function(n) {
-    const ts = new Date(n.created_at).getTime() || 0;
     items.push({ kind: 'notif', type: n.type || 'note', title: n.title || '', body: n.body || '', linkUrl: n.link_url || '',
       circleId: n.circle_id || null, token: n.response_token || null,
-      // ANSWERED. Set by receive-response through 0046, and backfilled for
-      // everything already spent.
-      handled: !!n.handled_at,
-      // LAPSED. The token life is a fixed 72 hours from creation
-      // (0001_initial_schema.sql:195), so this needs no server data at all.
-      // Kept as a named constant beside the reason, because the number now
-      // lives in two places and will drift silently if it ever changes.
-      lapsed: ts > 0 && (Date.now() - ts) > RESPONSE_TOKEN_TTL_MS,
-      ts: ts });
+      ts: new Date(n.created_at).getTime() || 0 });
   });
   (AppState.userQueries || []).forEach(function(q) {
     (q.responses || []).forEach(function(r) {
@@ -5079,10 +5036,6 @@ function inboxItems() {
       items.push({ kind: 'response', queryId: q.id, queryText: q.text || '',
         who: r.isAnonymous ? 'Someone (anonymous)' : (m ? m.name : 'Someone'),
         recName: r.recName || '',
-        // The card said nothing about whether this answer was already in the
-        // library, so it offered the same decision for ever.
-        saved: !!r.savedToLibrary,
-        respId: r.id,
         ts: new Date(r.respondedAt || 0).getTime() || 0 });
     });
   });
@@ -5093,11 +5046,7 @@ function inboxItems() {
 function updateInboxBadge() {
   if (AppState.isDemoMode) return;
   const seen = parseInt(localStorage.getItem('tn_inbox_seen') || '0', 10);
-  // Something already dealt with is not waiting for you.
-  const unread = inboxItems().filter(function(it) {
-    if (it.handled || it.lapsed || it.saved) return false;
-    return it.ts > seen;
-  }).length;
+  const unread = inboxItems().filter(function(it) { return it.ts > seen; }).length;
   const el = document.getElementById('sb-inbox-count');
   if (el) { el.textContent = String(unread); el.style.display = unread ? '' : 'none'; }
   const mb = document.getElementById('mb-inbox-count');
@@ -5123,7 +5072,7 @@ function ensureNotificationsFetched() {
   if (AppState.isDemoMode || AppState._notifFetched || !CURRENT_UID) return;
   AppState._notifFetched = true;
   sb.from('notifications')
-    .select('id,type,title,body,circle_id,actor_name,created_at,response_token,query_id,link_url,handled_at')
+    .select('id,type,title,body,circle_id,actor_name,created_at,response_token,query_id,link_url')
     .eq('user_id', CURRENT_UID)
     .order('created_at', { ascending: false })
     .limit(40)

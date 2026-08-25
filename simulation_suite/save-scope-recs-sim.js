@@ -43,6 +43,7 @@ const byId = {};
 let captured = null;      // rows handed to upsert
 let capturedTable = null; // which table they went to
 let updates = [];         // { table, id } per .update().eq()
+let rpcCalls = [];        // { fn, args }
 let failNext = false;
 
 const ctx = {
@@ -78,7 +79,11 @@ ctx.supabase = { createClient: () => ({
     delete: () => ({ eq: () => ({ in: async () => ({ error:null }) }) }),
   }),
   auth: { onAuthStateChange(){}, getSession: async () => ({ data:{ session:null } }) },
-  rpc: async () => ({ data:null, error:null }), channel: () => ({ on(){ return this; }, subscribe(){} }),
+  // saveQueries marks an answer through mark_response_saved as of 0046: a bare
+  // table update could never work, because query_responses has only a SELECT
+  // policy and the update matched zero rows without erroring.
+  rpc: async (fn, args) => { rpcCalls.push({ fn, args }); return { data: true, error: null }; },
+  channel: () => ({ on(){ return this; }, subscribe(){} }),
 })};
 ctx.window.supabase = ctx.supabase;
 ctx.globalThis = ctx;
@@ -177,16 +182,18 @@ const idsOf = rows => (rows || []).map(r => r.id).sort().join(',');
   failNext = false;
 
   // ── saveQueries ─────────────────────────────────────────────────────────
-  updates = [];
+  rpcCalls = [];
   await X.saveQueries(['resp-1']);
-  ck('saveQueries issues exactly one statement for one response',
-     updates.length === 1 && updates[0].id === 'resp-1',
-     JSON.stringify(updates));
+  let marks = rpcCalls.filter(function(c) { return c.fn === 'mark_response_saved'; });
+  ck('saveQueries marks exactly one response',
+     marks.length === 1 && marks[0].args.p_response_id === 'resp-1',
+     JSON.stringify(marks.map(function(c) { return c.args; })));
 
-  updates = [];
+  rpcCalls = [];
   await X.saveQueries(['resp-1','resp-2']);
-  ck('saveQueries issues one statement per named response', updates.length === 2,
-     String(updates.length));
+  marks = rpcCalls.filter(function(c) { return c.fn === 'mark_response_saved'; });
+  ck('saveQueries marks one per named response', marks.length === 2,
+     String(marks.length));
 
   threw = false;
   try { await X.saveQueries(); } catch (e) { threw = true; }

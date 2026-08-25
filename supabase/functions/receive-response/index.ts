@@ -98,6 +98,16 @@ Deno.serve(async (req) => {
     return err("response_not_saved: " + respErr.message, 500);
   }
 
+  // THE ANSWERER'S OWN NOTIFICATION IS NOW DONE (0046). Nothing marked it
+  // before, so it kept a live "Answer" button for ever, and pressing it
+  // produced "This link was already used" - measured in dan's inbox 25 Aug.
+  // Best-effort: the answer is stored and must stay stored, so a failure here
+  // cannot fail the response. Loud, though: the button stays wrong otherwise.
+  const { error: nhErr } = await admin.from("notifications")
+    .update({ handled_at: new Date().toISOString() })
+    .eq("response_token", body.token);
+  if (nhErr) console.error("notification_handled_write_failed", body.token, nhErr.message);
+
   // ── ENRICH THE ANSWER (v0.59.0) ───────────────────────────────────────────
   // WHY THIS EXISTS: an answer became a canonical here and was NEVER enriched.
   // No kind, no tags, no search document. Consequences, both real:
