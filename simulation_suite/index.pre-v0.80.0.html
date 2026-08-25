@@ -1848,7 +1848,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.80.0 · live';
+const APP_VERSION = 'v0.79.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -2419,16 +2419,6 @@ function circleInterestCardHtml(cid) {
       + confirmed.map(function(i) {
           return '<span class="chip chip-green">' + esc(INTEREST_LABEL[i] || i) + '</span>'; }).join('')
       + '<button class="btn btn-ghost btn-sm" data-action="edit-interests" data-circle-id="' + esc(cid) + '">change</button>'
-      // A FILTER THAT IS INVISIBLE IS A BUG WAITING TO BE REPORTED. If a place
-      // is set it silently excludes suggestions from everywhere else, so it is
-      // named right where the interests are.
-      + (function() {
-          const c = AppState.circleById(cid);
-          return (c && c.location)
-            ? '<div style="font-size:11px;color:#56695F;margin-top:6px;" dir="auto">in '
-              + esc(c.location) + ' \u00b7 suggestions from elsewhere are not offered</div>'
-            : '';
-        })()
       + '</div></div>';
   }
   if (circleInterestDeclined(cid)) {
@@ -4589,10 +4579,6 @@ function modalEditCircle(params) {
     + '<div class="field"><div class="field-label">NAME</div><input class="field-input" id="ec-name" dir="auto" maxlength="40" style="width:100%;" value="' + esc(c.name) + '"></div>'
     + '<div class="field"><div class="field-label">DOMAIN</div><select class="field-input field-select" id="ec-domain" style="width:100%;">' + domainOptions + '</select></div>'
     + '<div class="field"><div class="field-label">DESCRIPTION</div><textarea class="field-input field-textarea" id="ec-desc" dir="auto" style="min-height:60px;">' + esc(c.description || '') + '</textarea></div>'
-    + '<div class="field"><div class="field-label">WHERE (OPTIONAL)</div>'
-    + '<input class="field-input" id="ec-location" dir="auto" maxlength="80" style="width:100%;" value="' + esc(c.location || '') + '" placeholder="e.g. Italy, Tel Aviv \u2014 leave empty for anywhere">'
-    + '<div style="font-size:11px;color:#7A9086;margin-top:4px;line-height:1.4;">'
-    + 'Set this and the circle only receives suggestions from there.</div></div>'
     + '<div class="field"><div class="field-label">COLOUR</div><select class="field-input field-select" id="ec-color" style="width:100%;">' + colorOptions + '</select></div>'
     + '<button class="btn btn-primary" data-action="save-edit-circle" data-circle-id="' + esc(c.id) + '" style="width:100%;justify-content:center;">Save changes</button>'
     + '</div></div>';
@@ -4606,7 +4592,6 @@ async function handleSaveEditCircle(btn) {
   c.name = name;
   c.domain = ((document.getElementById('ec-domain') || {}).value || c.domain);
   c.description = ((document.getElementById('ec-desc') || {}).value || '').trim();
-  c.location = ((document.getElementById('ec-location') || {}).value || '').trim();
   c.color = ((document.getElementById('ec-color') || {}).value || c.color);
   btn.disabled = true;
   await saveCircles();
@@ -5942,17 +5927,6 @@ function modalAddCircle() {
     + '<div class="field"><div class="field-label">NAME</div><input class="field-input" id="nc-name" placeholder="e.g. Dining" maxlength="40"></div>'
     + '<div class="field"><div class="field-label">DOMAIN</div><select class="field-input field-select" id="nc-domain">' + domainOptions + '</select></div>'
     + '<div class="field"><div class="field-label">DESCRIPTION</div><textarea class="field-input field-textarea" id="nc-desc" placeholder="What kind of recommendations does this circle give?" style="min-height:70px;"></textarea></div>'
-    // WHERE, IF ANYWHERE (0048). Optional and deliberately so: a book circle is
-    // about books wherever they were written, and forcing a place on it would
-    // be worse than leaving it open. But a circle called "Italy" is about
-    // Italy, and until this field existed nothing in the app knew that - a
-    // seafood restaurant in Greece reached dan through his Italy circle,
-    // because the match was "it is a restaurant" and nothing more.
-    + '<div class="field"><div class="field-label">WHERE (OPTIONAL)</div>'
-    + '<input class="field-input" id="nc-location" dir="auto" maxlength="80" style="width:100%;" placeholder="e.g. Italy, Tel Aviv \u2014 leave empty for anywhere">'
-    + '<div style="font-size:11px;color:#7A9086;margin-top:4px;line-height:1.4;">'
-    + 'Set this and the circle only receives suggestions from there. Leave it '
-    + 'empty and it accepts them from anywhere.</div></div>'
     + '<div class="field"><div class="field-label">COLOUR</div><select class="field-input field-select" id="nc-color">' + colorOptions + '</select></div>'
     + '</div>'
     + '<div class="modal-footer"><button class="btn btn-secondary" data-action="close-modal">Cancel</button><button class="btn btn-primary" data-action="save-circle">Create Circle</button></div>'
@@ -6938,11 +6912,10 @@ async function handleSaveCircle() {
   const name = (document.getElementById('nc-name') || {}).value.trim();
   const domain = (document.getElementById('nc-domain') || {}).value;
   const desc = (document.getElementById('nc-desc') || {}).value.trim();
-  const loc = ((document.getElementById('nc-location') || {}).value || '').trim();
   const color = (document.getElementById('nc-color') || {}).value;
   if (!name) { toast('Please enter a name.', 'warn'); return; }
 
-  const newCircle = { id: uid(), ownerId: 'me', name: name, domain: domain, description: desc, location: loc, color: color, memberIds: [], isOwn: true, createdAt: new Date().toISOString() };
+  const newCircle = { id: uid(), ownerId: 'me', name: name, domain: domain, description: desc, color: color, memberIds: [], isOwn: true, createdAt: new Date().toISOString() };
   AppState.userCircles.push(newCircle);
   await saveCircles();
   // The circle is about what its owner just called it. Doing this here rather

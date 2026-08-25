@@ -27,7 +27,7 @@
 // the librarian already stored.
 // ============================================================================
 import { adminClient, json, err, handleOptions } from "../_shared/utils.ts";
-import { interestsForKind } from "../_shared/enrich_core.ts";
+import { interestsForKind, norm } from "../_shared/enrich_core.ts";
 
 const ENGINE = "sweep-v1";
 
@@ -158,11 +158,16 @@ Deno.serve(async (req) => {
   // ── 2. what ARE these things? read the stored kind, never re-derive it ────
   const canIds = [...new Set(contributions.map((c) => c.canonical_id))];
   const { data: cans, error: cansErr } = await admin
-    .from("canonicals").select("id, name, kind").in("id", canIds);
+    .from("canonicals").select("id, name, kind, location").in("id", canIds);
   if (cansErr) return err("canonicals_query_failed: " + cansErr.message, 500);
   const kindOf: Record<string, string> = {};
   const nameOf: Record<string, string> = {};
-  for (const c of cans ?? []) { kindOf[c.id] = c.kind ?? ""; nameOf[c.id] = c.name ?? ""; }
+  const placeOf: Record<string, string> = {};
+  for (const c of cans ?? []) {
+    kindOf[c.id] = c.kind ?? "";
+    nameOf[c.id] = c.name ?? "";
+    placeOf[c.id] = (c.location as string) ?? "";
+  }
 
   // ── 3. who is interested? confirmed interests only ───────────────────────
   const { data: interests, error: intErr } = await admin
@@ -170,6 +175,24 @@ Deno.serve(async (req) => {
     .select("circle_id, owner_id, interest, terms, is_custom")
     .eq("source", "confirmed");
   if (intErr) return err("interests_query_failed: " + intErr.message, 500);
+
+  // WHERE EACH CIRCLE IS, IF ANYWHERE (0048). Until this existed the match was
+  // type-only: a circle named "Italy" was, to this function, just "hotels and
+  // restaurants" anywhere on earth, and a seafood place in Leros reached dan
+  // through it. circles.location has been on the table all along and was
+  // populated on 0 of 30 rows - the client loaded it into state and never wrote
+  // or showed it. Same dead-flag shape as `verified` and `kind` before they
+  // were wired up.
+  const circlePlace: Record<string, string> = {};
+  {
+    const cids = [...new Set((interests ?? []).map((i) => i.circle_id))] as string[];
+    if (cids.length) {
+      const { data: crows, error: cErr } = await admin
+        .from("circles").select("id, location").in("id", cids);
+      if (cErr) console.error("sweep_circle_place_failed", cErr.message);
+      for (const c of crows ?? []) circlePlace[c.id as string] = (c.location as string) ?? "";
+    }
+  }
   if (!interests?.length) {
     // NOBODY HAS CONFIRMED AN INTEREST YET, so nothing could match — but that
     // is a reason to WAIT, not to consume the window. Advancing here would
@@ -215,7 +238,23 @@ Deno.serve(async (req) => {
   // is the same conflation that made a crashed identity lookup read as "not a
   // user". Every drop-out is now counted and every error is returned.
   const why = { no_kind: 0, not_a_member: 0, own_item: 0, no_interest_match: 0,
-                already_in_library: 0, insert_failed: 0 };
+                wrong_place: 0, already_in_library: 0, insert_failed: 0 };
+
+  // A CIRCLE WITH A PLACE ONLY TAKES THINGS FROM THERE (0048).
+  //
+  // Both sides must have a place for this to apply: a circle with none accepts
+  // from anywhere, as it always has, and an item with none - a book, a pair of
+  // ski boots - is not excluded from a place-bound circle for lacking an
+  // address it could never have.
+  //
+  // Containment either way, the same rule the enricher uses: "Leros" matches
+  // "Leros, Greece" and vice versa; "Italy" does not match "Leros".
+  const placeFits = function(circleLoc: string, itemLoc: string): boolean {
+    const a = norm(circleLoc || "");
+    const b = norm(itemLoc || "");
+    if (!a || !b) return true;
+    return b.indexOf(a) > -1 || a.indexOf(b) > -1;
+  };
   const errors: string[] = [];
   const rows: Record<string, unknown>[] = [];
 
@@ -255,6 +294,15 @@ Deno.serve(async (req) => {
 
       const hit = hit0;
       if (!hit) { why.no_interest_match++; continue; }
+      // dan, 25 Aug: "You share Italy, which is about restaurants" - for a
+      // seafood restaurant in Leros, Greece. True on type, absurd on place.
+      if (!placeFits(circlePlace[ci.circle_id] || "", placeOf[c.canonical_id] || "")) {
+        why.wrong_place++;
+        if (isDbg) (dbg.per_interest as unknown[]).push({
+          circle: ci.circle_id, stopped_at: "wrong_place",
+          circle_is_in: circlePlace[ci.circle_id], item_is_in: placeOf[c.canonical_id] });
+        continue;
+      }
 
       rows.push({
         user_id: ci.owner_id, canonical_id: c.canonical_id,
