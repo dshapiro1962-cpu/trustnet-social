@@ -87,6 +87,18 @@ Remove-Item app_extracted.js
 
 ---
 
+## Before shipping to anyone
+
+`docs/BETA-SMOKE-TEST.md` walks the whole product in one sequence, in the order
+a real person meets it — the answer loop, the enricher, search, suggestions,
+categories, and the two-device save-path stress test. Each step says what it
+proves and what failure looks like. About 25 minutes, two accounts.
+
+Run it after any change that touches saving, enrichment or the sweep. The parts
+it cannot cover are named at the bottom of the file rather than left implied.
+
+---
+
 ## Migrations
 
 The Supabase SQL editor sends **each statement on its own connection**. There is
