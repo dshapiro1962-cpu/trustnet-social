@@ -1823,7 +1823,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.76.1 · live';
+const APP_VERSION = 'v0.76.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -2999,8 +2999,7 @@ function suggestionCardHtml(sg) {
     + '<span style="font-weight:700;font-size:14px;color:#0D2B1F;" dir="auto">' + esc(can.name) + '</span>'
     + '<span style="font-size:9px;font-weight:700;color:#5B3E9E;letter-spacing:.04em;">SUGGESTED</span>'
     + '</div>'
-    + (itemFactsText(can) ? '<div style="font-size:11.5px;color:#56695F;margin-top:2px;" dir="auto">'
-        + esc(itemFactsText(can)) + '</div>' : '')
+    + (can.kind ? '<div style="font-size:11.5px;color:#56695F;margin-top:2px;" dir="auto">' + esc(can.kind) + '</div>' : '')
     + (sg.source_note ? '<div style="font-size:12px;color:#0D2B1F;margin-top:6px;line-height:1.45;" dir="auto">'
         + esc(sg.source_note) + '</div>' : '')
     // THE LINK MUST TRAVEL. dan sent an item saved via the fetch feature — it
@@ -3586,42 +3585,6 @@ function tnTile(name, cat, imageUrl, px) {
   const h = catHue(cat);
   const letter = String(name || '?').trim().charAt(0).toUpperCase() || '?';
   return '<div class="tn-tile" style="width:' + size + 'px;height:' + size + 'px;background:' + h.bg + ';color:' + h.fg + ';font-size:' + Math.round(size * 0.44) + 'px;">' + esc(letter) + '</div>';
-}
-
-// ONE SHAPE FOR A CANONICAL, WHICHEVER DOOR IT CAME THROUGH.
-//
-// The same row reaches the client two ways: camelCase from loadUserData's
-// mapper (primaryCategory, websiteUrl), and raw snake_case when PostgREST
-// embeds it in a suggestion (primary_category, website_url). Every renderer was
-// coping with that on its own, which is half the reason they drifted apart.
-function canonFacts(can) {
-  if (!can) return null;
-  return {
-    name: can.name || '',
-    // What the thing IS: the owner's own words if they typed any, otherwise the
-    // librarian's. Same precedence as recCategory - a person's answer beats a
-    // machine's.
-    whatItIs: can.category || can.kind || '',
-    location: can.location || '',
-    category: can.primaryCategory || can.primary_category || '',
-    link: can.websiteUrl || can.website_url || can.googleUrl || can.google_url || '',
-    imageUrl: can.imageUrl || can.image_url || ''
-  };
-}
-
-// THE FACTS LINE. Every card that names an item uses this, so a field cannot be
-// shown in one place and dropped in another.
-//
-// Measured 25 Aug, before this existed: the library card showed category and
-// location but never kind; the suggestion card showed kind but NEVER LOCATION,
-// losing it for the 77 of 146 canonicals that have one; the filing modal nested
-// location inside the kind conditional, so the 72 rows with no kind lost their
-// location too. Three renderers, three different answers about the same row.
-// Styling stays with each card - only the facts are shared.
-function itemFactsText(can) {
-  const f = canonFacts(can);
-  if (!f) return '';
-  return [f.whatItIs, f.location].filter(Boolean).join(' \u00b7 ');
 }
 
 // THE ONE PLACE THAT DECIDES WHICH CATEGORY THE OWNER SEES.
@@ -4839,7 +4802,7 @@ function recCardHtml(rec, clickable, opts) {
     + iconHtml
     + '<div class="rec-body">'
     + '<div class="rec-name">' + esc(can.name) + '</div>'
-    + '<div class="rec-cat" dir="auto">' + esc(itemFactsText(can)) + '</div>'
+    + '<div class="rec-cat">' + esc(can.category || '') + (can.location ? ' · ' + can.location : '') + '</div>'
     + (rec.note ? '<div class="rec-note">' + esc(rec.note) + '</div>' : '')
     + ((opts && opts.group) ? libQuestionLineHtml(opts.group) : '')
     + '<div class="rec-footer">'
@@ -5719,8 +5682,8 @@ function modalFileSuggestion(params) {
   let body = '<div style="font-size:12px;color:#56695F;line-height:1.5;">' + lead + '</div>'
     + '<div style="font-weight:700;font-size:15px;color:#0D2B1F;margin-top:8px;" dir="auto">'
     + esc(can.name || 'This item') + '</div>'
-    + (itemFactsText(can) ? '<div style="font-size:11.5px;color:#56695F;margin-top:2px;" dir="auto">'
-        + esc(itemFactsText(can)) + '</div>' : '');
+    + (can.kind ? '<div style="font-size:11.5px;color:#56695F;margin-top:2px;" dir="auto">'
+        + esc(can.kind) + (can.location ? ' \u00b7 ' + esc(can.location) : '') + '</div>' : '');
 
   if (opts.fitting.length) {
     body += '<div style="font-size:11px;font-weight:700;color:#7A9086;letter-spacing:.04em;margin-top:16px;">'
