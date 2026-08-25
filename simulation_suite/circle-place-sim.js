@@ -90,8 +90,18 @@ let src = blocks.reduce((a, b) => (b.length > a.length ? b : a), '');
 console.log('\n-- the owner is asked, never guessed --\n');
 ck('the new-circle form has a place field', /id="nc-location"/.test(src));
 ck('the edit form has one too', /id="ec-location"/.test(src));
-ck('it is explicitly OPTIONAL', /WHERE \(OPTIONAL\)/.test(src));
-ck('...and says what setting it does', /only receives suggestions from there/.test(src));
+// A PLACE IS A RESTRICTION MOST CIRCLES NEVER WANT, so it is offered rather
+// than asked. dan on the first version: "the change you made make where a
+// compulsory field in a way" - sitting between DESCRIPTION and COLOUR as an
+// equal field, it read as a decision you had to make.
+ck('it is folded away, not asked', /<details class="field">/.test(src));
+ck('...and says it is optional where you can see it',
+   /Limit to a place \(optional\)/.test(src));
+ck('...and says what setting it does',
+   /only receive suggestions from there/.test(src));
+// A RESTRICTION IN FORCE MUST NOT BE HIDDEN BEHIND A FOLD.
+ck('the edit form opens it when a place is already set',
+   /c\.location \? ' open' : ''/.test(src));
 ck('a new circle carries it', /const newCircle = \{[^}]*location: loc/.test(src));
 ck('an edited circle keeps it', /c\.location = \(\(document\.getElementById\('ec-location'\)/.test(src));
 ck('saveCircles writes it', /location:c\.location\|\|null/.test(src));

@@ -1848,7 +1848,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.80.0 · live';
+const APP_VERSION = 'v0.80.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3007,6 +3007,12 @@ function renderAnswered() {
 // Each card carries the TRUST CHAIN in one line: who vouched for it and why it
 // reached you. Never shown: which circle THEY filed it in — that is theirs, and
 // circles are provenance, not evidence.
+// One style for the folded-away optional fields. Inline because there is no
+// external stylesheet, and the colour is hardcoded like every other critical
+// value in this file.
+const SUMMARY_STYLE = 'style="cursor:pointer;font-size:11px;font-weight:600;'
+  + 'color:#7A9086;letter-spacing:.03em;padding:2px 0;"';
+
 // "ski and leros and italy" is not a list. Used wherever a sentence names
 // several things.
 function listAnd(arr) {
@@ -4589,10 +4595,15 @@ function modalEditCircle(params) {
     + '<div class="field"><div class="field-label">NAME</div><input class="field-input" id="ec-name" dir="auto" maxlength="40" style="width:100%;" value="' + esc(c.name) + '"></div>'
     + '<div class="field"><div class="field-label">DOMAIN</div><select class="field-input field-select" id="ec-domain" style="width:100%;">' + domainOptions + '</select></div>'
     + '<div class="field"><div class="field-label">DESCRIPTION</div><textarea class="field-input field-textarea" id="ec-desc" dir="auto" style="min-height:60px;">' + esc(c.description || '') + '</textarea></div>'
-    + '<div class="field"><div class="field-label">WHERE (OPTIONAL)</div>'
-    + '<input class="field-input" id="ec-location" dir="auto" maxlength="80" style="width:100%;" value="' + esc(c.location || '') + '" placeholder="e.g. Italy, Tel Aviv \u2014 leave empty for anywhere">'
+    // Open when a place is already set - a restriction in force must not be
+    // hidden behind a fold - and closed when there is none to see.
+    + '<details class="field"' + (c.location ? ' open' : '') + '>'
+    + '<summary ' + SUMMARY_STYLE + '>'
+    + (c.location ? 'Limited to a place' : '+ Limit to a place (optional)') + '</summary>'
+    + '<input class="field-input" id="ec-location" dir="auto" maxlength="80" style="width:100%;margin-top:8px;" value="' + esc(c.location || '') + '" placeholder="e.g. Italy, Tel Aviv">'
     + '<div style="font-size:11px;color:#7A9086;margin-top:4px;line-height:1.4;">'
-    + 'Set this and the circle only receives suggestions from there.</div></div>'
+    + 'The circle will only receive suggestions from there. Clear it to accept '
+    + 'them from anywhere.</div></details>'
     + '<div class="field"><div class="field-label">COLOUR</div><select class="field-input field-select" id="ec-color" style="width:100%;">' + colorOptions + '</select></div>'
     + '<button class="btn btn-primary" data-action="save-edit-circle" data-circle-id="' + esc(c.id) + '" style="width:100%;justify-content:center;">Save changes</button>'
     + '</div></div>';
@@ -5942,17 +5953,22 @@ function modalAddCircle() {
     + '<div class="field"><div class="field-label">NAME</div><input class="field-input" id="nc-name" placeholder="e.g. Dining" maxlength="40"></div>'
     + '<div class="field"><div class="field-label">DOMAIN</div><select class="field-input field-select" id="nc-domain">' + domainOptions + '</select></div>'
     + '<div class="field"><div class="field-label">DESCRIPTION</div><textarea class="field-input field-textarea" id="nc-desc" placeholder="What kind of recommendations does this circle give?" style="min-height:70px;"></textarea></div>'
-    // WHERE, IF ANYWHERE (0048). Optional and deliberately so: a book circle is
-    // about books wherever they were written, and forcing a place on it would
-    // be worse than leaving it open. But a circle called "Italy" is about
-    // Italy, and until this field existed nothing in the app knew that - a
-    // seafood restaurant in Greece reached dan through his Italy circle,
-    // because the match was "it is a restaurant" and nothing more.
-    + '<div class="field"><div class="field-label">WHERE (OPTIONAL)</div>'
-    + '<input class="field-input" id="nc-location" dir="auto" maxlength="80" style="width:100%;" placeholder="e.g. Italy, Tel Aviv \u2014 leave empty for anywhere">'
+    // WHERE, IF ANYWHERE (0048). A circle called "Italy" is about Italy, and
+    // until this existed nothing in the app knew that - a seafood restaurant in
+    // Greece reached dan through his Italy circle, because the match was "it is
+    // a restaurant" and nothing more.
+    //
+    // FOLDED AWAY, because most circles do not want it. dan, on the first
+    // version: "the change you made make where a compulsory field in a way" -
+    // and he was right: sitting between DESCRIPTION and COLOUR as an equal
+    // field, it read as a decision you had to make. A place is a restriction
+    // most people never need, so it is offered rather than asked.
+    + '<details class="field">'
+    + '<summary ' + SUMMARY_STYLE + '>+ Limit to a place (optional)</summary>'
+    + '<input class="field-input" id="nc-location" dir="auto" maxlength="80" style="width:100%;margin-top:8px;" placeholder="e.g. Italy, Tel Aviv">'
     + '<div style="font-size:11px;color:#7A9086;margin-top:4px;line-height:1.4;">'
-    + 'Set this and the circle only receives suggestions from there. Leave it '
-    + 'empty and it accepts them from anywhere.</div></div>'
+    + 'The circle will only receive suggestions from there. Leave this closed '
+    + 'and it accepts them from anywhere.</div></details>'
     + '<div class="field"><div class="field-label">COLOUR</div><select class="field-input field-select" id="nc-color">' + colorOptions + '</select></div>'
     + '</div>'
     + '<div class="modal-footer"><button class="btn btn-secondary" data-action="close-modal">Cancel</button><button class="btn btn-primary" data-action="save-circle">Create Circle</button></div>'
