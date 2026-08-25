@@ -1798,7 +1798,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.74.0 · live';
+const APP_VERSION = 'v0.73.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -5440,7 +5440,6 @@ function openModal(name, params) {
   else if (name === 'share-rec') html = modalShareRec(params);
   else if (name === 'edit-circle') html = modalEditCircle(params);
   else if (name === 'edit-collection') html = modalEditCollection(params);
-  else if (name === 'file-suggestion') html = modalFileSuggestion(params);
   else return;
 
   const root = document.getElementById('modal-root');
@@ -5467,63 +5466,6 @@ function openModal(name, params) {
 
 function closeModal() {
   document.getElementById('modal-root').innerHTML = '';
-}
-
-function modalFileSuggestion(params) {
-  const sg = (AppState.suggestions || []).find(function(s) {
-    return s.id === (params && params.sgId); });
-  if (!sg) return '<div class="modal"><div class="modal-body">That suggestion is no longer here.</div></div>';
-  const can = sg.canonicals || AppState.canonicalById(sg.canonical_id) || {};
-  const opts = suggestionFilingOptions(sg, can);
-  const person = (AppState.people || []).find(function(p) { return p.id === sg.from_person_id; });
-  const who = person ? person.name : (sg.from_name || 'Someone in your circles');
-  // The true sentence for each producer. A direct send is a person choosing to
-  // send you something; a swept suggestion is an interest match. Both are true
-  // statements, and they are not the same statement.
-  const lead = sg.via === 'direct'
-    ? esc(who) + ' sent you this.'
-    : (sg.via === 'answer'
-        ? esc(who) + ' answered a question with this.'
-        : esc(who) + ' saved this, and it matches what one of your circles is about.');
-  const btnFor = function(c, primary) {
-    return '<button class="btn ' + (primary ? 'btn-secondary' : 'btn-ghost') + ' btn-sm"'
-      + ' data-action="file-suggestion" data-sg-id="' + esc(sg.id) + '"'
-      + ' data-circle-id="' + esc(c.id) + '" style="margin:0 6px 6px 0;" dir="auto">'
-      + esc(c.name) + '</button>';
-  };
-  let body = '<div style="font-size:12px;color:#56695F;line-height:1.5;">' + lead + '</div>'
-    + '<div style="font-weight:700;font-size:15px;color:#0D2B1F;margin-top:8px;" dir="auto">'
-    + esc(can.name || 'This item') + '</div>'
-    + (can.kind ? '<div style="font-size:11.5px;color:#56695F;margin-top:2px;" dir="auto">'
-        + esc(can.kind) + (can.location ? ' \u00b7 ' + esc(can.location) : '') + '</div>' : '');
-
-  if (opts.fitting.length) {
-    body += '<div style="font-size:11px;font-weight:700;color:#7A9086;letter-spacing:.04em;margin-top:16px;">'
-      + 'FITS THIS CIRCLE</div><div style="margin-top:8px;">'
-      + opts.fitting.map(function(c) { return btnFor(c, true); }).join('') + '</div>';
-  } else {
-    // Say it plainly rather than offering circles that have nothing to do with
-    // the thing. Unfiled is a real answer, not a failure.
-    body += '<div style="font-size:12px;color:#56695F;margin-top:16px;line-height:1.5;">'
-      + 'None of your circles are about this kind of thing yet.</div>';
-  }
-
-  if (opts.others.length) {
-    body += '<div style="font-size:11px;font-weight:700;color:#7A9086;letter-spacing:.04em;margin-top:16px;">'
-      + (sg.via === 'direct' ? 'CIRCLES YOU SHARE WITH ' + esc(who.toUpperCase()) : 'OR FILE IT IN')
-      + '</div><div style="margin-top:8px;">'
-      + opts.others.map(function(c) { return btnFor(c, false); }).join('') + '</div>';
-  }
-
-  return '<div class="modal" style="max-width:420px;">'
-    + '<div class="modal-header"><div class="modal-title">Add to your library</div>'
-    + '<button class="btn btn-ghost btn-icon" data-action="close-modal">\u2715</button></div>'
-    + '<div class="modal-body">' + body + '</div>'
-    + '<div class="modal-footer">'
-    + '<button class="btn btn-secondary" data-action="close-modal">Cancel</button>'
-    + '<button class="btn btn-primary" data-action="file-suggestion" data-sg-id="' + esc(sg.id) + '"'
-    + ' data-circle-id="">Save unfiled</button>'
-    + '</div></div>';
 }
 
 function modalAddCircle() {
@@ -6716,57 +6658,23 @@ async function handleSendRecInApp(btn) {
   }
 }
 
-// ONE COLUMN, TWO MEANINGS. `matched_circles` means different things depending
-// on who wrote the row, and the UI used to assert one of them for both:
-//
-//   * suggest-sweep writes the circles whose CONFIRMED INTEREST matched the
-//     item's kind. "This matches your book circle" is true there.
-//   * 0031's direct-send RPC writes every circle of yours the SENDER belongs
-//     to — `where m3.owner_id = <you> and m3.linked_user_id = <sender>`. That
-//     answers "where could I file this", not "what does this match".
-//
-// So a Tel Aviv coffee shop sent by dan test2 announced that it "matches" a
-// skiing circle, in a native browser prompt asking for a number, defaulting to
-// the first shared circle. Measured on production 25 Aug 2026.
-//
-// `via` distinguishes them, so the copy can now tell the truth for each.
-function suggestionFilingOptions(sg, can) {
-  const want = interestsForKind((can && can.kind) || '');
-  const own = AppState.userCircles || [];
-  // FITTING = a circle whose confirmed interest actually covers this thing.
-  // Computed over ALL your circles, not just the ones you share with the
-  // sender: filing is YOUR act, and the right shelf may be one they are not on.
-  const fitting = own.filter(function(c) {
-    return circleInterestsFor(c.id).some(function(i) { return want.indexOf(i) > -1; });
-  });
-  const fitIds = fitting.map(function(c) { return c.id; });
-  const others = (sg.matched_circles || [])
-    .map(function(cid) { return AppState.circleById(cid); })
-    .filter(function(c) { return c && fitIds.indexOf(c.id) < 0; });
-  return { fitting: fitting, others: others };
-}
-
 async function handleAcceptSuggestion(btn) {
   const id = btn.dataset.sgId;
   const sg = (AppState.suggestions || []).find(function(s) { return s.id === id; });
   if (!sg) return;
-  const can = sg.canonicals || AppState.canonicalById(sg.canonical_id) || {};
-  const opts = suggestionFilingOptions(sg, can);
-  // Nothing to choose between: save it rather than open an empty dialog. It
-  // lands in Needs filing, which exists for exactly this.
-  if (!opts.fitting.length && !opts.others.length) {
-    await handleFileSuggestion(id, null);
-    return;
-  }
-  openModal('file-suggestion', { sgId: id });
-}
-
-// NEVER FILE BY GUESS. This used to take matched_circles[0] whenever the user
-// did not intervene — an arbitrary shared circle for a direct send.
-async function handleFileSuggestion(id, circleId) {
-  const sg = (AppState.suggestions || []).find(function(s) { return s.id === id; });
-  if (!sg) return;
+  btn.disabled = true;
   try {
+    let circleId = (sg.matched_circles || [])[0] || null;
+    if ((sg.matched_circles || []).length > 1) {
+      const names = sg.matched_circles.map(function(cid) {
+        const c = AppState.circleById(cid); return c ? c.name : cid; });
+      const pick = prompt('This matches ' + names.length + ' of your circles:\n\n'
+        + names.map(function(n, i) { return (i + 1) + '. ' + n; }).join('\n')
+        + '\n\nWhich one? (number)', '1');
+      const idx = parseInt(pick, 10);
+      if (!idx || idx < 1 || idx > names.length) { btn.disabled = false; return; }
+      circleId = sg.matched_circles[idx - 1];
+    }
     const sgSender = (AppState.people || []).find(function(p) { return p.id === sg.from_person_id; });
     const ins = await sb.from('recommendations').insert({
       owner_id: CURRENT_UID, canonical_id: sg.canonical_id, circle_id: circleId,
@@ -6790,14 +6698,12 @@ async function handleFileSuggestion(id, circleId) {
     const up = await sb.from('suggestions')
       .update({ status: 'accepted', decided_at: new Date().toISOString() }).eq('id', id);
     if (up.error) throw new Error(up.error.message);
-    closeModal();
     await loadUserData();
     renderApp();
-    const filed = circleId ? AppState.circleById(circleId) : null;
-    toast(filed ? ('Added to your ' + filed.name + ' circle.')
-                : 'Added to your library \u2014 it is in Needs filing.');
+    toast('Added to your library.');
   } catch (e) {
-    console.error('handleFileSuggestion failed:', e);
+    btn.disabled = false;
+    console.error('handleAcceptSuggestion failed:', e);
     toast('Could not add that: ' + (e.message || 'unknown error'), 'warn');
   }
 }
@@ -7924,10 +7830,6 @@ document.addEventListener('click', function(e) {
   }
   else if (action === 'accept-suggestion') {
     handleAcceptSuggestion(target);
-  }
-  else if (action === 'file-suggestion') {
-    target.disabled = true;
-    handleFileSuggestion(target.dataset.sgId, target.dataset.circleId || null);
   }
   else if (action === 'dismiss-suggestion') {
     handleDismissSuggestion(target);
