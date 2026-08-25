@@ -20,7 +20,7 @@
 // suggestion row - and each renderer coped on its own.
 //
 //   node item-facts-sim.js         → web/index.html, must PASS
-//   node item-facts-sim.js --old   → index.pre-v0.76.1.html, must FAIL
+//   node item-facts-sim.js --old   → index.pre-v0.78.1.html, must FAIL
 
 const fs = require('fs');
 const vm = require('vm');
@@ -28,7 +28,7 @@ const path = require('path');
 
 const useOld = process.argv.indexOf('--old') > -1;
 const file = useOld
-  ? path.join(__dirname, 'index.pre-v0.76.1.html')
+  ? path.join(__dirname, 'index.pre-v0.78.1.html')
   : path.join(__dirname, '..', 'web', 'index.html');
 if (!fs.existsSync(file)) { console.error('missing fixture: ' + file); process.exit(2); }
 const html = fs.readFileSync(file, 'utf8');
@@ -95,7 +95,7 @@ const ck = (n, c, x) => {
   ck('itemFactsText exists', !!X.facts);
   ck('canonFacts exists', !!X.canonFacts);
   if (!X.facts || !X.canonFacts) {
-    console.log('\n  ' + (useOld ? 'BASELINE v0.76.0 (must FAIL)' : 'PATCHED') + ': '
+    console.log('\n  ' + (useOld ? 'BASELINE v0.78.0 (must FAIL)' : 'PATCHED') + ': '
       + pass + ' passed, ' + fail + ' failed');
     process.exit(1);
   }
@@ -181,7 +181,48 @@ const ck = (n, c, x) => {
   ck('NEG - an item with no question shows no empty quote',
      !/asked:/.test(X.suggestionCardHtml(sgNoQ)));
 
-  console.log('\n  ' + (useOld ? 'BASELINE v0.76.0 (must FAIL)' : 'PATCHED') + ': '
+  console.log('\n-- what it is vs why it reached you --\n');
+  // dan reported "dshapiro8 hasnt got a leros circle at all". Every value was
+  // correct: Leros was the ITEM'S LOCATION, printed one line above a sentence
+  // about circles, with nothing between them. The location only started
+  // appearing on this card when the shared facts line landed, so the confusion
+  // was newly created by that change rather than old.
+  const beach = { id:'k9', name:'Agia Marina', kind:'beach', location:'Leros',
+                  primary_category:'travel' };
+  const sgOne = { id:'s9', canonical_id:'k9', canonicals:beach, via:'save',
+                  from_name:'dan test2', from_person_id:null, source_note:'',
+                  query_text:'', matched_circles:['c-ski'], matched_interest:'destination',
+                  status:'pending' };
+  X.AppState.userCircles = [{ id:'c-ski', name:'ski' },
+                            { id:'c-leros', name:'leros' },
+                            { id:'c-italy', name:'italy' }];
+  X.AppState.suggestions = [sgOne];
+  const one = X.suggestionCardHtml(sgOne);
+
+  ck('the two halves are separated', /WHY YOU/.test(one));
+  ck('the location is still shown as a fact about the item',
+     /Agia Marina[\s\S]{0,200}?Leros/.test(one));
+  ck('one circle still gets its interest named',
+     /You share ski, which is about/.test(one), one.indexOf('You share') > -1 ? '' : 'no sentence');
+
+  // THREE circles, ONE interest. The sweep merges every circle that matched but
+  // keeps only the first interest, so attributing it to all three is a claim
+  // nobody checked.
+  const sgMany = Object.assign({}, sgOne, { id:'s10',
+    matched_circles:['c-ski','c-leros','c-italy'], matched_interest:'ski' });
+  X.AppState.suggestions = [sgOne, sgMany];
+  const many = X.suggestionCardHtml(sgMany);
+
+  ck('several circles are listed properly, not "a and b and c"',
+     /ski, leros and italy/.test(many),
+     /and leros and/.test(many) ? 'still "and ... and"' : '');
+  ck('NEG - one interest is NOT attributed to three circles',
+     !/which are about/.test(many) && !/which is about/.test(many),
+     /which (is|are) about/.test(many) ? 'still claims it' : '');
+
+  X.AppState.suggestions = [sgOne];
+
+  console.log('\n  ' + (useOld ? 'BASELINE v0.78.0 (must FAIL)' : 'PATCHED') + ': '
     + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })();

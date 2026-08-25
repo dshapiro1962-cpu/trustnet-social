@@ -1828,7 +1828,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.78.1 · live';
+const APP_VERSION = 'v0.78.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -2965,14 +2965,6 @@ function renderAnswered() {
 // Each card carries the TRUST CHAIN in one line: who vouched for it and why it
 // reached you. Never shown: which circle THEY filed it in — that is theirs, and
 // circles are provenance, not evidence.
-// "ski and leros and italy" is not a list. Used wherever a sentence names
-// several things.
-function listAnd(arr) {
-  const a = (arr || []).filter(Boolean);
-  if (a.length <= 1) return a.join('');
-  return a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
-}
-
 function suggestionCardHtml(sg) {
   // The item comes WITH the suggestion (embedded join). Falling back to the
   // library lookup only helps when you happen to own it already, which is
@@ -3032,34 +3024,12 @@ function suggestionCardHtml(sg) {
           + ' target="tn_ext" rel="noopener" style="font-size:11.5px;color:#1E6B42;word-break:break-all;">'
           + esc(String(can.website_url || can.google_url).replace(/^https?:\/\//, '').slice(0, 48)) + '</a></div>'
         : '')
-    // WHAT THIS IS, AND WHY IT REACHED YOU, ARE DIFFERENT CLAIMS.
-    //
-    // The facts line above says what the thing is and where. This line says who
-    // sent it and through which circle. They were adjacent, in the same colour,
-    // with nothing between them - so "Agia Marina / beach - Leros" followed by a
-    // sentence about circles read as though Leros were a circle. dan has a
-    // circle called leros on another account, so the word was doubly loaded, and
-    // he reported it as a bug: "dshapiro8 hasnt got a leros circle at all".
-    //
-    // Every value was correct. The card just never said which half was which -
-    // and the location only started appearing here when the shared facts line
-    // landed on 25 Aug, so this confusion is newly created rather than old.
-    + '<div style="font-size:11px;color:#56695F;margin-top:10px;padding-top:8px;'
-    + 'border-top:1px solid #E4DCF2;line-height:1.5;" dir="auto">'
-    + '<span style="display:block;font-size:9px;font-weight:700;letter-spacing:.05em;'
-    + 'color:#8B7CB0;margin-bottom:3px;">WHY YOU\u2019RE SEEING THIS</span>'
+    + '<div style="font-size:11px;color:#56695F;margin-top:8px;line-height:1.5;" dir="auto">'
     + (who
         ? esc(who) + ' ' + verb + '. '
           + (circles.length
-              // ONE INTEREST DOES NOT DESCRIBE THREE CIRCLES. The sweep merges
-              // every circle that matched into matched_circles but keeps only
-              // the FIRST matched_interest, so "you share ski, leros and italy,
-              // which are about skiing" claimed a thing about leros and italy
-              // that was never checked - they may have matched on `destination`
-              // or `product` instead. With more than one circle, name them and
-              // stop.
-              ? 'You share ' + esc(listAnd(circles))
-                + ((label && circles.length === 1) ? ', which is about ' + esc(label) : '') + '.'
+              ? 'You share ' + esc(circles.join(' and '))
+                + (label ? ', which ' + (circles.length > 1 ? 'are' : 'is') + ' about ' + esc(label) : '') + '.'
               : (label ? 'It matches ' + esc(label) + '.' : ''))
         // Visible, not plausible. "It matches ." with its dangling stop was the
         // same fault: a template assuming a value the producer never supplied.
