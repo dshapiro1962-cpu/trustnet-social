@@ -170,8 +170,17 @@ export async function webGround(key: string, name: string, hint: string): Promis
         model: Deno.env.get("GROUNDING_MODEL") ?? "gpt-4o-mini-search-preview",
         web_search_options: {},
         messages: [{ role: "user", content:
-          "Search the web and say what this is, in at most two sentences: \"" + name + "\"" +
-          (hint ? " (context: " + hint.slice(0, 120) + ")" : "") + ". " +
+          // SEARCH IN CONTEXT. This used to search the bare name and append the
+          // context as a parenthetical the model could ignore, which is a
+          // coincidence engine: "Tony Vespa" finds whoever is most prominent
+          // with that name, and an Indianapolis consultant then outranked a
+          // question about pizza in Tel Aviv. The context goes INTO the query.
+          "Search the web for: " + name + (hint ? " " + hint.slice(0, 200) : "") + "\n\n" +
+          "Say what \"" + name + "\" is, in at most two sentences. " +
+          (hint ? "It came up in this context: " + hint.slice(0, 200) + ". " +
+                  "If the best-known thing with this name does NOT fit that context, " +
+                  "it is a different thing that happens to share the name: reply " +
+                  "with exactly NOT FOUND rather than describing it. " : "") +
           "State only what the search results support: what kind of thing or person it is, " +
           "and where, if the results say. Do not speculate and do not fill gaps. " +
           "If the search results do not identify it, reply with exactly: NOT FOUND" }],
@@ -211,6 +220,19 @@ export async function aiEnrich(key: string, input: {
             "Derive tags ONLY from the item itself, its note, the question asked and the answers "+
             "given. NEVER from which circle or folder it was saved in \u2014 a restaurant discussed "+
             "in a ski circle is just a restaurant (circles are the user's filing, not content). "+
+            "THE QUESTION FRAMES THE ANSWER. When a question is present it says what "+
+            "KIND of thing the answer is: an answer to \"recommend a good read\" is a "+
+            "book, a play or a text - \"The Cherry Orchard\" is a play by Chekhov, not a "+
+            "farm and not a restaurant. Classify INSIDE that frame. The question is "+
+            "often the only thing that can resolve an ambiguous name, and it is "+
+            "evidence you already have. "+
+            "If the EVIDENCE describes something that could not answer the question - a "+
+            "management consultant for a question about pizza - then it is a DIFFERENT "+
+            "ENTITY THAT SHARES THE NAME: ignore it completely and answer from the "+
+            "question, the name and the note alone. "+
+            "Only the ANSWERER'S OWN WORDS may move an item outside the frame "+
+            "(\"actually, the audiobook\", \"skip it, watch the film\") - a web search "+
+            "may not. "+
             "EVIDENCE, when present, is from a live web search and OUTRANKS your own "+
             "recollection: use it for kind, category and location. "+
             "With NO evidence, CLASSIFYING and INVENTING are different things. "+
@@ -330,7 +352,29 @@ export async function enrichOne(key: string, input: {
   // be suggested to anyone. Measured 24 Aug 2026.
   // (With no anchor, input.location is empty by definition, so this only ever
   // discards a location the model invented.)
-  let location = anchor ? (ai?.location || input.location || "") : "";
+  // A LOOKUP MAY NORMALISE WHAT A PERSON SAID. IT MAY NOT CONTRADICT IT.
+  //
+  // This was `ai?.location || input.location` - the model first, the person
+  // second. So a web result about an Indianapolis consultant beat a person who
+  // had typed "tel aviv", and the enrichment relocated their pizzeria to
+  // another continent. dan, 25 Aug: "the answer to a query relates to the
+  // query and that is how the app should treat it."
+  //
+  //   "tel aviv" -> "Tel Aviv, Israel"          normalising. Take it.
+  //   "tel aviv" -> "Indianapolis, United States" contradicting. Keep theirs.
+  //
+  // A contradiction is not a better answer, it is a DIFFERENT ENTITY that
+  // shares the name - which is also why it cancels `resolved` below: evidence
+  // about something else verifies nothing about this.
+  let location = "";
+  let contradicted = false;
+  if (anchor) {
+    const said = norm(input.location || "");
+    const got = norm(ai?.location || "");
+    const consistent = !said || !got || got.indexOf(said) > -1 || said.indexOf(got) > -1;
+    if (!consistent) contradicted = true;
+    location = (ai?.location && consistent) ? ai.location : (input.location || "");
+  }
   let category = ai?.category || "other";
   const kind = ai?.kind || "";
   const tags = ai?.tags || [];
@@ -338,7 +382,8 @@ export async function enrichOne(key: string, input: {
   // route. Previously computed, returned, and then thrown away — nothing
   // persisted it, so a Google-confirmed restaurant and an invented occupation
   // were indistinguishable downstream. v0.42.0 writes it to canonicals.verified.
-  let resolved = !!evidence;
+  // `contradicted` cancels it: the search found SOMETHING, but not this thing.
+  let resolved = !!evidence && !contradicted;
 
   // resolvePlace is the SECOND HALF of the same failure. It runs a Places text
   // search and takes results[0] unconditionally - no name comparison, no score
@@ -354,14 +399,34 @@ export async function enrichOne(key: string, input: {
   //
   // The rule is one rule: with no location, note or question, NOTHING external
   // is consulted. Reading the name is allowed; asking the world about it is not.
+  //
+  // THE HINT IS THE HUMAN'S CONTEXT, NOT THE MODEL'S CONCLUSION. It used to be
+  // `[kind, location]` where `location` was whatever the model had just
+  // decided - so once aiEnrich said "Indianapolis", Places looked up
+  // Indianapolis, found something, and the system confirmed its own mistake.
+  // `kind` is a TYPE and is safe to pass; the geography must come from the
+  // person or the question.
   const place = anchor
-    ? await resolvePlace(name, [kind, location].filter(Boolean).join(" "))
+    ? await resolvePlace(name, [kind, input.location, input.query_text]
+        .map((v) => (v || "").trim()).filter(Boolean).join(" "))
     : null;
   if (place) {
-    resolved = true;
-    name = place.name || name;
-    location = place.location || location;
-    if (place.category) category = place.category;
+    // A LOOKUP MAY NORMALISE A LOCATION. IT MAY NOT CONTRADICT ONE.
+    // "tel aviv" becoming "Tel Aviv, Israel" is the feature working. "tel aviv"
+    // becoming "Indianapolis, United States" means Places found a different
+    // thing that shares the name - in which case its name and category are
+    // just as wrong as its address, so the whole hit is discarded rather than
+    // half-used.
+    const said = norm(input.location || "");
+    const found = norm(place.location || "");
+    const consistent = !said || !found
+      || found.indexOf(said) > -1 || said.indexOf(found) > -1;
+    if (consistent) {
+      resolved = true;
+      name = place.name || name;
+      location = place.location || location;
+      if (place.category) category = place.category;
+    }
   }
 
   const search_doc = buildSearchDoc({

@@ -42,11 +42,19 @@ for (let i = open; i < src.length; i++) {
 if (end < 0) { console.error('could not match enrichOne braces'); process.exit(2); }
 const body = src.slice(open + 1, end);
 
+// enrichOne's body calls norm() as of v0.74.1, so it has to be in scope. Taken
+// from the same file rather than reimplemented - a copy would drift.
+const normBody = src.slice(
+  src.indexOf('{', src.indexOf('export function norm(')) + 1,
+  src.indexOf('}', src.indexOf('export function norm(')));
+const norm = new Function('s', normBody);
+
 const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
 let enrichOne;
 try {
   enrichOne = new AsyncFunction(
-    'key', 'input', 'webGround', 'aiEnrich', 'resolvePlace', 'buildSearchDoc', 'looksLikeSentence',
+    'key', 'input', 'webGround', 'aiEnrich', 'resolvePlace', 'buildSearchDoc',
+    'looksLikeSentence', 'norm',
     body);
 } catch (e) {
   console.error('enrichOne body is no longer plain JavaScript: ' + e.message);
@@ -97,7 +105,7 @@ const run = (input, selfDescribing) => {
   groundCalls = []; placeCalls = [];
   const d = mkDeps(selfDescribing);
   return enrichOne('KEY', input, d.webGround, d.aiEnrich, d.resolvePlace,
-                   d.buildSearchDoc, d.looksLikeSentence);
+                   d.buildSearchDoc, d.looksLikeSentence, norm);
 };
 
 (async () => {
@@ -159,6 +167,41 @@ const run = (input, selfDescribing) => {
      (e.location || '') === '', JSON.stringify(e.location));
   ck('...and it is still not stamped verified',
      e.resolved === false, String(e.resolved));
+
+  // ── THE QUESTION FRAMES THE ANSWER ──────────────────────────────────────
+  // dan: "the answer to a query relates to the query and that is how the app
+  // should treat it". A lookup may NORMALISE what a person said about where a
+  // thing is; it may not CONTRADICT it. When it does, it has found a different
+  // thing that shares the name, and its name and category are as wrong as its
+  // address - so the whole hit is discarded rather than half-used.
+  e = await run({ name: 'tony vespa', note: 'best pizza in the city',
+                  location: 'tel aviv', query_text: 'good pizza in tel aviv?' });
+  ck('a Places hit that contradicts the stated location is discarded',
+     !/Indianapolis/i.test(e.location || ''), JSON.stringify(e.location));
+  ck('...and the location the person gave is kept',
+     /tel aviv/i.test(e.location || ''), JSON.stringify(e.location));
+  ck('...and it is NOT stamped verified on the strength of that hit',
+     e.resolved !== true || !/Indianapolis/i.test(e.location || ''),
+     'resolved=' + e.resolved + ' loc=' + JSON.stringify(e.location));
+
+  // The geography handed to Places must come from the person, never from what
+  // the model just concluded - that is how the system confirmed its own error.
+  ck('Places is asked about the location the PERSON gave',
+     placeCalls.length === 1 && /tel aviv/i.test(placeCalls[0].hint),
+     placeCalls.length ? placeCalls[0].hint : '(not called)');
+  ck('...and is not asked about a location the model invented',
+     placeCalls.length === 1 && !/Indianapolis/i.test(placeCalls[0].hint),
+     placeCalls.length ? placeCalls[0].hint : '(not called)');
+
+  // THE CONTEXT MUST GO INTO THE QUERY, not sit beside it as a parenthetical
+  // the model may ignore. webGround is MOCKED here, so behaviour cannot show
+  // this - the mock receives the same hint either way, and asserting on that
+  // passed against the baseline for entirely the wrong reason. This is a source
+  // check and is labelled as one.
+  ck('SOURCE · the search query itself carries the context',
+     /"Search the web for: " \+ name \+ \(hint \? " " \+ hint/.test(src));
+  ck('SOURCE · a result that does not fit the context must report NOT FOUND',
+     /different thing that happens to share the name/.test(src));
 
   console.log('\n  ' + (useOld ? 'ORIGINAL (must FAIL)' : 'PATCHED') + ': '
     + pass + ' passed, ' + fail + ' failed');
