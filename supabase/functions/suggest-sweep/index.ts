@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
     // Asking for a non-existent column made the whole query fail; the error was
     // discarded, so 46 recommendations silently vanished from every run while
     // the answers half sailed through. One wrong word, five rounds of guessing.
-    .select("id, owner_id, canonical_id, note, shared_to_network, created_at")
+    .select("id, owner_id, canonical_id, note, shared_to_network, created_at, query_id, source_question")
     .gt("created_at", since)
     .eq("shared_to_network", true)
     .order("created_at", { ascending: true })   // oldest first: the watermark
@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
 
   const { data: answers, error: ansErr } = await admin
     .from("query_responses")
-    .select("id, member_id, canonical_id, rec_name, rec_note, shared_to_network, responded_at")
+    .select("id, member_id, canonical_id, rec_name, rec_note, shared_to_network, responded_at, query_id")
     .gt("responded_at", since)
     .eq("shared_to_network", true)
     .not("canonical_id", "is", null)
@@ -112,16 +112,40 @@ Deno.serve(async (req) => {
     canonical_id: string; contributor_user: string | null;
     contributor_member: string | null; via: "answer" | "save"; note: string;
     at: string | null;
+    // THE QUESTION TRAVELS (0047). An answer IS a reply to a question, and a
+    // saved item often is too. Carrying it means the card can say what was
+    // asked - which the recipient can never look up themselves, because
+    // `queries` is readable only by the person who sent it.
+    query_text: string;
   };
+  // The question text, for every query these contributions came from. One
+  // lookup, not one per row - and it runs as the service role, so it can read
+  // questions the RECIPIENT never could.
+  const qIdsAll = [...new Set([
+    ...(recs ?? []).map((r: Record<string, unknown>) => r.query_id),
+    ...(answers ?? []).map((a: Record<string, unknown>) => a.query_id),
+  ].filter(Boolean))] as string[];
+  const qTextById: Record<string, string> = {};
+  if (qIdsAll.length) {
+    const { data: qrows, error: qErr } = await admin
+      .from("queries").select("id, text").in("id", qIdsAll);
+    if (qErr) console.error("sweep_query_text_failed", qErr.message);
+    for (const q of qrows ?? []) qTextById[q.id as string] = (q.text as string) ?? "";
+  }
+
   const contributions: Contribution[] = [];
   for (const r of recs ?? []) {
     contributions.push({ canonical_id: r.canonical_id, contributor_user: r.owner_id,
-      contributor_member: null, via: "save", note: r.note ?? "", at: r.created_at ?? null });
+      contributor_member: null, via: "save", note: r.note ?? "", at: r.created_at ?? null,
+      // What is already on the row wins: a forwarded item keeps the question it
+      // was originally answering instead of losing it at every hop.
+      query_text: (r.source_question as string) || qTextById[r.query_id as string] || "" });
   }
   for (const a of answers ?? []) {
     contributions.push({ canonical_id: a.canonical_id, contributor_user: null,
       contributor_member: a.member_id, via: "answer", note: a.rec_note ?? a.rec_name ?? "",
-      at: a.responded_at ?? null });
+      at: a.responded_at ?? null,
+      query_text: qTextById[a.query_id as string] || "" });
   }
   if (!contributions.length) {
     // NOTHING SEEN -> DO NOT MOVE THE WATERMARK. Advancing here is what made
@@ -239,6 +263,7 @@ Deno.serve(async (req) => {
         // contributor's profile name; never leave the card with nothing.
         from_name: (c.contributor_user ? nameOfUser[c.contributor_user] : "") || m.name || null,
         via: c.via, source_note: String(c.note).slice(0, 300),
+        query_text: String(c.query_text || "").slice(0, 300),
         matched_circles: [ci.circle_id], matched_interest: ci.interest,
       });
     }

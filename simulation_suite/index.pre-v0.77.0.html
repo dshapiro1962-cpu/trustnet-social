@@ -1364,7 +1364,7 @@ async function loadUserData() {
     // `canonicalById(...)` and returned '' when it found nothing, so a correct
     // row rendered as an empty string. Silently, again.
     const sg = await sb.from('suggestions')
-      .select('id, canonical_id, from_person_id, from_user_id, from_name, via, source_note, query_text, matched_circles, matched_interest, status, canonicals(name, kind, location, image_emoji, primary_category, website_url, google_url, image_url, search_doc)')
+      .select('id, canonical_id, from_person_id, from_user_id, from_name, via, source_note, matched_circles, matched_interest, status, canonicals(name, kind, location, image_emoji, primary_category, website_url, google_url, image_url, search_doc)')
       .eq('status', 'pending').order('created_at', { ascending: false });
     if (sg.error) console.error('suggestions load failed:', sg.error);
     AppState.suggestions = sg.data || [];
@@ -1410,10 +1410,6 @@ async function loadUserData() {
     // than a type. Empty means you have not said, and display falls back to
     // the canonical's shared primary_category.
     category: r.category || '',
-    // The question this answered, carried with the item (0047). Set even when
-    // the query belongs to someone else, which is exactly when query_id is
-    // useless: `queries` is readable only by the person who asked.
-    sourceQuestion: r.source_question || '',
     note:r.note||'', rating:r.rating||0, tags:r.tags||[], status:r.status||'saved', isAnonymous:!!r.is_anonymous, sharedToNetwork:!!r.shared_to_network,
     degree:r.degree||1, date:r.rec_date, createdAt:r.created_at || r.rec_date || '' }; });
 
@@ -1678,7 +1674,6 @@ async function saveRecs(ids) {
       recommended_by_user_id: r.recommendedByUser
         || (r.recommendedBy === CURRENT_UID ? CURRENT_UID : null),
       category:r.category||null,
-      source_question:r.sourceQuestion||null,
       note:r.note||null, rating:r.rating||null, tags:r.tags||[], status:r.status||'saved',
       is_anonymous:!!r.isAnonymous, shared_to_network:!!r.sharedToNetwork, degree:r.degree||1, rec_date:r.date||null }; });
     const res = await sb.from('recommendations').upsert(rows);
@@ -1828,7 +1823,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.77.0 · live';
+const APP_VERSION = 'v0.76.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3006,14 +3001,6 @@ function suggestionCardHtml(sg) {
     + '</div>'
     + (itemFactsText(can) ? '<div style="font-size:11.5px;color:#56695F;margin-top:2px;" dir="auto">'
         + esc(itemFactsText(can)) + '</div>' : '')
-    // WHAT WAS ASKED (0047). An answer means little without its question -
-    // "Avoriaz 1800" is a fact; "Avoriaz 1800, when someone asked for a resort
-    // for a family week" is a recommendation. The recipient can never look this
-    // up - `queries` is readable only by the person who sent it - so the text
-    // travels on the suggestion itself.
-    + (sg.query_text ? '<div style="font-size:11.5px;color:#7A6A2A;background:#FBF6E4;'
-        + 'border-radius:6px;padding:5px 8px;margin-top:6px;" dir="auto">asked: \u201c'
-        + esc(sg.query_text) + '\u201d</div>' : '')
     + (sg.source_note ? '<div style="font-size:12px;color:#0D2B1F;margin-top:6px;line-height:1.45;" dir="auto">'
         + esc(sg.source_note) + '</div>' : '')
     // THE LINK MUST TRAVEL. dan sent an item saved via the fetch feature — it
@@ -3408,11 +3395,6 @@ async function handleSaveFromSheet(idx) {
     const sheetRecId = uid();
     AppState.userRecs.push({ id: sheetRecId, canonicalId: canId,
       circleId: q ? q.circleId : '', queryId: s.queryId || null, recommendedBy: viaMember,
-      // CARRIED, NOT LOOKED UP (0047). queryId alone works only while YOU own
-      // the query - `queries` is readable by its sender and nobody else - so
-      // the moment this item is suggested onward the question would be gone.
-      // Writing the text here means it never depends on a lookup at all.
-      sourceQuestion: q ? (q.text || '') : '',
       note: fullNote, rating: it.rating || 0, tags: [],
       status: 'saved', isAnonymous: false, degree: 1, sharedToNetwork: shareDefault(),
       date: new Date().toISOString().slice(0, 10) });
@@ -3884,16 +3866,7 @@ function libCircleLabelHtml(g) {
 
 function libQuestionLineHtml(g) {
   let html = '';
-  // THE QUESTION, WHOEVER ASKED IT (0047).
-  // This used to resolve ONLY through AppState.userQueries, which is loaded
-  // `.eq('sent_by', CURRENT_UID)` - so an item that answered someone ELSE'S
-  // question showed no question at all, silently. sourceQuestion travels with
-  // the item and needs no lookup; the userQueries path stays as the fallback
-  // for rows that predate the column.
-  const carried = g.lead.sourceQuestion || '';
-  if (carried) {
-    html += '<div class="rec-qline" dir="auto">\u201c' + esc(carried) + '\u201d</div>';
-  } else if (g.lead.queryId) {
+  if (g.lead.queryId) {
     const q = AppState.userQueries.find(function(x) { return x.id === g.lead.queryId; });
     if (q && q.text) {
       html += '<div class="rec-qline" dir="auto">\u201c' + esc(q.text) + '\u201d</div>';
@@ -5747,10 +5720,7 @@ function modalFileSuggestion(params) {
     + '<div style="font-weight:700;font-size:15px;color:#0D2B1F;margin-top:8px;" dir="auto">'
     + esc(can.name || 'This item') + '</div>'
     + (itemFactsText(can) ? '<div style="font-size:11.5px;color:#56695F;margin-top:2px;" dir="auto">'
-        + esc(itemFactsText(can)) + '</div>' : '')
-    + (sg.query_text ? '<div style="font-size:11.5px;color:#7A6A2A;background:#FBF6E4;'
-        + 'border-radius:6px;padding:5px 8px;margin-top:6px;" dir="auto">asked: \u201c'
-        + esc(sg.query_text) + '\u201d</div>' : '');
+        + esc(itemFactsText(can)) + '</div>' : '');
 
   if (opts.fitting.length) {
     body += '<div style="font-size:11px;font-weight:700;color:#7A9086;letter-spacing:.04em;margin-top:16px;">'
@@ -7033,9 +7003,6 @@ async function handleFileSuggestion(id, circleId) {
       //   * an item accepted from a suggestion could never be suggested onward
       //     — the feature could not propagate its own output.
       source_label: sgSender ? ('suggested by ' + sgSender.name) : 'suggested by someone in your circles',
-      // The question survives the move into your library (0047). Without this
-      // it reached you on the card and was dropped the moment you accepted it.
-      source_question: sg.query_text || null,
       recommended_by_user_id: sg.from_user_id || null,
       shared_to_network: shareDefault(),
     });
@@ -7817,8 +7784,6 @@ async function handleConfirmSaveToLibrary(respId) {
   const newRec = {
     id: recId, canonicalId: canId, circleId: AppState.queryState.circleId,
     queryId: (AppState.queryState && (AppState.queryState.queryId || AppState.queryState._historyQueryId)) || null,
-    // The question this answered, kept on the item itself (0047).
-    sourceQuestion: (AppState.queryState && AppState.queryState.text) || '',
     recommendedBy: resp.contactId || 'user', note: note,
     rating: Math.min(5, Math.max(1, rating)),
     tags: finalTags, date: new Date().toISOString().split('T')[0],

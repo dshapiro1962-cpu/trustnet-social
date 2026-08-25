@@ -156,6 +156,31 @@ const ck = (n, c, x) => {
   ck('filing panel: no kind, location survives',
      /Jerusalem/.test(X.modalFileSuggestion({ sgId:'s2' })));
 
+  console.log('\n-- the question travels with the item --\n');
+  // MEASURED: 57 canonicals already carry the question inside search_doc as
+  // "asked: ...", and nothing could reach it. `queries` is readable only by the
+  // person who asked, so an id is useless to a recipient - the TEXT travels.
+  const sgQ = { id:'s3', canonical_id:'k1', canonicals:snake, via:'save',
+                from_name:'dan test2', from_person_id:null, source_note:'lovely rooms',
+                query_text:'recommend me a good read', matched_circles:[],
+                matched_interest:'hotel', status:'pending' };
+  X.AppState.suggestions = [sgQ];
+  const cardQ = X.suggestionCardHtml(sgQ);
+  ck('the suggestion card says what was asked',
+     /recommend me a good read/.test(cardQ));
+  ck('...labelled as a question, so it is not mistaken for the note',
+     /asked:/.test(cardQ));
+  ck('...and the note is still shown separately',
+     /lovely rooms/.test(cardQ));
+
+  const modalQ = X.modalFileSuggestion({ sgId:'s3' });
+  ck('the filing panel says it too', /recommend me a good read/.test(modalQ));
+
+  const sgNoQ = Object.assign({}, sgQ, { id:'s4', query_text:'' });
+  X.AppState.suggestions = [sgQ, sgNoQ];
+  ck('NEG - an item with no question shows no empty quote',
+     !/asked:/.test(X.suggestionCardHtml(sgNoQ)));
+
   console.log('\n  ' + (useOld ? 'BASELINE v0.76.0 (must FAIL)' : 'PATCHED') + ': '
     + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
