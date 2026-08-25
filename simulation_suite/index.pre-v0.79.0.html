@@ -1472,29 +1472,9 @@ async function seedCircleInterestsFromNames() {
   const own = (AppState.userCircles || []).filter(function(c) { return c.id; });
   let seeded = 0;
   for (const c of own) {
-    const existing = (AppState.circleInterests || []).filter(function(r) { return r.circle_id === c.id; });
-    const text = (c.name || '') + ' ' + (c.description || '');
-    // A CIRCLE IS ONLY AS BROAD AS ITS OWNER MADE IT: no INTEREST_ALSO here.
-    const derived = interestsForKind(text, false);
-    if (existing.length) {
-      // REPAIR WHAT I WIDENED, AND NOTHING ELSE.
-      // Only a circle whose confirmed set is EXACTLY the old widened derivation,
-      // with nothing custom and nothing declined, can have been written by this
-      // function and left untouched since. Anything the owner chose, edited or
-      // declined is left alone - I cannot tell their intent from a diff, so I
-      // do not guess at it.
-      const wide = interestsForKind(text, true).slice().sort().join(',');
-      const nowSet = existing.filter(function(r) { return r.source === 'confirmed'; })
-                         .map(function(r) { return r.interest; }).sort().join(',');
-      const anyCustom = existing.some(function(r) { return r.is_custom; });
-      const anyDeclined = existing.some(function(r) { return r.source === 'declined'; });
-      const narrow = derived.slice().sort().join(',');
-      if (anyCustom || anyDeclined || nowSet !== wide || narrow === wide) continue;
-      const del = await sb.from('circle_interests').delete().eq('circle_id', c.id);
-      if (del.error) { console.error('repairCircleInterests', c.name, del.error); continue; }
-      AppState.circleInterests = (AppState.circleInterests || [])
-        .filter(function(r) { return r.circle_id !== c.id; });
-    }
+    const has = (AppState.circleInterests || []).some(function(r) { return r.circle_id === c.id; });
+    if (has) continue;
+    const derived = interestsForKind((c.name || '') + ' ' + (c.description || ''));
     if (!derived.length) continue;
     const rows = derived.map(function(i) {
       return { circle_id: c.id, owner_id: CURRENT_UID, interest: i,
@@ -1848,7 +1828,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.79.0 · live';
+const APP_VERSION = 'v0.78.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -2268,7 +2248,7 @@ const INTEREST_LABEL = { book:'books', restaurant:'restaurants', bar:'bars', caf
   hotel:'hotels', destination:'places to go', ski:'skiing', doctor:'doctors',
   tradesperson:'tradespeople', shop:'shops', product:'products', service:'services' };
 
-function interestsForKind(kind, widen) {
+function interestsForKind(kind) {
   const k = ' ' + String(kind || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim() + ' ';
   if (k.trim() === '') return [];
   const hits = [];
@@ -2280,21 +2260,9 @@ function interestsForKind(kind, widen) {
       }
     }
   });
-  // WIDENING IS FOR AN ITEM, NEVER FOR A CIRCLE.
-  //
-  // INTEREST_ALSO says a ski resort is also a destination - true, and useful:
-  // it lets one ski resort reach somebody's travel circle. Applied to an ITEM
-  // that is right. Applied to a CIRCLE it is a silent promotion: dan's ski
-  // circle, seeded from "ski / resorts equipment", came out as
-  // {ski, destination, product} and therefore accepted a BEACH IN LEROS,
-  // reported 25 Aug as "You share ski, which is about places to go".
-  //
-  // An item may earn breadth. A circle only has the breadth its owner gave it.
-  if (widen !== false) {
-    hits.slice().forEach(function(h) {
-      (INTEREST_ALSO[h] || []).forEach(function(a) { if (hits.indexOf(a) < 0) hits.push(a); });
-    });
-  }
+  hits.slice().forEach(function(h) {
+    (INTEREST_ALSO[h] || []).forEach(function(a) { if (hits.indexOf(a) < 0) hits.push(a); });
+  });
   return hits;
 }
 

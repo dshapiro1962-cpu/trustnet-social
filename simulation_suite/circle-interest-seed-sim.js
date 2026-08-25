@@ -104,7 +104,7 @@ const ck = (n, c, x) => {
   console.log('\n── the seeding itself ──\n');
   if (!X.seed) {
     ck('seedCircleInterestsFromNames exists', false, 'function not present');
-    console.log('\n  ' + (useOld ? 'BASELINE v0.73.0 (must FAIL)' : 'PATCHED') + ': '
+    console.log('\n  ' + (useOld ? 'BASELINE v0.78.1 (must FAIL)' : 'PATCHED') + ': '
       + pass + ' passed, ' + fail + ' failed');
     process.exit(1);
   }
@@ -178,7 +178,59 @@ const ck = (n, c, x) => {
   ck('a refused insert is not counted as seeded', n2 === 0, String(n2));
   failNext = false;
 
-  console.log('\n  ' + (useOld ? 'BASELINE v0.73.0 (must FAIL)' : 'PATCHED') + ': '
+  console.log('\n-- a circle is only as broad as its owner made it --\n');
+  // MEASURED 25 Aug. dan's ski circle, seeded from "ski / resorts equipment",
+  // came out {ski, destination, product} - and a BEACH IN LEROS reached him
+  // through it: "You share ski, which is about places to go."
+  //
+  // INTEREST_ALSO says a ski resort is also a destination. True, and useful,
+  // for an ITEM: it lets one resort reach somebody's travel circle. Applied to
+  // a CIRCLE it is a silent promotion to "anywhere you might go". An item may
+  // earn breadth; a circle only has what its owner gave it.
+  ck('an ITEM still gains breadth: a ski resort is also a destination',
+     X.interestsForKind('ski resort').indexOf('destination') > -1,
+     JSON.stringify(X.interestsForKind('ski resort')));
+  ck('a CIRCLE does not: no destination from the word ski',
+     X.interestsForKind('ski resorts equipment', false).indexOf('destination') < 0,
+     JSON.stringify(X.interestsForKind('ski resorts equipment', false)));
+  ck('...but it keeps what the owner actually said',
+     X.interestsForKind('ski resorts equipment', false).indexOf('ski') > -1
+       && X.interestsForKind('ski resorts equipment', false).indexOf('product') > -1,
+     JSON.stringify(X.interestsForKind('ski resorts equipment', false)));
+
+  console.log('\n-- repairing what I widened, and nothing else --\n');
+  X.AppState.userCircles = [
+    // exactly what the old widened seeding produced: repairable
+    { id:'c-wide',   name:'ski',    description:'resorts equipment' },
+    // the owner chose these by hand: never touched
+    { id:'c-chosen', name:'ski',    description:'resorts equipment' },
+    // the owner declined: never touched
+    { id:'c-declined', name:'ski',  description:'resorts equipment' }
+  ];
+  X.AppState.circleInterests = [
+    { circle_id:'c-wide', interest:'ski',         source:'confirmed', is_custom:false, terms:[] },
+    { circle_id:'c-wide', interest:'destination', source:'confirmed', is_custom:false, terms:[] },
+    { circle_id:'c-wide', interest:'product',     source:'confirmed', is_custom:false, terms:[] },
+    { circle_id:'c-chosen', interest:'ski',       source:'confirmed', is_custom:true,  terms:['powder'] },
+    { circle_id:'c-declined', interest:'_none',   source:'declined',  is_custom:false, terms:[] }
+  ];
+  inserted = [];
+  await X.seed();
+  const forC = function(id) { return inserted.filter(function(r) { return r.circle_id === id; }); };
+
+  ck('the widened circle is re-derived without destination',
+     forC('c-wide').length > 0 && !forC('c-wide').some(function(r) { return r.interest === 'destination'; }),
+     JSON.stringify(forC('c-wide').map(function(r) { return r.interest; })));
+  ck('...and keeps ski and product',
+     forC('c-wide').some(function(r) { return r.interest === 'ski'; })
+       && forC('c-wide').some(function(r) { return r.interest === 'product'; }),
+     JSON.stringify(forC('c-wide').map(function(r) { return r.interest; })));
+  ck('NEG - a circle the owner set by hand is never rewritten',
+     forC('c-chosen').length === 0, JSON.stringify(forC('c-chosen')));
+  ck('NEG - a circle the owner declined is never rewritten',
+     forC('c-declined').length === 0, JSON.stringify(forC('c-declined')));
+
+  console.log('\n  ' + (useOld ? 'BASELINE v0.78.1 (must FAIL)' : 'PATCHED') + ': '
     + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })();
