@@ -11,10 +11,18 @@ Live at trustnetsocial.netlify.app. Postgres on Supabase, project
 
 ## Start here
 
-Read `docs/HANDOVER-2026-08-24-evening.md` before touching anything. It records
-what is live, what was fixed on 24 Aug, and what is still open.
-`docs/HANDOVER-2026-08-24.md` is the previous session and is **superseded** —
-three of its central claims were disproved; it carries a banner saying which.
+Read `docs/HANDOVER-2026-08-25.md` before touching anything. It records what is
+live, what was fixed, and what is still open. The two earlier handovers
+(`HANDOVER-2026-08-24-evening.md`, `HANDOVER-2026-08-24.md`) are superseded and
+each carries a banner saying what in it is wrong — read them for the testing
+doctrine and the record of wrong calls, not for the current state.
+
+**You cannot deploy.** `supabase functions deploy` is blocked by the permission
+classifier and `gh` is not installed, so workflow runs cannot be checked either.
+Say "pushed, not deployed" and give dan the command — never end a piece of work
+with a deploy block as though the change were live. And when a client change
+writes a NEW COLUMN, the migration must be applied BEFORE the push: Netlify
+deploys within a minute, and the window between would fail every save.
 
 **All data in the app is test data.** dan, 24 Aug: it "has no real value... what
 we need is for the app to work properly from now on so we can release it for
@@ -118,8 +126,18 @@ Added 24 Aug. Every one has a CONTROL that must FAIL (`--old`, exit 1):
 - `enrich-anchor-sim.js` — runs **the real body of `enrichOne`**
 - `search-namenet-sim.js` — runs **the real fallback block** of `search-library`
 - `circle-interest-seed-sim.js` — runs **the real seeding function**
+- `suggestion-filing-sim.js` — runs **the real modal and filing function**
+- `personal-category-sim.js` — runs **the real category helpers**
 - `unchecked-writes-sim.js` — source structure only, and says so in its header;
   there is no Deno or TypeScript runtime on dan's machine
+
+**A guard that passes for the wrong reason is worse than no guard.** Four did
+on 25 Aug, in a session about guards: one searched for an identifier that
+already existed in the baseline for an unrelated reason; one anchored on a
+phrase that first occurs in the comment written directly above the fix; one set
+up its own state too late and blamed the code; one asserted on a mocked value
+that is identical before and after. Check what a new assertion does against
+`--old` before believing it.
 
 **Each sim names the baseline its OWN fix was made against.** A single shared
 "original" snapshot already contains the sibling fix, and its control passes —
@@ -175,18 +193,22 @@ Everything on the 23 Aug list is resolved. Items 1 and 4 were fixed on 24 Aug
 restated below. All fifteen unchecked writes across nine edge functions were
 fixed on 24 Aug, guarded by `unchecked-writes-sim.js`. What remains:
 
-1. **`migrations/0044_identity_security_definer.sql` does not exist** in the
+1. **A circle can be `declined` and `confirmed` at once.** `handleSetInterests`
+   deletes before inserting, but the custom-interest path at
+   `web/index.html:6693` inserts without clearing. Harmless while the sweep
+   reads only `confirmed`.
+2. **`migrations/0044_identity_security_definer.sql` does not exist** in the
    working tree or in any git history, yet the previous handover says its
    statements are applied to production. Live functions may have no source in
    version control.
-2. **Nothing in the repo schedules `suggest-sweep`.** No cron migration, no
+3. **Nothing in the repo schedules `suggest-sweep`.** No cron migration, no
    `config.toml`, no `schedule:` trigger in either workflow. Something runs it
    (measured), but it lives in the Supabase dashboard where it can vanish
    silently.
-3. **Identity Tier 1 needs a discriminator** before the triggers are armed.
+4. **Identity Tier 1 needs a discriminator** before the triggers are armed.
    `primary_category` does not work — `other` is the fallback, not a category.
    Normalised name **plus exact location** gets all five live collision groups
    right. Not needed for beta.
-4. **`saveCircles` still writes the whole array.** Left deliberately: `circles`
+5. **`saveCircles` still writes the whole array.** Left deliberately: `circles`
    has no foreign key except `owner_id`, so no poison vector. Same shape, no
    known risk.

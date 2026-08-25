@@ -1,5 +1,11 @@
 # HANDOVER · 24 Aug 2026, evening
 
+> **SUPERSEDED by `HANDOVER-2026-08-25.md`. Read that first.**
+>
+> Still accurate for the 24 Aug work, and its testing doctrine and record of
+> wrong calls remain worth reading. One correction: it says four functions
+> bundle `_shared/enrich_core.ts`. It is six.
+
 **This supersedes `HANDOVER-2026-08-24.md`.** That document is still worth
 reading for the 23–24 Aug work, but three of its central claims were disproved
 today by executing. They are corrected in "What the old handover gets wrong"
