@@ -241,9 +241,12 @@ export async function aiEnrich(key: string, input: {
             "\"The Israel Museum\" is a museum. That is READING the name, not guessing. "+
             "But when the name is only a proper noun that could be anyone or anything "+
             "- \"Tony Vespa\", \"Greta\", \"Jacob\" - it tells you nothing: return kind:\"\". "+
-            "With no evidence NEVER state a location unless it is in the note, the "+
-            "question, or the name itself: return location:\"\". Claim no identity: "+
-            "a name is not a person you know things about. "+
+            "With no evidence, a LOCATION is allowed only when the name identifies "+
+            "ONE specific well-known thing: \"king david hotel\" is in Jerusalem, "+
+            "\"Avoriaz 1800\" is in France - say so. A name that could be many "+
+            "people or many places gets location:\"\", however familiar it sounds: "+
+            "\"Tony Vespa\" and \"Jacob\" are not places you know. When the note or "+
+            "the question states where it is, that always wins. "+
             "Tag only what you can justify from the name, the note and the question. An EMPTY field is "+
             "correct; a plausible guess is not. Never blend a guess with real context — "+
             "\"מתכון לקארי hair removal machine\" is the failure this rule exists to stop. "+
@@ -354,27 +357,45 @@ export async function enrichOne(key: string, input: {
   // discards a location the model invented.)
   // A LOOKUP MAY NORMALISE WHAT A PERSON SAID. IT MAY NOT CONTRADICT IT.
   //
-  // This was `ai?.location || input.location` - the model first, the person
-  // second. So a web result about an Indianapolis consultant beat a person who
-  // had typed "tel aviv", and the enrichment relocated their pizzeria to
-  // another continent. dan, 25 Aug: "the answer to a query relates to the
-  // query and that is how the app should treat it."
-  //
   //   "tel aviv" -> "Tel Aviv, Israel"          normalising. Take it.
   //   "tel aviv" -> "Indianapolis, United States" contradicting. Keep theirs.
   //
   // A contradiction is not a better answer, it is a DIFFERENT ENTITY that
   // shares the name - which is also why it cancels `resolved` below: evidence
   // about something else verifies nothing about this.
-  let location = "";
-  let contradicted = false;
-  if (anchor) {
-    const said = norm(input.location || "");
-    const got = norm(ai?.location || "");
-    const consistent = !said || !got || got.indexOf(said) > -1 || said.indexOf(got) > -1;
-    if (!consistent) contradicted = true;
-    location = (ai?.location && consistent) ? ai.location : (input.location || "");
-  }
+  //
+  // ═══ RECOGNITION IS NOT INVENTION (25 Aug, and this was measured) ═════════
+  // This whole block used to sit inside `if (anchor)`, so an item saved with
+  // nothing but a name got location "" no matter what. That was too broad, and
+  // it produced rows that contradict themselves: `king david hotel` was stored
+  // with ai_tags ["hotel","luxury","accommodation","historic","Jerusalem",
+  // "Israel","travel"] and location "". The same call recognised the place and
+  // the location was thrown away. 34 canonicals carry tags with no location.
+  //
+  // The database settles which half of the guard was doing the work. Of 18
+  // bare-name saves that got a location before the guard shipped:
+  //
+  //   verified:true  (web search / Places)   15 rows - Avoriaz, Bridger Bowl,
+  //                                          Skiers Lodge, מאפיית האחים... all
+  //                                          correct, EXCEPT the three
+  //                                          Tony Vespa -> Indianapolis rows.
+  //   verified:false (the model's own        3 rows - Fuludi -> Les Arcs,
+  //                   recognition)           hummus arafat -> Jerusalem,
+  //                                          tony vespa -> tel aviv. All right.
+  //
+  // EVERY failure was in the web-evidence path. The recognition-only path had
+  // none. So the half that matters is the anchor gate on webGround and
+  // resolvePlace above - which stays, and which is why a bare personal name
+  // still cannot reach a web search at all. Blanking the model's own answer on
+  // top of that had nothing in the data to justify it.
+  //
+  // `verified` carries the difference honestly: a recognised location with no
+  // evidence behind it is stored UNVERIFIED - we think so, we have not checked.
+  const said = norm(input.location || "");
+  const got = norm(ai?.location || "");
+  const consistent = !said || !got || got.indexOf(said) > -1 || said.indexOf(got) > -1;
+  const contradicted = !consistent;
+  let location = (ai?.location && consistent) ? ai.location : (input.location || "");
   let category = ai?.category || "other";
   const kind = ai?.kind || "";
   const tags = ai?.tags || [];

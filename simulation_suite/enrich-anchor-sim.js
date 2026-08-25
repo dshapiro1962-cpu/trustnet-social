@@ -163,10 +163,30 @@ const run = (input, selfDescribing) => {
      e.kind === 'skis', JSON.stringify(e.kind));
   ck('...so the suggestion sweep can still match it',
      !!e.kind && e.kind.length > 0, JSON.stringify(e.kind));
-  ck('...but a location it has no source for is still discarded',
-     (e.location || '') === '', JSON.stringify(e.location));
-  ck('...and it is still not stamped verified',
+
+  // RECOGNITION IS NOT INVENTION, AND THE DATABASE SETTLED IT.
+  //
+  // This used to assert that an unanchored location was DISCARDED. That was too
+  // broad: `king david hotel` was stored with ai_tags containing "Jerusalem" and
+  // "Israel" and location "" - the same call recognised the place and the answer
+  // was thrown away. 34 canonicals carry tags with no location.
+  //
+  // Of 18 bare-name saves that got a location BEFORE the guard shipped, every
+  // failure was verified:true (web search / Places) - the three Tony Vespa ->
+  // Indianapolis rows. The three verified:false rows, which are the model's own
+  // recognition, were all correct: Fuludi -> Les Arcs, hummus arafat ->
+  // Jerusalem, tony vespa -> tel aviv.
+  //
+  // So the structural guard is the ANCHOR GATE on the lookups, asserted above
+  // and below. What the model recognises from a name is kept - and kept
+  // UNVERIFIED, which is the honest state: we think so, we have not checked.
+  ck('a recognised location survives with no anchor',
+     e.location === 'Chamonix', JSON.stringify(e.location));
+  ck('...but is NOT stamped verified, because nothing confirmed it',
      e.resolved === false, String(e.resolved));
+  ck('...and no external lookup was consulted to get it',
+     groundCalls.length === 0 && placeCalls.length === 0,
+     'ground=' + groundCalls.length + ' place=' + placeCalls.length);
 
   // ── THE QUESTION FRAMES THE ANSWER ──────────────────────────────────────
   // dan: "the answer to a query relates to the query and that is how the app
