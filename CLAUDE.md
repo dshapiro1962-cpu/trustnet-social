@@ -150,6 +150,22 @@ whole table must exclude answers, or it will compare one opinion to another.
 Columns that look useful and are not: `type` is uniformly `place` on every row.
 `kind` is free text, bilingual, 43 distinct values, absent on 63 of 122.
 
+**TWO CATEGORY COLUMNS, AND THEY ANSWER DIFFERENT QUESTIONS** (0045). Getting
+this backwards is the most likely mistake in this schema:
+
+- `recommendations.category` — **yours**. Free text, per member, a USE-CASE:
+  "shabbat dinner", "quick lunch". Everything the OWNER sees goes through
+  `recCategory(rec, can)` in the client: their word if they set one, the
+  canonical's shared type if not.
+- `canonicals.primary_category` — **shared**. One of eight, a TYPE. Invisible
+  to the owner. Exists only so suggestions and taste-match have something
+  comparable across accounts.
+
+Display and filtering for the owner → `recommendations.category`. Anything that
+crosses accounts → `canonicals.primary_category`. Never the other way round.
+`other` is not a category, it is the fallback — which is why it failed as an
+identity discriminator on 24 Aug.
+
 ---
 
 ## Known broken, in priority order

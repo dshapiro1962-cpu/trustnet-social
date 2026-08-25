@@ -1406,10 +1406,6 @@ async function loadUserData() {
     recommendedBy: r.recommended_by_member_id || r.recommended_by_user_id || CURRENT_UID,
     queryId:r.query_id,
     sourceLabel: r.source_label || '',
-    // YOUR category (0045), not the canonical's. Free text, a use-case rather
-    // than a type. Empty means you have not said, and display falls back to
-    // the canonical's shared primary_category.
-    category: r.category || '',
     note:r.note||'', rating:r.rating||0, tags:r.tags||[], status:r.status||'saved', isAnonymous:!!r.is_anonymous, sharedToNetwork:!!r.shared_to_network,
     degree:r.degree||1, date:r.rec_date, createdAt:r.created_at || r.rec_date || '' }; });
 
@@ -1453,10 +1449,6 @@ async function loadUserData() {
   // not evidence", which is about never classifying someone ELSE'S item by the
   // folder they filed it in. That law still holds and is untouched.
   await seedCircleInterestsFromNames();
-  // Fill in the categories you have effectively already chosen. After the
-  // circle seeding because both write, and a failure in either must not stop
-  // the other.
-  await applyLearnedCategories();
 }
 
 // Derives interests from the circle's own name and description, through the
@@ -1673,7 +1665,6 @@ async function saveRecs(ids) {
       })(),
       recommended_by_user_id: r.recommendedByUser
         || (r.recommendedBy === CURRENT_UID ? CURRENT_UID : null),
-      category:r.category||null,
       note:r.note||null, rating:r.rating||null, tags:r.tags||[], status:r.status||'saved',
       is_anonymous:!!r.isAnonymous, shared_to_network:!!r.sharedToNetwork, degree:r.degree||1, rec_date:r.date||null }; });
     const res = await sb.from('recommendations').upsert(rows);
@@ -1807,7 +1798,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.75.0 · live';
+const APP_VERSION = 'v0.74.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
@@ -3554,123 +3545,14 @@ function tnTile(name, cat, imageUrl, px) {
   if (imageUrl && /^https?:\/\//i.test(imageUrl)) {
     return '<div class="tn-tile" style="width:' + size + 'px;height:' + size + 'px;background-image:url(&quot;' + esc(imageUrl) + '&quot;);"></div>';
   }
-  const h = catHue(cat);
+  const h = CAT_HUES[cat] || CAT_HUES.other;
   const letter = String(name || '?').trim().charAt(0).toUpperCase() || '?';
   return '<div class="tn-tile" style="width:' + size + 'px;height:' + size + 'px;background:' + h.bg + ';color:' + h.fg + ';font-size:' + Math.round(size * 0.44) + 'px;">' + esc(letter) + '</div>';
 }
 
-// THE ONE PLACE THAT DECIDES WHICH CATEGORY THE OWNER SEES.
-// Yours if you have set one; the canonical's shared type if you have not.
-// Everything shown to the OWNER goes through here. Cross-account matching -
-// suggestions, the sweep, taste-match - must keep using
-// canonicals.primary_category and must never call this. See 0045.
-function recCategory(rec, can) {
-  if (rec && rec.category) return rec.category;
-  const c = can || (rec ? AppState.canonicalById(rec.canonicalId) : null);
-  return (c && c.primaryCategory) || '';
-}
-
-// Every category the owner actually uses, most-used first. Feeds the filter row
-// and the autocomplete - a free field fragments into "coffee", "cafes" and
-// "coffee shops" unless it keeps offering you what you already chose.
-function ownCategories() {
-  const seen = {};
-  (AppState.userRecs || []).forEach(function(r) {
-    const c = recCategory(r, null);
-    if (c) seen[c] = (seen[c] || 0) + 1;
-  });
-  return Object.keys(seen).sort(function(a, b) { return seen[b] - seen[a]; });
-}
-
-// LEARNED FROM YOU, NEVER INVENTED.
-//
-// When you file Caffe Tamati as "coffee", its kind ("coffee shop") resolves
-// through the shared vocabulary to `cafe`. So the app learns cafe -> coffee
-// from you, without being asked. The next thing whose kind resolves to `cafe`
-// files as "coffee" on its own.
-//
-// It can only ever propose a category YOU have already used, for a kind you
-// have already used it for. It never invents one, and where you have been
-// inconsistent it takes the one you used most.
-//
-// WHY NOT IN THE LIBRARIAN, where this was first described: the librarian
-// writes CANONICALS, which are shared. Your category lives on the
-// recommendation, which is yours. A shared-row writer setting a per-member
-// field would put your word on everyone's copy - the exact confusion 0045
-// exists to end. So it lives here, in the client, which is the only place that
-// knows what YOU have called things.
-function learnedCategoryMap() {
-  const counts = {};                       // interest -> { category -> n }
-  (AppState.userRecs || []).forEach(function(r) {
-    if (!r.category) return;
-    const can = AppState.canonicalById(r.canonicalId);
-    if (!can || !can.kind) return;
-    interestsForKind(can.kind).forEach(function(i) {
-      if (!counts[i]) counts[i] = {};
-      counts[i][r.category] = (counts[i][r.category] || 0) + 1;
-    });
-  });
-  const map = {};
-  Object.keys(counts).forEach(function(i) {
-    let best = '', bestN = 0;
-    Object.keys(counts[i]).forEach(function(c) {
-      if (counts[i][c] > bestN) { best = c; bestN = counts[i][c]; }
-    });
-    // TWO EXAMPLES, NOT ONE. A single idiosyncratic filing - one falafel place
-    // put in "shabbat dinner" - must not become a rule applied to every
-    // restaurant you ever save.
-    if (best && bestN >= 2) map[i] = best;
-  });
-  return map;
-}
-
-function proposeCategory(can, map) {
-  if (!can || !can.kind) return '';
-  const m = map || learnedCategoryMap();
-  const hits = interestsForKind(can.kind);
-  for (const i of hits) { if (m[i]) return m[i]; }
-  return '';
-}
-
-// Runs once per load, like the circle-interest seeding. It cannot run at the
-// moment an item is created, because the kind it reasons about does not exist
-// yet - the librarian returns it asynchronously, after the save.
-async function applyLearnedCategories() {
-  if (!CURRENT_UID || AppState.isDemoMode || AppState.dataLoadFailed) return 0;
-  const map = learnedCategoryMap();
-  if (!Object.keys(map).length) return 0;
-  const touched = [];
-  (AppState.userRecs || []).forEach(function(r) {
-    if (r.category) return;                // you have spoken; never overrule it
-    const proposed = proposeCategory(AppState.canonicalById(r.canonicalId), map);
-    if (proposed) { r.category = proposed; touched.push(r.id); }
-  });
-  if (!touched.length) return 0;
-  try { await saveRecs(touched); }
-  catch (e) { console.error('applyLearnedCategories', e); return 0; }
-  return touched.length;
-}
-
-// A category you invented still needs a colour, and it must be the SAME colour
-// on every render or the library flickers. Hashed, never random.
-const CAT_HUE_POOL = [
-  { fg:'#B84A0B', bg:'#FBEFE6' }, { fg:'#2B5FA3', bg:'#E9F0FA' },
-  { fg:'#B0325B', bg:'#FAEAF0' }, { fg:'#6B4FA3', bg:'#F0EBFA' },
-  { fg:'#8A6D1A', bg:'#FAF4E1' }, { fg:'#1F8A70', bg:'#E6F5F0' },
-  { fg:'#3D4F46', bg:'#ECF1EE' }, { fg:'#A8442A', bg:'#FBEDE9' }
-];
-function catHue(cat) {
-  if (CAT_HUES[cat]) return CAT_HUES[cat];
-  const str = String(cat || '');
-  if (!str) return CAT_HUES.other;
-  let h = 0;
-  for (let i = 0; i < str.length; i++) h = ((h << 5) - h + str.charCodeAt(i)) | 0;
-  return CAT_HUE_POOL[Math.abs(h) % CAT_HUE_POOL.length];
-}
-
 function catChipSmall(cat) {
   if (!cat) return '';
-  const h = catHue(cat);
+  const h = CAT_HUES[cat] || CAT_HUES.other;
   return '<span class="cat-chip" style="color:' + h.fg + ';background:' + h.bg + ';">' + esc(domainLabel(cat)) + '</span>';
 }
 
@@ -3686,7 +3568,7 @@ function libFilterRecs() {
     const can = AppState.canonicalById(rec.canonicalId);
     if (!can) return false;
     if (filter !== 'all' && rec.circleId !== filter) return false;
-    if (catFilter !== 'all' && (recCategory(rec, can) || 'other') !== catFilter) return false;
+    if (catFilter !== 'all' && (can.primaryCategory || 'other') !== catFilter) return false;
     if (search) {
       // ═══ ONE AUTHORITY (v0.37.0) ═══════════════════════════════════════════
       // The old arm substring-matched over notes, tags and categories and
@@ -4189,18 +4071,6 @@ function modalEditRec(params) {
     + '<div class="field"><div class="field-label">LOCATION</div><input class="field-input" id="er-loc" dir="auto" maxlength="80" value="' + esc(can.location || '') + '"></div>'
     + '</div>'
     + '<div class="field"><div class="field-label">NOTE</div><textarea class="field-input field-textarea" id="er-note" dir="auto" style="min-height:70px;">' + esc(rec.note || '') + '</textarea></div>'
-    // YOUR CATEGORY. Free text, with a datalist of the ones you already use so
-    // the field does not fragment. The placeholder shows what the app would
-    // call it, so leaving it empty is an informed choice rather than a blank.
-    + '<div class="field"><div class="field-label">YOUR CATEGORY</div>'
-    + '<input class="field-input" id="er-mycat" dir="auto" maxlength="40" style="width:100%;"'
-    + ' list="er-mycat-list" placeholder="' + esc(can.primaryCategory ? domainLabel(can.primaryCategory) : 'e.g. shabbat dinner') + '"'
-    + ' value="' + esc(rec.category || '') + '">'
-    + '<datalist id="er-mycat-list">'
-    + ownCategories().map(function(c) { return '<option value="' + esc(c) + '">'; }).join('')
-    + '</datalist>'
-    + '<div style="font-size:11px;color:#7A9086;margin-top:4px;line-height:1.4;">'
-    + 'Yours alone \u2014 name it however you think of it.</div></div>'
     + '<div class="field"><div class="field-label">TAGS (comma-separated)</div><input class="field-input" id="er-tags" dir="auto" style="width:100%;" value="' + esc((rec.tags || []).join(', ')) + '"></div>'
     + '<div class="field"><div class="field-label">CIRCLE</div><select class="field-input" id="er-circle" style="width:100%;">' + circleOpts + '</select></div>'
     + '<button class="btn btn-primary" data-action="save-edit-rec" data-rec-id="' + esc(rec.id) + '" style="width:100%;justify-content:center;">Save changes</button>'
@@ -4217,7 +4087,6 @@ async function handleSaveEditRec(btn) {
   can.category = ((document.getElementById('er-cat') || {}).value || '').trim();
   can.location = ((document.getElementById('er-loc') || {}).value || '').trim();
   rec.note = ((document.getElementById('er-note') || {}).value || '').trim();
-  rec.category = ((document.getElementById('er-mycat') || {}).value || '').trim();
   rec.tags = (((document.getElementById('er-tags') || {}).value || '')).split(',').map(function(t) { return t.trim(); }).filter(Boolean);
   rec.circleId = ((document.getElementById('er-circle') || {}).value || '');
   btn.disabled = true;
@@ -4682,26 +4551,20 @@ function renderLibrary() {
   // category tabs: only categories that actually exist in the library
   const catsPresent = [];
   allRecs.forEach(function(r) {
-    const c = recCategory(r, AppState.canonicalById(r.canonicalId));
+    const can = AppState.canonicalById(r.canonicalId);
+    const c = can && can.primaryCategory ? can.primaryCategory : null;
     if (c && catsPresent.indexOf(c) < 0) catsPresent.push(c);
   });
-  // The eight keep their old order because they are familiar; anything you
-  // invented follows, alphabetically. Sorting the whole list alphabetically
-  // would reshuffle a row people have learned the shape of.
-  const CAT_ORDER = ['dining','travel','healthcare','home','culture','hobbies','professional','other'];
   catsPresent.sort(function(a, b) {
-    const ia = CAT_ORDER.indexOf(a), ib = CAT_ORDER.indexOf(b);
-    if (ia > -1 && ib > -1) return ia - ib;
-    if (ia > -1) return -1;
-    if (ib > -1) return 1;
-    return a.localeCompare(b);
+    const order = ['dining','travel','healthcare','home','culture','hobbies','professional','other'];
+    return order.indexOf(a) - order.indexOf(b);
   });
   const catBar = catsPresent.length
     ? '<div class="filter-bar" style="margin-top:-6px;">'
       + '<span class="filter-row-label">Type:</span>'
       + '<button class="filter-chip cat-tab' + (catFilter === 'all' ? ' active' : '') + '" data-action="set-cat-filter" data-cat="all">All</button>'
       + catsPresent.map(function(c) {
-        const h = catHue(c);
+        const h = CAT_HUES[c] || CAT_HUES.other;
         const isActive = catFilter === c;
         return '<button class="filter-chip cat-tab' + (isActive ? ' active' : '') + '" data-action="set-cat-filter" data-cat="' + esc(c) + '" style="'
           + (isActive ? '' : 'color:' + h.fg + ';border-left:3px solid ' + h.fg + ';') + '">' + esc(domainLabel(c)) + '</button>';
@@ -4778,7 +4641,7 @@ function recCardHtml(rec, clickable, opts) {
     + (rec.note ? '<div class="rec-note">' + esc(rec.note) + '</div>' : '')
     + ((opts && opts.group) ? libQuestionLineHtml(opts.group) : '')
     + '<div class="rec-footer">'
-    + catChipSmall(recCategory(rec, can))
+    + catChipSmall(can.primaryCategory)
     + ((opts && opts.group) ? libCircleLabelHtml(opts.group) : '')
     + (rec.rating ? stars(rec.rating) : '')
     + (recommender ? '<span class="rec-by">via ' + esc(recommender.name) + '</span>' : (rec.isAnonymous ? '<span class="rec-by">Anonymous (D2)</span>' : ''))
