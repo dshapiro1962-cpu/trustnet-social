@@ -260,42 +260,6 @@ html, body { max-width: 100%; overflow-x: hidden; }
   overflow: hidden; min-width: 0;
 }
 
-/* BETA, WHERE IT CANNOT SCROLL AWAY (v0.81.0).
-
-   #main is a flex column. This strip and .topbar are both flex-shrink:0;
-   .view-body underneath is the ONLY thing that scrolls. So the marker is on
-   screen on every view at every scroll position, phone included - which
-   #home-version, sitting at the foot of renderHome(), never was.
-
-   It carries APP_VERSION, so confirming a deploy no longer means scrolling to
-   the bottom of Home. That marker has now been in three places, each unreadable
-   on the device it was checked on: #sidebar, hidden under 768px; Profile,
-   unreachable because its nav entry sits under #mobile-tabbar; and the foot of
-   Home, which needs a scroll. This one needs nothing. */
-#beta-strip {
-  flex-shrink: 0;
-  /* TOPMOST ELEMENT, SO IT OWNS THE TOP INSET. `apple-mobile-web-app-capable`
-     is yes: added to a home screen this runs standalone and the status bar
-     overlays the top of the page, which would put a 24px strip entirely
-     underneath it. Same box-sizing + min-height + height:auto shape as
-     #mobile-tabbar below — a fixed height plus safe-area padding is what
-     doubled that bar once already. In a browser the inset is 0 and nothing
-     moves. */
-  box-sizing: border-box;
-  min-height: 24px; height: auto;
-  padding-top: env(safe-area-inset-top, 0px);
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  background: #FFF3D6; background: var(--amber-light);
-  border-bottom: 1px solid #E8A020; border-bottom: 1px solid var(--amber);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-family: var(--font-ui);
-  font-size: 11px; line-height: 1;
-  color: #A0600A;
-  -webkit-user-select: none; user-select: none;
-}
-#beta-strip-tag { font-weight: 800; letter-spacing: 0.1em; }
-#beta-strip-ver { font-weight: 600; letter-spacing: 0.02em; opacity: 0.75; }
-
 .topbar {
   height: 56px; flex-shrink: 0;
   background: #fff;
@@ -1050,7 +1014,6 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
 
   <!-- Main content -->
   <div id="main">
-    <div id="beta-strip"><span id="beta-strip-tag">BETA</span><span id="beta-strip-ver"></span></div>
     <div class="topbar">
       <div class="topbar-title" id="topbar-title">Home</div>
       <div id="topbar-actions"></div>
@@ -1885,11 +1848,8 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.81.0 · live';
+const APP_VERSION = 'v0.80.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
-// The strip is the version marker now. Static "BETA" cannot break; the version
-// is driven by the constant so a bump can never silently stop showing.
-(function(){ var e = document.getElementById('beta-strip-ver'); if (e) e.textContent = APP_VERSION; })();
 
 function showView(name, params) {
   if (name !== 'inbox') AppState._inboxPrevSeen = null;
@@ -2204,10 +2164,20 @@ function renderHome() {
     +     '<div style="color:#7A9086;font-size:16px;flex:none;">\u203A</div>'
     +   '</button>'
     + '</div>'
-    // #home-version REMOVED (v0.81.0). The version moved to #beta-strip,
-    // which sits above .view-body and so cannot be scrolled past. Two
-    // copies of one fact is how they drift; the CSS there records why
-    // this marker took three attempts to place.
+    // THE VERSION MARKER LIVES ON HOME. It was in #sidebar, which
+    // `@media (max-width:768px){#sidebar{display:none!important}}` hides on
+    // every phone — so for four releases "check the footer reads vX" was a
+    // verification step that COULD NOT RENDER on the device it was checked on,
+    // and it was treated as proof a deploy had landed.
+    //
+    // It was then moved to Profile, which is WORSE: #mobile-tabbar (the bar
+    // actually visible on a phone) offers Home, Circles, Inbox and Library
+    // only. The Profile entry is in #mobile-nav, the second bottom bar, which
+    // sits at z-index 50 underneath and is completely covered. Profile is
+    // unreachable from a phone. Home is the one screen that always opens.
+    // (v0.70.0)
+    + '<div id="home-version" style="font-size:10px;color:#7A9086;text-align:center;padding:20px 0 4px;">'
+      + esc(APP_VERSION) + '</div>'
     + '</div>';
 }
 
