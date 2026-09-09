@@ -127,7 +127,7 @@ Deno.serve(async (req: Request) => {
     //      same place in the same group still gets through. Skipping a real
     //      recommendation is a silent loss; a visible duplicate can be deleted.
     const { data: mine } = await admin
-      .from("recommendations").select("id, canonical_id, source_label, note").eq("owner_id", userId);
+      .from("recommendations").select("canonical_id, source_label, note").eq("owner_id", userId);
     // NORMALISED, BECAUSE THE EXTRACTOR IS AN LLM AND REWRITES ITSELF.
     // dan re-imported the same chat on 9 Sep and every item saved a second
     // time:
@@ -149,15 +149,9 @@ Deno.serve(async (req: Request) => {
       .replace(/\s+/g, " ").trim();
     const dedupKey = (canId: string, src: string, note: string) =>
       canId + "\u0000" + (src || "").toLowerCase().trim() + "\u0000" + normNote(note);
-    // KEY -> THE RECOMMENDATION I ALREADY HOLD. This was a Set, which could
-    // answer "do I have this?" but not "which one is it?" - and the collection
-    // needs the id. See the skip below for why that matters.
-    const haveId = new Map<string, string>();
-    for (const r of (mine ?? []) as any[]) {
-      if (!r.canonical_id) continue;
-      const k = dedupKey(r.canonical_id, r.source_label, r.note);
-      if (!haveId.has(k)) haveId.set(k, r.id);
-    }
+    const have = new Set((mine ?? [])
+      .filter((r: any) => r.canonical_id)
+      .map((r: any) => dedupKey(r.canonical_id, r.source_label, r.note)));
 
     const today = new Date().toISOString().slice(0, 10);
     const sourceLabel = "\u05e7\u05d1\u05d5\u05e6\u05ea \u05d5\u05d5\u05d0\u05d8\u05e1\u05d0\u05e4 \u00b7 " + source;
@@ -206,25 +200,8 @@ Deno.serve(async (req: Request) => {
       }
 
       // ── 2. do I already have THIS note from THIS chat about it? ────────────
-      //
-      // ALREADY MINE IS STILL PART OF THE LIST (9 Sep). The collection was
-      // built from what got INSERTED, so everything skipped fell out of it.
-      // That was invisible while the dedup barely worked - a one-character
-      // rewrite by the model made almost every item look new. The moment the
-      // key was normalised the flaw surfaced in full: dan deleted a
-      // collection, re-imported the same chat to rebuild it, and got a list of
-      // ONE, because 22 of the 23 things were already in his library and were
-      // correctly skipped and wrongly omitted.
-      //
-      // A shareable list is what the owner SELECTED. Whether a row happened to
-      // exist already is an implementation detail of his library, and it must
-      // not decide what his neighbours get to see.
-      const alreadyId = canonicalId
-        ? haveId.get(dedupKey(canonicalId, sourceLabel, note))
-        : undefined;
-      if (alreadyId) {
+      if (canonicalId && have.has(dedupKey(canonicalId, sourceLabel, note))) {
         skipped++;
-        if (recIds.indexOf(alreadyId) < 0) recIds.push(alreadyId);
         continue;
       }
 
