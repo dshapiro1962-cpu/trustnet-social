@@ -11,11 +11,12 @@ Live at trustnetsocial.netlify.app. Postgres on Supabase, project
 
 ## Start here
 
-Read `docs/HANDOVER-2026-08-25.md` before touching anything. It records what is
-live, what was fixed, and what is still open. The two earlier handovers
-(`HANDOVER-2026-08-24-evening.md`, `HANDOVER-2026-08-24.md`) are superseded and
-each carries a banner saying what in it is wrong — read them for the testing
-doctrine and the record of wrong calls, not for the current state.
+Read `docs/HANDOVER-2026-09-09.md` before touching anything. It records what is
+live, what was fixed, and what is still open. The three earlier handovers
+(`HANDOVER-2026-08-25.md`, `HANDOVER-2026-08-24-evening.md`,
+`HANDOVER-2026-08-24.md`) are superseded and each carries a banner saying what
+in it is wrong — read them for the testing doctrine and the record of wrong
+calls, not for the current state.
 
 **You cannot deploy.** `supabase functions deploy` is blocked by the permission
 classifier and `gh` is not installed, so workflow runs cannot be checked either.
@@ -143,6 +144,18 @@ Added 24 Aug. Every one has a CONTROL that must FAIL (`--old`, exit 1):
 - `unchecked-writes-sim.js` — source structure only, and says so in its header;
   there is no Deno or TypeScript runtime on dan's machine
 
+Added 25–26 Aug, same rule:
+
+- `inbox-state-sim.js` — runs **the real save path**, asserting the RPC result
+- `item-facts-sim.js` — runs **the real `canonFacts` / `itemFactsText`**
+- `field-contract-sim.js` — the contract, checked against every reader
+- `circle-place-sim.js` — runs **the real `placeFits` lifted from the sweep**
+- `beta-strip-sim.js` — executes the wiring; position asserted structurally
+
+**13 sims, 245 assertions, all green with all controls failing** (9 Sep). The
+other 52 files in that directory do not run on this machine — 17 open a
+container path that does not exist here. It is 13 live sims inside an archive.
+
 **A guard that passes for the wrong reason is worse than no guard.** Four did
 on 25 Aug, in a session about guards: one searched for an identifier that
 already existed in the baseline for an unrelated reason; one anchored on a
@@ -213,10 +226,13 @@ fixed on 24 Aug, guarded by `unchecked-writes-sim.js`. What remains:
    working tree or in any git history, yet the previous handover says its
    statements are applied to production. Live functions may have no source in
    version control.
-3. **Nothing in the repo schedules `suggest-sweep`.** No cron migration, no
-   `config.toml`, no `schedule:` trigger in either workflow. Something runs it
-   (measured), but it lives in the Supabase dashboard where it can vanish
-   silently.
+3. **The sweep schedule is not in the repo.** Identified 9 Sep: a **pg_cron**
+   job, `suggest-sweep`, `*/5 * * * *`, active, 8,328 dispatches — not a
+   dashboard setting. Transcribing it into a migration must read the
+   service_role key from Vault; the live `cron.job.command` embeds it in
+   plaintext. Also raise `timeout_milliseconds` while doing it: **30.6% of
+   dispatches time out at `pg_net`'s 5s limit** on an idle database (measured,
+   9 Sep).
 4. **Identity Tier 1 needs a discriminator** before the triggers are armed.
    `primary_category` does not work — `other` is the fallback, not a category.
    Normalised name **plus exact location** gets all five live collision groups
