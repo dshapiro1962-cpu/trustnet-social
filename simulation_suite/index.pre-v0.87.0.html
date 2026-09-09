@@ -1902,7 +1902,7 @@ function statusDot(status) {
 // Accounts created from this moment onward are asked for their name; the
 // four who joined before it were named by hand and are left alone.
 const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
-const APP_VERSION = 'v0.87.0 · live';
+const APP_VERSION = 'v0.86.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -4634,27 +4634,28 @@ function modalShareRec(params) {
   }).map(function(m) {
     const circle = AppState.circleById(m.circleId);
     const text = recShareText(rec, can);
-    // TICK SEVERAL, SEND ONCE (v0.87.0). dan: "i want the option to send an
-    // item from the library to more than one person at once."
-    //
-    // The per-row button is gone and the channel becomes a LABEL. Which
-    // channel someone is on still decides what happens on send — in-app goes
-    // server-side in one press, WhatsApp and email each open another app and
-    // need a tap of their own — but that is the sender's business at the
-    // moment of sending, not a decision to make once per row.
-    let channel = 'none', chLabel = 'no contact';
-    if (m.linkedUserId) { channel = 'app'; chLabel = 'in app'; }
-    else if (m.contactMethod === 'whatsapp' && m.contactValue) { channel = 'whatsapp'; chLabel = 'WhatsApp'; }
-    else if (m.contactMethod === 'email' && m.contactValue) { channel = 'email'; chLabel = 'Email'; }
+    let action;
+    // IN-APP FIRST (v0.53.0). A member who is on Trustnet was previously treated
+    // exactly like a stranger with an email address — the dialog had only two
+    // branches, wa.me and mailto, both external, and the link in the message
+    // went to Trustnet generally with NO reference to the item. Sending in the
+    // app puts it in their Inbox, about the actual thing, with one tap to keep.
+    if (m.linkedUserId) {
+      action = '<button class="btn btn-primary btn-sm" data-action="send-rec-in-app"'
+        + ' data-rec-id="' + esc(rec.id) + '" data-member-id="' + esc(m.id) + '">Send in app</button>';
+    } else if (m.contactMethod === 'whatsapp' && m.contactValue) {
+      const ph = String(m.contactValue).replace(/[^0-9]/g, '');
+      action = '<a class="btn btn-primary btn-sm" style="text-decoration:none;" target="tn_ext" rel="noopener" href="https://wa.me/' + esc(ph) + '?text=' + encodeURIComponent(text) + '">WhatsApp</a>';
+    } else if (m.contactMethod === 'email' && m.contactValue) {
+      action = '<a class="btn btn-secondary btn-sm" style="text-decoration:none;" href="mailto:' + esc(m.contactValue) + '?subject=' + encodeURIComponent('\u05d4\u05de\u05dc\u05e6\u05d4 \u05d1\u05e9\u05d1\u05d9\u05dc\u05da: ' + can.name) + '&body=' + encodeURIComponent(text) + '">Email</a>';
+    } else {
+      action = '<span style="font-size:10.5px;color:#A8BDAF;">no direct contact</span>';
+    }
     return '<div class="sr-row" style="display:flex;align-items:center;gap:9px;padding:8px 4px;border-bottom:1px solid #F0F5F1;" data-name="' + esc((m.name + ' ' + (circle ? circle.name : '')).toLowerCase()) + '">'
-      + '<input type="checkbox" class="sr-cb" data-member-id="' + esc(m.id) + '"'
-      + ' data-channel="' + channel + '"' + (channel === 'none' ? ' disabled' : '')
-      + ' style="width:18px;height:18px;flex:none;accent-color:#217A4B;'
-      + (channel === 'none' ? 'opacity:.35;' : 'cursor:pointer;') + '">'
       + avatarEl(m, 'sm')
       + '<span style="flex:1;min-width:0;"><b dir="auto" style="font-size:13px;">' + esc(m.name) + '</b>'
       + '<span style="display:block;font-size:10.5px;color:#7A9086;">' + esc(circle ? circle.name : '') + '</span></span>'
-      + '<span style="font-size:10.5px;color:#7A9086;flex:none;">' + esc(chLabel) + '</span>'
+      + action
       + '</div>';
   }).join('');
   return '<div class="modal" style="max-width:460px;">'
@@ -4663,20 +4664,9 @@ function modalShareRec(params) {
     + '<button class="modal-close" data-action="close-modal">\u00d7</button></div>'
     + '<div class="modal-body">'
     + '<input class="field-input" id="sr-search" dir="auto" placeholder="Search members\u2026" style="width:100%;margin-bottom:8px;">'
-    + '<div style="display:flex;justify-content:flex-end;margin-bottom:6px;">'
-    + '<button class="btn btn-ghost btn-sm" data-action="sr-select-all" style="font-size:11.5px;">Select all</button>'
-    + '</div>'
     + '<div style="max-height:300px;overflow-y:auto;border:1px solid #E5EDE8;border-radius:10px;padding:2px 8px;">'
     + (rows || '<div style="padding:12px;font-size:12px;color:#7A9086;">No members yet \u2014 add people to a circle first.</div>')
-    + '</div>'
-    // THE LIST SCROLLS, THIS DOES NOT. With a long list you would otherwise
-    // have to scroll to the end to find the button; ticking three people near
-    // the top and pressing send should not require going anywhere.
-    + '<button class="btn btn-primary" id="sr-send" data-action="send-rec-multi"'
-    + ' data-rec-id="' + esc(rec.id) + '" disabled'
-    + ' style="width:100%;justify-content:center;margin-top:12px;opacity:.5;">Send</button>'
-    + '<div id="sr-result" style="font-size:12px;color:#56695F;line-height:1.6;margin-top:10px;"></div>'
-    + '</div></div>';
+    + '</div></div></div>';
 }
 
 function modalEditCircle(params) {
@@ -7207,114 +7197,6 @@ async function handleAddExistingPerson(btn) {
 // nothing enters a library without its owner. Reusing the queue rather than
 // inventing a second delivery mechanism means one surface to maintain and one
 // place a user has to look.
-// The button counts what is ticked, so the number on it is the number of
-// people who will receive this. Nothing else on the screen carries that.
-function srUpdateSendButton() {
-  const btn = document.getElementById('sr-send');
-  if (!btn) return;
-  const n = document.querySelectorAll('.sr-cb:checked').length;
-  btn.disabled = n === 0;
-  btn.style.opacity = n === 0 ? '.5' : '1';
-  btn.textContent = n === 0 ? 'Send'
-    : (n === 1 ? 'Send to 1 person' : 'Send to ' + n + ' people');
-}
-
-// SELECT ALL MEANS ALL THAT ARE SHOWING. If a search has narrowed the list,
-// ticking everything must mean everything you can see, not everyone you have
-// ever known. Rows already ticked and now hidden by the search stay ticked -
-// they were chosen deliberately and a filter is not a decision.
-function srSelectAll() {
-  const rows = document.querySelectorAll('.sr-row');
-  let anyUnticked = false;
-  rows.forEach(function(row) {
-    if (row.style.display === 'none') return;
-    const cb = row.querySelector('.sr-cb');
-    if (cb && !cb.disabled && !cb.checked) anyUnticked = true;
-  });
-  rows.forEach(function(row) {
-    if (row.style.display === 'none') return;
-    const cb = row.querySelector('.sr-cb');
-    if (cb && !cb.disabled) cb.checked = anyUnticked;
-  });
-  srUpdateSendButton();
-}
-
-// SEND TO EVERYONE TICKED (v0.87.0).
-//
-// The in-app recipients go in one press, through the same RPC the single-send
-// button used. WhatsApp and email cannot: each opens another application, and
-// a browser can only hand off once per gesture. So they are not pretended to
-// be sent - they come back as a short list of one-tap links, and the result
-// line says exactly what happened to whom.
-async function handleSendRecMulti(btn) {
-  const rec = AppState.userRecs.find(function(r) { return r.id === btn.dataset.recId; });
-  const can = rec ? AppState.canonicalById(rec.canonicalId) : null;
-  if (!rec || !can) return;
-  const boxes = Array.prototype.slice.call(document.querySelectorAll('.sr-cb:checked'));
-  if (!boxes.length) return;
-  const out = document.getElementById('sr-result');
-  const memberOf = function(b) {
-    return AppState.userMembers.find(function(m) { return m.id === b.dataset.memberId; });
-  };
-
-  btn.disabled = true;
-  btn.textContent = 'Sending…';
-
-  const sent = [], already = [], failed = [];
-  for (const b of boxes.filter(function(x) { return x.dataset.channel === 'app'; })) {
-    const m = memberOf(b);
-    if (!m) continue;
-    try {
-      const r = await sb.rpc('send_rec_to_member', { p_rec_id: rec.id, p_member_id: m.id });
-      if (r.error) { failed.push(m.name); continue; }
-      const res = r.data || {};
-      if (res.ok) { sent.push(m.name); b.checked = false; }
-      else if (res.error === 'already_sent' || res.error === 'already_in_their_library') already.push(m.name);
-      else failed.push(m.name);
-    } catch (e) {
-      console.error('send_rec_to_member failed for', m.name, e);
-      failed.push(m.name);
-    }
-  }
-
-  // The ones a browser cannot send for you, as links rather than as a failure.
-  const text = recShareText(rec, can);
-  const manual = boxes.filter(function(x) { return x.dataset.channel !== 'app'; })
-    .map(function(b) {
-      const m = memberOf(b);
-      if (!m) return '';
-      if (m.contactMethod === 'whatsapp') {
-        const ph = String(m.contactValue || '').replace(/[^0-9]/g, '');
-        return '<a class="btn btn-primary btn-sm" style="text-decoration:none;margin:3px 4px 0 0;" target="tn_ext" rel="noopener" href="https://wa.me/'
-          + esc(ph) + '?text=' + encodeURIComponent(text) + '">WhatsApp ' + esc(m.name) + '</a>';
-      }
-      return '<a class="btn btn-secondary btn-sm" style="text-decoration:none;margin:3px 4px 0 0;" href="mailto:'
-        + esc(m.contactValue || '') + '?subject=' + encodeURIComponent('\u05d4\u05de\u05dc\u05e6\u05d4 \u05d1\u05e9\u05d1\u05d9\u05dc\u05da: ' + can.name)
-        + '&body=' + encodeURIComponent(text) + '">Email ' + esc(m.name) + '</a>';
-    }).join('');
-
-  let html = '';
-  if (sent.length) {
-    html += '<div style="color:#1A5235;font-weight:700;">✓ Sent to '
-      + sent.length + (sent.length === 1 ? ' person' : ' people') + '</div>';
-  }
-  if (already.length) {
-    html += '<div style="color:#7A9086;">' + esc(already.join(', '))
-      + (already.length === 1 ? ' already had it.' : ' already had it.') + '</div>';
-  }
-  if (failed.length) {
-    html += '<div style="color:#C0392B;">Could not send to ' + esc(failed.join(', ')) + '.</div>';
-  }
-  if (manual) {
-    html += '<div style="margin-top:6px;">These open on your phone — one tap each:</div>'
-      + '<div style="display:flex;flex-wrap:wrap;">' + manual + '</div>';
-  }
-  if (out) out.innerHTML = html || '<div style="color:#7A9086;">Nothing to send.</div>';
-
-  srUpdateSendButton();
-  if (sent.length) { try { await loadUserData(); } catch (e) { /* view only */ } }
-}
-
 async function handleSendRecInApp(btn) {
   const rec = AppState.userRecs.find(function(r) { return r.id === btn.dataset.recId; });
   const member = AppState.userMembers.find(function(m) { return m.id === btn.dataset.memberId; });
@@ -8387,11 +8269,6 @@ async function handleConfirmAddReciprocal(recipId, circleChoice) {
    ═══════════════════════════════════════════════ */
 
 document.addEventListener('click', function(e) {
-  // A tick carries no data-action: it changes a count, it does not do anything.
-  if (e.target && e.target.classList && e.target.classList.contains('sr-cb')) {
-    srUpdateSendButton();
-    return;
-  }
   const target = e.target.closest('[data-action]');
   if (!target) return;
   const action = target.dataset.action;
@@ -8593,12 +8470,6 @@ document.addEventListener('click', function(e) {
         toast(nameWas + ' removed.');
       })();
     }
-  }
-  else if (action === 'sr-select-all') {
-    srSelectAll();
-  }
-  else if (action === 'send-rec-multi') {
-    handleSendRecMulti(target);
   }
   else if (action === 'send-rec-in-app') {
     handleSendRecInApp(target);
