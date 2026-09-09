@@ -3,9 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- The list is for the people given the link, not for search. It carries
-     tradespeople's working numbers; the group they came from is private. -->
-<meta name="robots" content="noindex, nofollow">
 <title>Trustnet — Shared list</title>
 <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
@@ -27,9 +24,6 @@ body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Heebo",Ar
 .thumb { width:52px; height:52px; border-radius:11px; flex-shrink:0; background:#EAF3ED; display:flex; align-items:center; justify-content:center; font-size:24px; background-size:cover; background-position:center; }
 .item-name { font-size:15px; font-weight:800; color:#14201A; }
 .item-loc { font-size:12px; color:#7A9086; margin-top:1px; }
-.item-tel { display:inline-block; margin-top:6px; font-size:13px; font-weight:700;
-  color:#1A5235; background:#EBF7F1; border:1px solid #C6EDD9; border-radius:14px;
-  padding:3px 11px; text-decoration:none; direction:ltr; }
 .item-note { font-size:13px; color:#3D4F46; line-height:1.55; margin-top:6px; }
 .item-note b { color:#56695F; font-weight:700; }
 .stars { color:#E8A020; font-size:12px; margin-top:3px; letter-spacing:1px; }
@@ -97,7 +91,6 @@ function render(data) {
     html += '<div class="card" dir="auto">' + thumb + '<div style="flex:1;min-width:0;">'
       + '<div class="item-name">' + esc(it.name) + '</div>'
       + (it.location ? '<div class="item-loc">' + esc(it.location) + '</div>' : '')
-      + (it.phone ? '<a class="item-tel" href="tel:' + esc(it.phone) + '">\u260E ' + esc(it.phone) + '</a>' : '')
       + (it.rating ? '<div class="stars">' + '\u2605\u2605\u2605\u2605\u2605'.slice(0, it.rating) + '</div>' : '')
       + (it.note ? '<div class="item-note"><b>' + esc(data.curator) + ':</b> ' + esc(it.note) + '</div>' : '')
       + (it.category ? '<span class="chip" style="color:' + h.fg + ';background:' + h.bg + ';">' + esc(catLabel(it.category)) + '</span>' : '')

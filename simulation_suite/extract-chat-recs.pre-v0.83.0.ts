@@ -128,27 +128,8 @@ Deno.serve(async (req: Request) => {
     //      recommendation is a silent loss; a visible duplicate can be deleted.
     const { data: mine } = await admin
       .from("recommendations").select("canonical_id, source_label, note").eq("owner_id", userId);
-    // NORMALISED, BECAUSE THE EXTRACTOR IS AN LLM AND REWRITES ITSELF.
-    // dan re-imported the same chat on 9 Sep and every item saved a second
-    // time:
-    //     09:54  "\u05e0\u05e7\u05d9 ... \u05e9\u05e0\u05d9\u05dd \u05e8\u05d1\u05d5\u05ea."
-    //     10:38  "\u05e0\u05e7\u05d9 ... \u05e9\u05e0\u05d9\u05dd \u05e8\u05d1\u05d5\u05ea"
-    // One character - a trailing full stop - and the whole list doubled.
-    // The note STAYS in the key (dan's call, 5 Aug, and the reasoning above
-    // still holds: a second person's take is a second recommendation), but
-    // punctuation, case and spacing no longer make one opinion into two.
-    // A genuine rewrite by the model still gets through; that is the honest
-    // limit of comparing text.
-    // The class covers the marks a rewrite actually swaps: ASCII punctuation,
-    // both Hebrew ones, the dash family and smart quotes. An em dash for a
-    // hyphen must not read as a different recommendation - the sim failed on
-    // exactly that. Letters and digits are untouched, so "8 \u05e9\u05e0\u05d9\u05dd" stays
-    // distinct from "10 \u05e9\u05e0\u05d9\u05dd".
-    const normNote = (s: string) => (s || "").toLowerCase()
-      .replace(/[.,!?;:'"\u05f3\u05f4()\[\]\-\u2010-\u2015\u2018\u2019\u201c\u201d\u2026\u00b7\/]/g, " ")
-      .replace(/\s+/g, " ").trim();
     const dedupKey = (canId: string, src: string, note: string) =>
-      canId + "\u0000" + (src || "").toLowerCase().trim() + "\u0000" + normNote(note);
+      canId + "\u0000" + (src || "").toLowerCase().trim() + "\u0000" + (note || "").toLowerCase().trim();
     const have = new Set((mine ?? [])
       .filter((r: any) => r.canonical_id)
       .map((r: any) => dedupKey(r.canonical_id, r.source_label, r.note)));

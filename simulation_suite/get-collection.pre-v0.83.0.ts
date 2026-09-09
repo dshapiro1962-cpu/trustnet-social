@@ -31,7 +31,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: rows, error: iErr } = await admin
     .from("collection_items")
-    .select("position, recommendations(id, note, rating, canonicals(id, name, location, primary_category, image_emoji, image_url, website_url, phone))")
+    .select("position, recommendations(id, note, rating, canonicals(id, name, location, primary_category, image_emoji, image_url, website_url))")
     .eq("collection_id", col.id)
     .order("position", { ascending: true });
   if (iErr) return err("items_load_failed: " + iErr.message, 500);
@@ -49,12 +49,6 @@ Deno.serve(async (req: Request) => {
       website_url: can.website_url || null,
       note: rec.note || "",
       rating: rec.rating || null,
-      // WITHOUT THIS THE LIST IS A STORY, NOT A REFERRAL. dan, 9 Sep: "what
-      // is a recommendation worth without a phone number". These are working
-      // numbers for tradespeople, posted to a 350-person group to get work.
-      // The page carries noindex so the audience stays the people given the
-      // link.
-      phone: can.phone || null,
     };
   }).filter(Boolean);
 
