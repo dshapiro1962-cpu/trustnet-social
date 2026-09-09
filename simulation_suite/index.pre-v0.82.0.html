@@ -1885,7 +1885,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.82.0 · live';
+const APP_VERSION = 'v0.81.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -4383,57 +4383,19 @@ async function handleChatImportRun(btn) {
     if (res && res.error) { st.textContent = 'Scan failed: ' + res.error; btn.disabled = false; btn.textContent = 'Scan chat'; return; }
     (res && res.items ? res.items : []).forEach(function(it) { found.push(it); });
   }
-  // ONE PERSON, ONE ROW - KEYED ON THE NUMBER, NOT ONLY THE NAME (v0.82.0).
-  //
-  // Six neighbours recommended one exterminator on 29 Aug and the group called
-  // him three different things - amir, gal, yigal. Keyed on the name alone that
-  // is three rows in the review list and three in the library, and it looks
-  // like three exterminators until you notice the number is the same.
-  //
-  // The SERVER already had this right: match_canonical matches the phone
-  // before the name (0020, a number is proof and a name is a guess), so all
-  // three landed on one canonical. The client was the only part still deciding
-  // identity from a string somebody typed.
-  //
-  // A group answers to EVERY key its members gave it - each number and each
-  // name - so a later item matching either one finds it. What this still
-  // cannot join is two different names where only one carried a number;
-  // nothing the client can see links those, and the server folds them anyway.
-  //
-  // NOTES ARE JOINED, NOT REPLACED. Keeping the longest sentence threw away
-  // "good prices" and "eight years" in favour of the vaguest line. Three
-  // neighbours saying three true things is the most valuable thing in the
-  // import, and the count chip is only honest if the words behind it survive.
-  const groups = [];
-  const byPhone = {};
   const byName = {};
   found.forEach(function(it) {
-    const nm = String(it.name || '').toLowerCase().trim();
-    if (!nm) return;
-    const ph = normalizeIlPhone(it.phone || '');
-    let g = (ph && byPhone[ph]) || byName[nm] || null;
-    if (!g) {
-      g = { name: String(it.name || '').trim(), category: it.category || 'other',
-            location: it.location || '', notes: [], phone: it.phone || '', count: 0 };
-      groups.push(g);
+    const k = String(it.name || '').toLowerCase().trim();
+    if (!k) return;
+    if (byName[k]) {
+      byName[k].count++;
+      if ((it.note || '').length > (byName[k].note || '').length) byName[k].note = it.note;
+      if (!byName[k].phone && it.phone) byName[k].phone = it.phone;
+    } else {
+      byName[k] = { name: it.name, category: it.category || 'other', location: it.location || '', note: it.note || '', phone: it.phone || '', count: 1 };
     }
-    if (ph) byPhone[ph] = g;
-    byName[nm] = g;
-    g.count++;
-    // The fuller name wins: "gal the exterminator" says more than "gal".
-    const raw = String(it.name || '').trim();
-    if (raw.length > g.name.length) g.name = raw;
-    if (!g.location && it.location) g.location = it.location;
-    if (!g.phone && it.phone) g.phone = it.phone;
-    const note = String(it.note || '').trim();
-    if (note && g.notes.indexOf(note) < 0) g.notes.push(note);
   });
-  const items = groups.map(function(g) {
-    // ' \u00b7 ' is the separator this file already uses for facts on one line.
-    g.note = g.notes.join(' \u00b7 ').slice(0, 400);
-    delete g.notes;
-    return g;
-  });
+  const items = Object.keys(byName).map(function(k) { return byName[k]; });
   AppState._chatImportItems = items;
   AppState._chatImportSource = srcLabel;
   st.textContent = items.length
@@ -4447,10 +4409,7 @@ async function handleChatImportRun(btn) {
         + '<span style="flex:1;min-width:0;"><input class="ci-name" data-idx="' + i + '" dir="auto" value="' + esc(it.name) + '" style="font-weight:700;font-size:13px;border:none;border-bottom:1px dashed #C6EDD9;background:transparent;width:100%;max-width:210px;padding:0 0 1px;">'
         + (it.count > 1 ? ' <span style="font-size:10px;background:#E9F6EE;color:#1A5235;border-radius:8px;padding:1px 7px;font-weight:700;">\u00d7' + it.count + '</span>' : '')
         + (it.location ? ' <span style="color:#7A9086;font-size:11px;">\u00b7 ' + esc(it.location) + '</span>' : '')
-        // 90 characters was one line, which was right when a note was one
-        // person's sentence. A joined note carries three, and cutting it back
-        // to 90 would hide the very thing that now survives the merge.
-        + (it.note ? '<br><span style="color:#56695F;font-size:11.5px;">' + esc(it.note.slice(0, 200)) + (it.note.length > 200 ? '…' : '') + '</span>' : '')
+        + (it.note ? '<br><span style="color:#56695F;font-size:11.5px;">' + esc(it.note.slice(0, 90)) + '</span>' : '')
         + '</span>'
         + catChipSmall(it.category)
         + '</label>';
