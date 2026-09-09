@@ -628,30 +628,16 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .circle-meta-item { font-size: 11px; color: #7A9086; color: var(--slate-400); display: flex; align-items: center; gap: 4px; }
 
 /* ── Member row ── */
-/* A NAME MUST NEVER GO VERTICAL (v0.86.0).
-   dan's phone, 9 Sep: "may shapiro" rendered one letter per line, and
-   "+972548820630" as +9 / 72 / 54 / 88 / 20 / 63 beside it.
-   The badges are flex-shrink:0 and there are five of them - On Trustnet,
-   the channel chip, the response dot, edit, remove - so on a phone they are
-   already wider than the row and take what they need. .member-info was the
-   only item that could give way, so it absorbed the whole shortfall and
-   collapsed to about one character; .member-name had no nowrap (its sibling
-   .member-sub always did, which is why the subtitle degraded gracefully and
-   the name did not), so the text wrapped inside a one-character box.
-   The row may now wrap, the name keeps a floor, and it truncates rather than
-   wraps. On a wide screen nothing moves: the badges only leave line one when
-   they genuinely do not fit. */
 .member-row {
   display: flex; align-items: center; gap: 12px;
   padding: 12px 0;
   border-bottom: 1px solid #E5EDE8; border-bottom: 1px solid var(--slate-100);
-  flex-wrap: wrap;
 }
 .member-row:last-child { border-bottom: none; }
-.member-info { flex: 1 1 auto; min-width: 140px; }
-.member-name { font-size: 13px; font-weight: 600; color: #1C2420; color: var(--slate-800); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.member-info { flex: 1; min-width: 0; }
+.member-name { font-size: 13px; font-weight: 600; color: #1C2420; color: var(--slate-800); }
 .member-sub { font-size: 11px; color: #7A9086; color: var(--slate-400); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.member-badges { display: flex; gap: 4px; align-items: center; flex-shrink: 0; flex-wrap: wrap; }
+.member-badges { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
 
 /* ── Rec card ── */
 .rec-card {
@@ -1902,7 +1888,7 @@ function statusDot(status) {
 // Accounts created from this moment onward are asked for their name; the
 // four who joined before it were named by hand and are left alone.
 const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
-const APP_VERSION = 'v0.86.0 · live';
+const APP_VERSION = 'v0.85.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
