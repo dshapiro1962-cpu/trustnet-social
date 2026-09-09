@@ -126,6 +126,19 @@ ck('[structure] the query asks for the row id it now needs',
 ck('[structure] the old Set is gone, not left beside the Map',
    !/const have = new Set/.test(src),
    'two answers to one question is how they drift');
+// THIS ASSERTION IS WHY THE SAVE BROKE. The one above checks the DECLARATION
+// was removed and passed happily while a write site 120 lines below still said
+// `have.add(...)`, throwing ReferenceError on the first item that was not
+// skipped. Removing a thing and removing every use of it are two claims.
+// typecheck-functions.js is the real guard for this class; this is the local
+// one, next to the change that caused it.
+// COMMENTS STRIPPED FIRST. The comment explaining this bug contains the words
+// `have.add(` — so read against the raw file the check fails on its own prose,
+// which is the same trap in reverse. A reference check reads code.
+const code = src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+ck('[structure] ...and nothing still calls it',
+   !/\bhave\.(add|has|get|set)\(/.test(code),
+   'a removed declaration with a surviving use is a ReferenceError at runtime');
 
 console.log('\n  ' + (useOld ? 'BASELINE v0.83.0 (must FAIL)' : 'PATCHED') + ': '
   + pass + ' passed, ' + fail + ' failed');

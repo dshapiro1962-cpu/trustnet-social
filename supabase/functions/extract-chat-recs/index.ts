@@ -270,7 +270,14 @@ Deno.serve(async (req: Request) => {
         console.error("save_rec_error", it.name, recErr?.message);
         return err("save_failed_at_" + it.name.slice(0, 30) + ": " + (recErr?.message || "unknown"), 500);
       }
-      have.add(dedupKey(canonicalId, sourceLabel, note));
+      // The row just written is now one I hold, so a repeat later in this same
+      // batch skips AND lands on the list pointing at this id. This line used
+      // to read `have.add(...)` against the Set that became haveId; the read
+      // site was updated and this write site was not, so the first item that
+      // was NOT skipped threw ReferenceError. Uncaught, so the platform
+      // answered 500 with no CORS headers and the browser reported only
+      // "Failed to fetch" - no message, nothing in the response to read.
+      haveId.set(dedupKey(canonicalId, sourceLabel, note), recRow.id as string);
       recIds.push(recRow.id);
       saved++;
     }
