@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
   // invent a phone: it must match the number that actually sent the message.
   const { data: claim, error: claimErr } = await admin
     .from("invite_claims")
-    .select("id, token, claimed_phone, claimed_name, consumed_at, expires_at")
+    .select("id, token, claimed_phone, consumed_at, expires_at")
     .eq("token", token).is("consumed_at", null)
     .gt("expires_at", new Date().toISOString())
     .order("claimed_at", { ascending: false })
@@ -85,20 +85,6 @@ Deno.serve(async (req) => {
   const invitedName = (knownAs?.name && !/^\+?\d[\d\s\-()]*$/.test(knownAs.name))
     ? knownAs.name : null;
 
-  // AND FAILING THAT, THE NAME THEY GAVE WHATSAPP (0050).
-  //
-  // The comment above says WhatsApp does not expose a name. That is true of a
-  // phone number on its own and wrong about the webhook payload, which carries
-  // value.contacts[0].profile.name on every inbound message. record_invite_claim
-  // now stores it on the claim, already trimmed, length-capped, and with a
-  // bare number rejected - so anything arriving here is a usable name.
-  //
-  // ORDER MATTERS AND IS DELIBERATE. The inviter's own label wins, because
-  // dan's rule is that each owner keeps their own name for someone. Their
-  // WhatsApp profile name comes next. The number is what is left when nobody
-  // anywhere knows what to call them.
-  const profileName: string | null = (claim as any)?.claimed_name ?? null;
-
   const { data: candidates, error: usersErr } = await admin
     .from("users").select("id, name, phone").not("phone", "is", null);
   if (usersErr) return err("users_lookup_failed: " + usersErr.message, 500);
@@ -119,8 +105,7 @@ Deno.serve(async (req) => {
     const { error: pErr } = await admin.from("users").insert({
       // The inviter's name for them, falling back to the number only when
       // there genuinely is no name to use.
-      id: userId, email: syntheticEmail,
-      name: invitedName ?? profileName ?? ("+" + e164),
+      id: userId, email: syntheticEmail, name: invitedName ?? ("+" + e164),
       phone: "+" + e164,
     });
     if (pErr) console.error("profile_insert_failed", pErr.message);

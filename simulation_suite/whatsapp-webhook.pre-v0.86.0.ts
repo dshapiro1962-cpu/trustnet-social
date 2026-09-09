@@ -77,23 +77,6 @@ Deno.serve(async (req) => {
 
   const from: string = msg.from || "";
 
-  // THE SENDER ALREADY TOLD US THEIR NAME (0050).
-  //
-  // dan, 9 Sep: "whoever joins should not do anything except click." Every
-  // inbound Cloud API message carries the sender's own WhatsApp profile name
-  // beside the message, and this webhook has never read it:
-  //
-  //     value.contacts[0].profile.name
-  //
-  // complete-join says "WhatsApp does not expose a name" - true of the phone
-  // number on its own, wrong about the payload. Four neighbours joined dan's
-  // Travel circle as +9725488206.. and he renamed every one by hand.
-  //
-  // Read defensively: an account with no profile name set yields undefined,
-  // the claim stores null, and everything behaves exactly as it did before.
-  const profileName: string =
-    String((value as any)?.contacts?.[0]?.profile?.name ?? "").trim();
-
   const admin = adminClient();
 
   // ── JOIN A CIRCLE, CODELESSLY (v0.62.0) ───────────────────────────────────
@@ -116,8 +99,7 @@ Deno.serve(async (req) => {
   if (joinMatch) {
     const token = joinMatch[1];
     const { data: rec, error: recErr } = await admin
-      .rpc("record_invite_claim", {
-        p_token: token, p_phone: "+" + digits(from), p_name: profileName || null });
+      .rpc("record_invite_claim", { p_token: token, p_phone: "+" + digits(from) });
     if (recErr) {
       console.error("record_invite_claim_failed", recErr.message);
       await sendText(from, "Something went wrong joining. Please tap the invite link again.");
