@@ -34,13 +34,34 @@ function dbUrl() {
 // body is full of them too. So: track line comments, single-quoted strings and
 // $$ bodies, and only break in plain SQL. Comments are KEPT, because a comment
 // inside a function body is part of the source stored in pg_proc.
+// NAMED DOLLAR TAGS TOO, not just $$. pg_get_functiondef emits bodies wrapped
+// in $function$, so any migration written by copying a live function out of
+// the database hit this: the tag was not recognised, the body was treated as
+// plain SQL, and the first semicolon inside it tore the statement in half.
+// 0049 failed exactly that way with "unterminated dollar-quoted string".
+//
+// A tag closes only on ITSELF, which is the real Postgres rule and allows a
+// $$ body nested inside a $function$ one. `$1` and other placeholders cannot
+// match, because a tag must start with a letter or underscore.
+const DOLLAR_TAG = /^\$\$|^\$[A-Za-z_][A-Za-z0-9_]*\$/;
+
 function split(sql) {
   const out = [];
   let buf = '', i = 0;
-  let inDollar = false, inLine = false, inStr = false;
+  let dollarTag = null, inLine = false, inStr = false;
   while (i < sql.length) {
     const two = sql.substr(i, 2);
-    if (!inLine && !inStr && two === '$$') { inDollar = !inDollar; buf += two; i += 2; continue; }
+    if (!inLine && !inStr) {
+      if (dollarTag) {
+        if (sql.startsWith(dollarTag, i)) {
+          buf += dollarTag; i += dollarTag.length; dollarTag = null; continue;
+        }
+      } else if (sql[i] === '$') {
+        const m = sql.slice(i).match(DOLLAR_TAG);
+        if (m) { dollarTag = m[0]; buf += m[0]; i += m[0].length; continue; }
+      }
+    }
+    const inDollar = dollarTag !== null;
     if (!inDollar && !inStr && two === '--') { inLine = true; buf += two; i += 2; continue; }
     const ch = sql[i];
     if (inLine && ch === '\n') { inLine = false; buf += ch; i++; continue; }

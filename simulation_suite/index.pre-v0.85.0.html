@@ -1885,10 +1885,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-// Accounts created from this moment onward are asked for their name; the
-// four who joined before it were named by hand and are left alone.
-const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
-const APP_VERSION = 'v0.85.0 · live';
+const APP_VERSION = 'v0.84.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -8913,12 +8910,6 @@ function initOnboarding() {
       CURRENT_UID = sess.user.id;
       AppState.userProfile = { id: sess.user.id, name: name, avatar: avatar, avatarColor: color, location: location, bio: '', email: sess.user.email || '', joinedDate: new Date().toISOString() };
       await saveProfile();
-      // CARRY THE NAME OUT TO THE CIRCLES THEY ARE ALREADY IN (0049). Those
-      // member rows belong to the people who invited them, so they cannot write
-      // them and RLS is right to refuse. adopt_my_name() replaces ONLY names
-      // that are still a bare phone number, and only on rows already linked to
-      // this account — a label somebody typed is never overwritten.
-      try { await sb.rpc('adopt_my_name'); } catch (e) { console.error('adopt_my_name failed:', e); }
       try { await sb.rpc('link_member_on_signup', { p_user_id: sess.user.id, p_email: sess.user.email || null, p_phone: null }); } catch (e) {}
       const pendingJoin2 = localStorage.getItem('tn_join_token');
       if (pendingJoin2) { await handleJoinViaLink(pendingJoin2); }
@@ -9332,28 +9323,7 @@ async function boot() {
     AppState._livePoll = setInterval(refreshLive, 60000);
   }
 
-  // A NAME OF THEIR OWN (v0.85.0). WhatsApp does not expose a name, so
-  // complete-join names a new joiner from their phone number — four neighbours
-  // arrived in dan's Travel circle on 9 Sep as +9725488206.., +9725286400..,
-  // and he renamed each one by hand.
-  //
-  // It cannot be fixed where it happens: at the moment somebody joins, NOBODY
-  // KNOWS THEIR NAME. complete-join already looks for a member row the inviter
-  // wrote earlier and correctly finds nothing, because for a stranger there is
-  // nothing to find. The only person who knows is them, so they are asked —
-  // the profile exists, so this is the one thing standing between them and the
-  // question.
-  //
-  // SCOPED TO ACCOUNTS FROM THE DEPLOY ONWARD (dan's call). The four who
-  // already joined have been named by hand and must not be interrupted for
-  // something already done.
-  const _pname = String((AppState.userProfile || {}).name || '').trim();
-  const _placeholder = /^\+?[0-9][0-9 ()\-]*$/.test(_pname);
-  const _joined = Date.parse((AppState.userProfile || {}).joinedDate || '') || 0;
-  const _needsName = !AppState.userProfile
-    || (_placeholder && _joined >= NAME_PROMPT_FROM);
-
-  if (_needsName) {
+  if (!AppState.userProfile) {
     document.getElementById('onboarding').style.display = 'flex';
     document.getElementById('app').style.display = 'none';
     initOnboarding();

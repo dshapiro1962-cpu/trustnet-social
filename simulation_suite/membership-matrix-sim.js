@@ -62,7 +62,13 @@ const ck = (n, c, x) => {
   if (!dan) { console.error('owner dshapiro8@hotmail.com not found'); process.exit(2); }
   const circles = (await c.query(
     'select id, name from public.circles where owner_id=$1 order by name', [dan.id])).rows;
-  const ski = circles.find((x) => x.name === 'ski');
+  // NEVER NAME A CIRCLE. The first version of this sim looked for one called
+  // "ski" and for shapiro's membership of it. dan renamed his circles the same
+  // afternoon and the sim threw — it had been measuring HIS CURRENT DATA
+  // rather than the code's behaviour. Anything this sim depends on, it now
+  // creates for itself inside the transaction.
+  if (circles.length < 2) { console.error('owner needs at least two circles'); process.exit(2); }
+  const ski = circles[0];
 
   const beforeM = (await c.query('select count(*)::int n from public.members')).rows[0].n;
   const beforeP = (await c.query('select count(*)::int n from public.people')).rows[0].n;
@@ -90,8 +96,18 @@ const ck = (n, c, x) => {
     // ── A2. the exact case dan reported ───────────────────────────────────
     console.log('\n-- dan\'s report, exactly --\n');
     const shap = users.find((u) => u.email === 'dshapiro3012@gmail.com');
+    // BUILD THE SITUATION, do not hope to find it. dan reported this against
+    // his ski circle; he has since renamed his circles and deleted that
+    // membership. The BEHAVIOUR is what is under test, so the membership is
+    // created here and rolled back with everything else.
+    await c.query(
+      `insert into public.members (id, owner_id, circle_id, name, contact_method, contact_value,
+         trust_basis, response_rate, avatar_color)
+       values (gen_random_uuid(), $1, $2, 'shapiro', 'email', $3, '', 'medium', '#217A4B')`,
+      [dan.id, ski.id, shap.email]);
+
     const rs = await resolve('email', shap.email, ski.id);
-    ck('shapiro resolves against the ski circle', !!rs);
+    ck('an app member resolves against the circle they are in', !!rs);
     ck('...and is on Trustnet', rs.on_trustnet === true, 'on_trustnet=' + rs.on_trustnet);
     ck('...and is reported as already in that circle, not as a stranger',
        rs.state === 'in_circle', 'state=' + rs.state);
