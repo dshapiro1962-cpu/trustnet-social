@@ -1885,7 +1885,7 @@ function statusDot(status) {
    VIEW ROUTER
    ═══════════════════════════════════════════════ */
 
-const APP_VERSION = 'v0.84.0 · live';
+const APP_VERSION = 'v0.83.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -7767,17 +7767,11 @@ async function handleSaveMember() {
     //
     // The member row is written by saveMembers below; the trigger fills in
     // person_id and linked_user_id on the way in.
-    // LINKING MOVED TO AFTER THE SAVE (v0.84.0). It used to run HERE, which is
-    // before saveMembers writes the row: link_member answered
-    // {ok:false, reason:"not_your_member"} because the row it was asked about
-    // did not exist yet. The database still came out right — trg_member_identity
-    // (0036) links on insert — so nothing looked broken in the data, and the
-    // only casualty was the browser's own copy: linkedUserId stayed null, and
-    // every screen that reads it showed a real Trustnet member as a stranger.
-    //
-    // dan, 9 Sep: "he is an app member, added the email, still the app didn't
-    // recognize it as an app member". It had recognised him. It just never said
-    // so, and never remembered.
+    // Link every member just written, including the extra circles.
+    await linkMemberOnServer(newMember.id);
+    for (const em of extraAdded.length ? AppState.userMembers.filter(function(m) {
+      return normContact(m.contactValue) === normContact(contact) && m.id !== newMember.id;
+    }) : []) { await linkMemberOnServer(em.id); }
 
     if (!editId) {
       // Name every circle they landed in, so a multi-tick is visibly confirmed
@@ -7818,34 +7812,14 @@ async function handleSaveMember() {
   // existing row's id, on add it is the row just pushed.
   if (newMember && newMember.id) touchedMemberIds.push(newMember.id);
   try { await saveMembers(touchedMemberIds); } catch (e) { return; }
-
-  // NOW the rows exist, so now they can be linked and read back.
-  //
-  // The v0.47.0 comment that stood here said "resolve_contact already ran
-  // BEFORE this member was created and its answer set linkedUserId". It did
-  // not: buildMember is called with `linkedUserId: null` hard-coded, because
-  // resolve_contact deliberately withholds the account id so nobody can
-  // enumerate who is registered. So the field was never set on the good path
-  // either, and the post-save lookup was removed on the strength of a comment
-  // describing something the code did not do.
-  //
-  // Read the value back from the rows themselves rather than inferring it.
-  // link_member is the authority and the trigger may already have done the
-  // work; either way the database holds the answer and the browser should not
-  // be guessing at it.
-  for (const mid of touchedMemberIds) { await linkMemberOnServer(mid); }
-  try {
-    const lk = await sb.from('members').select('id, linked_user_id').in('id', touchedMemberIds);
-    if (lk.error) console.error('link readback failed:', lk.error);
-    (lk.data || []).forEach(function(row) {
-      const m = AppState.userMembers.find(function(x) { return x.id === row.id; });
-      if (m) m.linkedUserId = row.linked_user_id || null;
-    });
-  } catch (e) {
-    // Never block the save. An unlinked-looking member still receives email and
-    // WhatsApp; it only misses the in-app doorway until the next load.
-    console.error('link readback threw:', e);
-  }
+  // Is this person already on Trustnet? Linking used to happen ONLY at signup,
+  // so adding an EXISTING user left them unlinked — no in-app doorway for them,
+  // no indication for you. Ask the server; it answers only yes/no.
+  // v0.47.0: the second lookup is GONE. resolve_contact already ran BEFORE this
+  // member was created and its answer set linkedUserId. Calling the old broken
+  // function again was redundant on the good path and silently throwing on
+  // every whatsapp contact. One identity lookup per save, and it happens before
+  // anything is written rather than after.
 
   closeModal();
   renderApp();
