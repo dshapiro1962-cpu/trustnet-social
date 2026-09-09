@@ -1902,7 +1902,7 @@ function statusDot(status) {
 // Accounts created from this moment onward are asked for their name; the
 // four who joined before it were named by hand and are left alone.
 const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
-const APP_VERSION = 'v0.87.2 · live';
+const APP_VERSION = 'v0.87.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -7226,24 +7226,6 @@ function srUpdateSendButton() {
     : (n === 1 ? 'Send to 1 person' : 'Send to ' + n + ' people');
 }
 
-// A CHOICE ENDS THE SEARCH (v0.87.2). dan, twice: "i cant go back to the list
-// to continue adding people after the search."
-//
-// The first answer was a Clear button, and that was answering the wrong
-// question. You do not want a control for undoing a search; you want the
-// search to stop being in the way the moment it has done its job. Type three
-// letters, tap the person, and you are looking at everyone again ready for the
-// next one - no clearing, no backspacing, no button to notice.
-//
-// Only on TICKING. Unticking someone means you are still looking at them, so
-// the view stays put.
-function srOnTick(cb) {
-  srUpdateSendButton();
-  if (!cb || !cb.checked) return;
-  const box = document.getElementById('sr-search');
-  if (box && box.value) srClearSearch();
-}
-
 // BACK TO THE WHOLE LIST. Ticks are untouched: someone chosen before the
 // search was chosen deliberately, and clearing a filter is not unchoosing them.
 function srClearSearch() {
@@ -8423,7 +8405,7 @@ async function handleConfirmAddReciprocal(recipId, circleChoice) {
 document.addEventListener('click', function(e) {
   // A tick carries no data-action: it changes a count, it does not do anything.
   if (e.target && e.target.classList && e.target.classList.contains('sr-cb')) {
-    srOnTick(e.target);
+    srUpdateSendButton();
     return;
   }
   const target = e.target.closest('[data-action]');

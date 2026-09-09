@@ -19,7 +19,7 @@
 // assumed.
 //
 //   node send-to-many-sim.js         → must PASS
-//   node send-to-many-sim.js --old   → index.pre-v0.87.1.html, must FAIL
+//   node send-to-many-sim.js --old   → index.pre-v0.87.2.html, must FAIL
 
 const fs = require('fs');
 const vm = require('vm');
@@ -27,7 +27,7 @@ const path = require('path');
 
 const useOld = process.argv.indexOf('--old') > -1;
 const file = useOld
-  ? path.join(__dirname, 'index.pre-v0.87.1.html')
+  ? path.join(__dirname, 'index.pre-v0.87.2.html')
   : path.join(__dirname, '..', 'web', 'index.html');
 if (!fs.existsSync(file)) { console.error('missing fixture: ' + file); process.exit(2); }
 
@@ -91,7 +91,7 @@ const ctx = {
 ctx.SUMMARY_STYLE = '';
 vm.createContext(ctx);
 
-['modalShareRec', 'srUpdateSendButton', 'srSelectAll', 'srClearSearch', 'handleSendRecMulti']
+['modalShareRec', 'srUpdateSendButton', 'srSelectAll', 'srClearSearch', 'srOnTick', 'handleSendRecMulti']
   .forEach((n) => { const code = grab(n); if (code) vm.runInContext(code, ctx); });
 
 console.log('\n-- the dialog offers a tick per person --\n');
@@ -209,6 +209,44 @@ if (typeof ctx.srClearSearch === 'function') {
      'clearing a filter is not unchoosing someone');
   ck('...and the send button still counts them', sendBtn.textContent === 'Send to 2 people',
      sendBtn.textContent);
+  // TICKING SOMEONE ENDS THE SEARCH. This is what dan asked for twice: not a
+  // control for undoing a search, but a search that stops being in the way the
+  // moment it has done its job.
+  if (typeof ctx.srOnTick === 'function') {
+    boxes.forEach(function(b) { b.checked = false; });
+    rows.forEach(function(r, i) { r.style.display = i === 1 ? 'flex' : 'none'; });
+    searchBox.value = 'may';
+
+    boxes[1].checked = true;
+    ctx.srOnTick(boxes[1]);
+    ck('ticking someone you searched for clears the search',
+       searchBox.value === '', JSON.stringify(searchBox.value));
+    ck('...and puts the whole list back, ready for the next person',
+       rows.every(function(r) { return r.style.display === 'flex'; }));
+    ck('...with the person you just chose still ticked', boxes[1].checked === true);
+    ck('...and counted', sendBtn.textContent === 'Send to 1 person', sendBtn.textContent);
+
+    // UNTICKING IS NOT CHOOSING. You are still looking at that person, so the
+    // view must not move under you.
+    searchBox.value = 'tchia';
+    rows.forEach(function(r, i) { r.style.display = i === 2 ? 'flex' : 'none'; });
+    boxes[1].checked = false;
+    ctx.srOnTick(boxes[1]);
+    ck('unticking leaves the search alone', searchBox.value === 'tchia');
+    ck('...and leaves the filtered view alone', rows[0].style.display === 'none');
+
+    // With no search running there is nothing to clear and nothing to restore.
+    searchBox.value = '';
+    rows.forEach(function(r) { r.style.display = 'flex'; });
+    boxes[0].checked = true;
+    ctx.srOnTick(boxes[0]);
+    ck('with no search running, ticking just counts',
+       searchBox.value === '' && sendBtn.textContent === 'Send to 1 person',
+       sendBtn.textContent);
+  } else {
+    ck('ticking ends the search', false, 'srOnTick does not exist');
+  }
+
   ctx.document.getElementById = prevGet;
 } else {
   ck('there is a clear-search handler at all', false, 'srClearSearch does not exist');
@@ -247,7 +285,7 @@ if (typeof ctx.handleSendRecMulti === 'function') {
   ck('there is a bulk send at all', false, 'handleSendRecMulti does not exist');
 }
 
-console.log('\n  ' + (useOld ? 'BASELINE v0.87.0 (must FAIL)' : 'PATCHED') + ': '
+console.log('\n  ' + (useOld ? 'BASELINE v0.87.1 (must FAIL)' : 'PATCHED') + ': '
   + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
 })();
