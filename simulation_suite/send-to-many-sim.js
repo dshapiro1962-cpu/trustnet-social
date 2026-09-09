@@ -19,7 +19,7 @@
 // assumed.
 //
 //   node send-to-many-sim.js         → must PASS
-//   node send-to-many-sim.js --old   → index.pre-v0.87.0.html, must FAIL
+//   node send-to-many-sim.js --old   → index.pre-v0.87.1.html, must FAIL
 
 const fs = require('fs');
 const vm = require('vm');
@@ -27,7 +27,7 @@ const path = require('path');
 
 const useOld = process.argv.indexOf('--old') > -1;
 const file = useOld
-  ? path.join(__dirname, 'index.pre-v0.87.0.html')
+  ? path.join(__dirname, 'index.pre-v0.87.1.html')
   : path.join(__dirname, '..', 'web', 'index.html');
 if (!fs.existsSync(file)) { console.error('missing fixture: ' + file); process.exit(2); }
 
@@ -91,7 +91,7 @@ const ctx = {
 ctx.SUMMARY_STYLE = '';
 vm.createContext(ctx);
 
-['modalShareRec', 'srUpdateSendButton', 'srSelectAll', 'handleSendRecMulti']
+['modalShareRec', 'srUpdateSendButton', 'srSelectAll', 'srClearSearch', 'handleSendRecMulti']
   .forEach((n) => { const code = grab(n); if (code) vm.runInContext(code, ctx); });
 
 console.log('\n-- the dialog offers a tick per person --\n');
@@ -176,6 +176,44 @@ if (hasHelpers) {
   rows[3].style.display = 'flex'; rows[4].style.display = 'flex';
 }
 
+// GETTING BACK TO THE WHOLE LIST. dan, after using it: "if i use search member
+// i cant go back to the list to continue choosing." The filter was never
+// wrong - emptying the box restores every row - but the box had no type and
+// therefore no clear cross, so the only way back was backspacing with the
+// keyboard covering the list.
+console.log('\n-- and a way back from a search --\n');
+ck('the search box is a search box, so the platform can offer its own clear',
+   /id="sr-search"[^>]*type="search"|type="search"[^>]*id="sr-search"/.test(markup),
+   'type defaulted to text, which has no clear control anywhere');
+ck('there is a clear that does not depend on the platform',
+   /data-action="sr-clear-search"/.test(markup));
+
+if (typeof ctx.srClearSearch === 'function') {
+  // a search is on, hiding most people, and two are already ticked
+  boxes.forEach(function(b) { b.checked = false; });
+  boxes[0].checked = true; boxes[2].checked = true;
+  rows.forEach(function(r, i) { r.style.display = i === 1 ? 'flex' : 'none'; });
+  const searchBox = { id: 'sr-search', value: 'may' };
+  const prevGet = ctx.document.getElementById;
+  ctx.document.getElementById = function(id) {
+    return id === 'sr-search' ? searchBox : prevGet(id);
+  };
+
+  ctx.srClearSearch();
+  ck('clearing empties the box', searchBox.value === '');
+  ck('...and every row is showing again',
+     rows.every(function(r) { return r.style.display === 'flex'; }),
+     'this is the list dan could not get back to');
+  ck('...and the people already ticked are STILL ticked',
+     boxes[0].checked === true && boxes[2].checked === true,
+     'clearing a filter is not unchoosing someone');
+  ck('...and the send button still counts them', sendBtn.textContent === 'Send to 2 people',
+     sendBtn.textContent);
+  ctx.document.getElementById = prevGet;
+} else {
+  ck('there is a clear-search handler at all', false, 'srClearSearch does not exist');
+}
+
 console.log('\n-- one press, and an honest result --\n');
 
 if (typeof ctx.handleSendRecMulti === 'function') {
@@ -209,7 +247,7 @@ if (typeof ctx.handleSendRecMulti === 'function') {
   ck('there is a bulk send at all', false, 'handleSendRecMulti does not exist');
 }
 
-console.log('\n  ' + (useOld ? 'BASELINE v0.86.0 (must FAIL)' : 'PATCHED') + ': '
+console.log('\n  ' + (useOld ? 'BASELINE v0.87.0 (must FAIL)' : 'PATCHED') + ': '
   + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
 })();
