@@ -1186,13 +1186,6 @@ const AppState = {
   searchQuery: '',
   modal: null,
   queryState: null,
-  // THE ASK/RECOMMEND SCREEN (v0.88.0). queryDegree lives here rather than in
-  // initQueryView's closure, where handleSendQuery could not see it - which is
-  // why every query went out as degree 1 whatever the toggle showed.
-  queryMode: 'ask',
-  queryDegree: 1,
-  queryCircleId: null,
-  queryItemId: null,
 
   // Simulated invite-surface state (demo only)
   dismissedReciprocals: [],
@@ -1909,7 +1902,7 @@ function statusDot(status) {
 // Accounts created from this moment onward are asked for their name; the
 // four who joined before it were named by hand and are left alone.
 const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
-const APP_VERSION = 'v0.88.0 · live';
+const APP_VERSION = 'v0.87.2 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -2617,125 +2610,12 @@ function memberRowHtml(m) {
    VIEW: QUERY
    ═══════════════════════════════════════════════ */
 
-// Who is ticked, with the channel each one needs. Both verbs read this.
-// WHO IN THE CIRCLE (v0.88.0). dan: "by default to all your circle members or
-// you can choose to recommend it to particular members", and the same for Ask.
-//
-// SHARED BY BOTH VERBS, and everyone reachable starts ticked - the default is
-// the whole circle, which is what the product did before this screen grew a
-// choice. Unticking is the new part, not ticking.
-//
-// External sources are people you cannot message at all, so they are not here.
-// Someone with no contact details is shown but cannot be ticked: leaving them
-// out entirely would look like they had been removed from the circle.
-function qWhoHtml(circleId) {
-  const members = AppState.membersOfCircle(circleId)
-    .filter(function(m) { return !m.isExternalSource; });
-  if (!members.length) {
-    return '<div style="font-size:12px;color:#7A9086;padding:8px 2px;">This circle has no members yet.</div>';
-  }
-  return members.map(function(m) {
-    let channel = 'none', chLabel = 'no contact';
-    if (m.linkedUserId) { channel = 'app'; chLabel = 'in app'; }
-    else if (m.contactMethod === 'whatsapp' && m.contactValue) { channel = 'whatsapp'; chLabel = 'WhatsApp'; }
-    else if (m.contactMethod === 'email' && m.contactValue) { channel = 'email'; chLabel = 'Email'; }
-    return '<label class="qw-row" style="display:flex;align-items:center;gap:9px;padding:7px 4px;border-bottom:1px solid #F0F5F1;cursor:pointer;">'
-      + '<input type="checkbox" class="qw-cb"' + (channel === 'none' ? ' disabled' : ' checked')
-      + ' data-member-id="' + esc(m.id) + '" data-channel="' + channel + '"'
-      + ' style="width:18px;height:18px;flex:none;accent-color:#217A4B;'
-      + (channel === 'none' ? 'opacity:.35;' : 'cursor:pointer;') + '">'
-      + avatarEl(m, 'sm')
-      + '<span style="flex:1 1 auto;min-width:120px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" dir="auto">' + esc(m.name) + '</span>'
-      + '<span style="font-size:10.5px;color:#7A9086;flex:none;">' + esc(chLabel) + '</span>'
-      + '</label>';
-  }).join('');
-}
-
-function qChosen() {
-  return Array.prototype.slice.call(document.querySelectorAll('.qw-cb:checked'))
-    .map(function(b) { return { memberId: b.dataset.memberId, channel: b.dataset.channel }; });
-}
-
-// DEGREE 2 AND A LIST OF NAMES CONTRADICT EACH OTHER. Degree 2 means "and
-// their contacts, anonymously" - people the sender cannot see or name - so a
-// tick list cannot describe who it reaches. Rather than let the screen promise
-// control it does not have, the list is disabled and says why. send-query
-// enforces the same rule server-side, where it cannot be bypassed.
-function qApplyDegreeToWho() {
-  const d2 = AppState.queryDegree === 2 && AppState.queryMode !== 'recommend';
-  const who = document.getElementById('q-who');
-  const note = document.getElementById('q-who-note');
-  if (who) { who.style.opacity = d2 ? '.45' : '1'; who.style.pointerEvents = d2 ? 'none' : 'auto'; }
-  if (note) {
-    note.textContent = d2
-      ? 'Degree 2 reaches everyone in the circle and their contacts, so you cannot choose individuals.'
-      : 'Everyone is included unless you untick them.';
-  }
-  qUpdateSendLabel();
-}
-
-function qUpdateSendLabel() {
-  const btn = document.getElementById('q-send');
-  if (!btn) return;
-  const rec = AppState.queryMode === 'recommend';
-  const d2 = AppState.queryDegree === 2 && !rec;
-  const n = qChosen().length;
-  if (d2) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = 'Ask the whole circle + their contacts'; return; }
-  btn.disabled = n === 0;
-  btn.style.opacity = n === 0 ? '.5' : '1';
-  const who = n === 1 ? '1 person' : n + ' people';
-  btn.textContent = n === 0 ? (rec ? 'Send' : 'Ask') : (rec ? 'Send to ' + who : 'Ask ' + who);
-}
-
-function qWhoRefresh(circleId) {
-  const who = document.getElementById('q-who');
-  if (who) who.innerHTML = qWhoHtml(circleId);
-  qApplyDegreeToWho();
-}
-
-// The library, searched, so an item can be chosen without leaving the screen.
-function qItemResultsHtml(term) {
-  const q = String(term || '').toLowerCase().trim();
-  const rows = (AppState.userRecs || []).map(function(r) {
-    const can = AppState.canonicalById(r.canonicalId);
-    return can ? { rec: r, can: can } : null;
-  }).filter(Boolean).filter(function(x) {
-    if (!q) return true;
-    return (x.can.name || '').toLowerCase().indexOf(q) > -1
-      || (x.can.location || '').toLowerCase().indexOf(q) > -1;
-  }).slice(0, 40);
-  if (!rows.length) return '<div style="padding:10px;font-size:12px;color:#7A9086;">Nothing in your library matches.</div>';
-  return rows.map(function(x) {
-    return '<div style="display:flex;align-items:center;gap:9px;padding:7px 4px;border-bottom:1px solid #F0F5F1;cursor:pointer;"'
-      + ' data-action="q-pick-item" data-rec-id="' + esc(x.rec.id) + '">'
-      + '<span style="font-size:16px;flex:none;">' + esc(x.can.imageEmoji || '\ud83d\udccc') + '</span>'
-      + '<span style="flex:1 1 auto;min-width:0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" dir="auto">' + esc(x.can.name) + '</span>'
-      + (x.can.location ? '<span style="font-size:10.5px;color:#7A9086;flex:none;" dir="auto">' + esc(x.can.location) + '</span>' : '')
-      + '</div>';
-  }).join('');
-}
-
-function qShowPickedItem() {
-  const host = document.getElementById('q-item-picked');
-  if (!host) return;
-  const rec = (AppState.userRecs || []).find(function(r) { return r.id === AppState.queryItemId; });
-  const can = rec ? AppState.canonicalById(rec.canonicalId) : null;
-  host.innerHTML = can
-    ? '<div style="display:flex;align-items:center;gap:9px;padding:9px 11px;border:1.5px solid #217A4B;border-radius:10px;background:#EBF7F1;">'
-      + '<span style="font-size:18px;flex:none;">' + esc(can.imageEmoji || '\ud83d\udccc') + '</span>'
-      + '<span style="flex:1 1 auto;min-width:0;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" dir="auto">' + esc(can.name) + '</span>'
-      + '<button type="button" class="btn btn-ghost btn-sm" data-action="q-clear-item" style="flex:none;font-size:11px;">change</button>'
-      + '</div>'
-    : '';
-  qUpdateSendLabel();
-}
-
 function renderQuery() {
   const circles = AppState.isDemoMode
     ? AppState.synCircles.filter(function(c) { return c.ownerId === AppState.demoUserId; })
     : AppState.userCircles.concat(AppState.synCircles);
 
-  const preCircleId = AppState.viewParams.circleId || AppState.queryCircleId || '';
+  const preCircleId = AppState.viewParams.circleId || '';
 
   const qs = AppState.queryState;
 
@@ -2769,71 +2649,37 @@ function renderQuery() {
       + '</div>'
       + '<input type="hidden" id="q-circle" value="' + esc(defaultCircleId) + '">';
 
-  const mode = AppState.queryMode === 'recommend' ? 'recommend' : 'ask';
-  const tabOn = 'flex:1;background:#EBF7F1;border:1.5px solid #217A4B;color:#1A5235;font-weight:700;';
-  const tabOff = 'flex:1;background:#fff;border:1.5px solid #CDD9D1;color:#56695F;font-weight:600;';
-  const qPlaceholder = 'e.g. Who is the best cardiologist in Tel Aviv? '
-    + 'Or: Great restaurant for a birthday dinner in Jaffa?';
-
   return '<div style="max-width:580px;">'
-    // TWO VERBS, ONE SCREEN (v0.88.0). A circle is for two things - asking it
-    // for something, and giving it something - and until now only the first
-    // had a door. The second was buried in the Library, three taps deep, and
-    // reached one person at a time.
-    + '<h1 style="font-size:20px;font-weight:800;letter-spacing:-0.3px;margin-bottom:6px;">Your circles</h1>'
-    + '<p style="font-size:13px;color:#7A9086;margin-bottom:16px;">Ask people you trust, or pass on something worth having.</p>'
-    + '<div style="display:flex;gap:6px;margin-bottom:16px;">'
-    + '<button type="button" class="btn btn-sm" id="q-mode-ask" data-action="q-mode" data-mode="ask" style="' + (mode === 'ask' ? tabOn : tabOff) + '">Ask</button>'
-    + '<button type="button" class="btn btn-sm" id="q-mode-rec" data-action="q-mode" data-mode="recommend" style="' + (mode === 'recommend' ? tabOn : tabOff) + '">Recommend</button>'
-    + '</div>'
+    + '<h1 style="font-size:20px;font-weight:800;letter-spacing:-0.3px;margin-bottom:6px;">Ask your circles</h1>'
+    + '<p style="font-size:13px;color:#7A9086;margin-bottom:24px;">Your question goes to your trusted contacts — not the open internet.</p>'
     + '<div class="card"><div class="card-body" style="display:flex;flex-direction:column;gap:16px;">'
 
-    + '<div class="field" id="q-ask-block"' + (mode === 'ask' ? '' : ' style="display:none;"') + '>'
+    + '<div class="field">'
     + '<div class="field-label">YOUR QUESTION</div>'
-    + '<textarea class="field-input field-textarea" id="q-text" dir="auto" placeholder="' + esc(qPlaceholder) + '" style="min-height:100px;"></textarea>'
-    + '</div>'
-
-    + '<div class="field" id="q-rec-block"' + (mode === 'recommend' ? '' : ' style="display:none;"') + '>'
-    + '<div class="field-label">WHAT ARE YOU RECOMMENDING</div>'
-    + '<input class="field-input" type="search" id="q-item-search" dir="auto" placeholder="Search your library\u2026" style="width:100%;">'
-    + '<div id="q-item-results" style="max-height:190px;overflow-y:auto;border:1px solid #E5EDE8;border-radius:10px;padding:2px 8px;margin-top:8px;display:none;"></div>'
-    + '<div id="q-item-picked" style="margin-top:8px;"></div>'
-    + '<input type="hidden" id="q-item">'
+    + '<textarea class="field-input field-textarea" id="q-text" placeholder="e.g. Who\'s the best cardiologist in Tel Aviv? Or: Great restaurant for a birthday dinner in Jaffa?" style="min-height:100px;"></textarea>'
     + '</div>'
 
     + '<div class="field">'
-    + '<div class="field-label">WHICH CIRCLE</div>'
+    + '<div class="field-label">SEND TO</div>'
     + circlePickerHtml
     + '</div>'
 
-    // SHARED BY BOTH VERBS, and everyone starts ticked: the default is the
-    // whole circle, which is what the product did before this screen grew a
-    // choice. Unticking is the new part, not ticking.
     + '<div class="field">'
-    + '<div style="display:flex;justify-content:space-between;align-items:center;">'
-    + '<div class="field-label" style="margin:0;">WHO</div>'
-    + '<button type="button" class="btn btn-ghost btn-sm" data-action="q-who-all" style="font-size:11.5px;">Select all</button>'
-    + '</div>'
-    + '<div id="q-who" style="max-height:220px;overflow-y:auto;border:1px solid #E5EDE8;border-radius:10px;padding:2px 8px;margin-top:6px;">'
-    + qWhoHtml(defaultCircleId)
-    + '</div>'
-    + '<div id="q-who-note" style="font-size:11px;color:#7A9086;margin-top:5px;">Everyone is included unless you untick them.</div>'
-    + '</div>'
-
-    + '<div class="field" id="q-degree-block"' + (mode === 'ask' ? '' : ' style="display:none;"') + '>'
-    + '<div class="field-label">HOW FAR</div>'
+    + '<div class="field-label">DEGREE</div>'
     + '<div style="display:flex;gap:8px;">'
-    + '<button class="btn btn-secondary btn-sm" id="q-deg-1" data-degree="1" style="flex:1;">Degree 1 \u00b7 Direct contacts only</button>'
-    + '<button class="btn btn-ghost btn-sm" id="q-deg-2" data-degree="2" style="flex:1;">Degree 2 \u00b7 + Contacts of contacts (anonymous)</button>'
+    + '<button class="btn btn-secondary btn-sm" id="q-deg-1" data-degree="1" style="flex:1;">Degree 1 · Direct contacts only</button>'
+    + '<button class="btn btn-ghost btn-sm" id="q-deg-2" data-degree="2" style="flex:1;">Degree 2 · + Contacts of contacts (anonymous)</button>'
     + '</div>'
     + '</div>'
 
     + '<div id="q-routing" style="background:#F2F6F3;border-radius:8px;padding:12px;display:none;">'
-    + '<div style="font-size:12px;color:#56695F;">Routing preview loading\u2026</div>'
+    + '<div style="font-size:12px;color:#56695F;">Routing preview loading…</div>'
     + '</div>'
 
-    + '<button class="btn btn-primary" id="q-send" style="justify-content:center;" data-action="q-send">Send</button>'
-    + '<div id="q-result" style="font-size:12px;color:#56695F;line-height:1.6;"></div>'
+    + '<button class="btn btn-primary" id="q-send" style="justify-content:center;" data-action="send-query">'
+    + '<svg style="width:14px;height:14px;" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/></svg>'
+    + 'Send query'
+    + '</button>'
 
     + '</div></div>'
     + '</div>';
@@ -2962,19 +2808,13 @@ function initQueryView() {
   const d1 = document.getElementById('q-deg-1');
   const d2 = document.getElementById('q-deg-2');
   if (!d1 || !d2) return;
-  // ON AppState, NOT IN THIS CLOSURE. It lived here, and handleSendQuery could
-  // not see it - which is why every query went out as degree 1 no matter what
-  // the toggle showed.
-  let degree = AppState.queryDegree === 2 ? 2 : 1;
+  let degree = 1;
   function setDegree(n) {
     degree = n;
-    AppState.queryDegree = n;
     d1.className = 'btn btn-sm ' + (n === 1 ? 'btn-secondary' : 'btn-ghost');
     d2.className = 'btn btn-sm ' + (n === 2 ? 'btn-secondary' : 'btn-ghost');
-    qApplyDegreeToWho();
     updateRouting();
   }
-  setDegree(degree);
   d1.addEventListener('click', function() { setDegree(1); });
   d2.addEventListener('click', function() { setDegree(2); });
 
@@ -3007,37 +2847,6 @@ function initQueryView() {
   }
 }
 
-// RECOMMEND, FROM THE CIRCLE SIDE. Same sending as the library dialog - one
-// implementation, shared - only the list of who comes from this screen.
-async function handleSendRecFromCircle(btn) {
-  const rec = (AppState.userRecs || []).find(function(r) { return r.id === AppState.queryItemId; });
-  const can = rec ? AppState.canonicalById(rec.canonicalId) : null;
-  if (!rec || !can) { toast('Pick something from your library first.', 'warn'); return; }
-  const targets = qChosen();
-  if (!targets.length) { toast('Nobody is ticked.', 'warn'); return; }
-  if (AppState.isDemoMode) { toast('Switch back to your account to send.', 'warn'); return; }
-
-  const out = document.getElementById('q-result');
-  btn.disabled = true;
-  const label = btn.textContent;
-  btn.textContent = 'Sending\u2026';
-
-  const r = await sendRecToMany(rec, can, targets);
-
-  // Delivered people are unticked so a second press cannot double-send.
-  const done = {};
-  r.sent.forEach(function(x) { done[x.id] = true; });
-  document.querySelectorAll('.qw-cb:checked').forEach(function(b) {
-    if (done[b.dataset.memberId]) b.checked = false;
-  });
-
-  if (out) out.innerHTML = sendResultHtml(r);
-  btn.disabled = false;
-  btn.textContent = label;
-  qUpdateSendLabel();
-  if (r.sent.length) { try { await loadUserData(); } catch (e) { /* view only */ } }
-}
-
 async function handleSendQuery() {
   const textEl = document.getElementById('q-text');
   const circleEl = document.getElementById('q-circle');
@@ -3063,19 +2872,7 @@ async function handleSendQuery() {
   toast('Sending to your circle…');
   let result;
   try {
-    // DEGREE WAS HARD-CODED TO 1 (fixed v0.88.0). The toggle set a variable
-    // inside initQueryView's closure and updated the routing preview; the send
-    // never read it, so Degree 2 has never actually reached anyone beyond the
-    // circle. It reads the same state the screen shows now.
-    //
-    // member_ids is sent only at degree 1 - see qApplyDegreeToWho - and an
-    // empty list means the whole circle, which is what every earlier caller
-    // meant and still gets.
-    const degree = AppState.queryDegree === 2 ? 2 : 1;
-    const chosen = degree === 1 ? qChosen().map(function(t) { return t.memberId; }) : [];
-    result = await fnPost('send-query', {
-      circle_id: circleId, text: text, degree: degree,
-      member_ids: chosen.length ? chosen : undefined });
+    result = await fnPost('send-query', { circle_id: circleId, text: text, degree: 1 });
   } catch (e) {
     toast('Could not reach the server. Check your connection.', 'warn'); return;
   }
@@ -7483,27 +7280,29 @@ function srSelectAll() {
 // a browser can only hand off once per gesture. So they are not pretended to
 // be sent - they come back as a short list of one-tap links, and the result
 // line says exactly what happened to whom.
-// ONE SEND, TWO DOORS (v0.88.0). The library dialog and the Ask/Recommend
-// screen both send an item to several people, and they must not drift into two
-// implementations of "who got it". This takes the decision already made -
-// a list of {memberId, channel} - and does the sending.
-//
-// Returns what happened rather than rendering it, because the two callers show
-// it in different places.
-async function sendRecToMany(rec, can, targets) {
-  const sent = [], already = [], failed = [];
-  const memberOf = function(id) {
-    return AppState.userMembers.find(function(m) { return m.id === id; });
+async function handleSendRecMulti(btn) {
+  const rec = AppState.userRecs.find(function(r) { return r.id === btn.dataset.recId; });
+  const can = rec ? AppState.canonicalById(rec.canonicalId) : null;
+  if (!rec || !can) return;
+  const boxes = Array.prototype.slice.call(document.querySelectorAll('.sr-cb:checked'));
+  if (!boxes.length) return;
+  const out = document.getElementById('sr-result');
+  const memberOf = function(b) {
+    return AppState.userMembers.find(function(m) { return m.id === b.dataset.memberId; });
   };
 
-  for (const t of targets.filter(function(x) { return x.channel === 'app'; })) {
-    const m = memberOf(t.memberId);
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+
+  const sent = [], already = [], failed = [];
+  for (const b of boxes.filter(function(x) { return x.dataset.channel === 'app'; })) {
+    const m = memberOf(b);
     if (!m) continue;
     try {
       const r = await sb.rpc('send_rec_to_member', { p_rec_id: rec.id, p_member_id: m.id });
       if (r.error) { failed.push(m.name); continue; }
       const res = r.data || {};
-      if (res.ok) { sent.push({ id: m.id, name: m.name }); }
+      if (res.ok) { sent.push(m.name); b.checked = false; }
       else if (res.error === 'already_sent' || res.error === 'already_in_their_library') already.push(m.name);
       else failed.push(m.name);
     } catch (e) {
@@ -7514,9 +7313,9 @@ async function sendRecToMany(rec, can, targets) {
 
   // The ones a browser cannot send for you, as links rather than as a failure.
   const text = recShareText(rec, can);
-  const manual = targets.filter(function(x) { return x.channel !== 'app'; })
-    .map(function(t) {
-      const m = memberOf(t.memberId);
+  const manual = boxes.filter(function(x) { return x.dataset.channel !== 'app'; })
+    .map(function(b) {
+      const m = memberOf(b);
       if (!m) return '';
       if (m.contactMethod === 'whatsapp') {
         const ph = String(m.contactValue || '').replace(/[^0-9]/g, '');
@@ -7528,53 +7327,26 @@ async function sendRecToMany(rec, can, targets) {
         + '&body=' + encodeURIComponent(text) + '">Email ' + esc(m.name) + '</a>';
     }).join('');
 
-  return { sent: sent, already: already, failed: failed, manual: manual };
-}
-
-// The same outcome, written the same way wherever it is shown.
-function sendResultHtml(r) {
   let html = '';
-  if (r.sent.length) {
-    html += '<div style="color:#1A5235;font-weight:700;">\u2713 Sent to '
-      + r.sent.length + (r.sent.length === 1 ? ' person' : ' people') + '</div>';
+  if (sent.length) {
+    html += '<div style="color:#1A5235;font-weight:700;">✓ Sent to '
+      + sent.length + (sent.length === 1 ? ' person' : ' people') + '</div>';
   }
-  if (r.already.length) {
-    html += '<div style="color:#7A9086;">' + esc(r.already.join(', ')) + ' already had it.</div>';
+  if (already.length) {
+    html += '<div style="color:#7A9086;">' + esc(already.join(', '))
+      + (already.length === 1 ? ' already had it.' : ' already had it.') + '</div>';
   }
-  if (r.failed.length) {
-    html += '<div style="color:#C0392B;">Could not send to ' + esc(r.failed.join(', ')) + '.</div>';
+  if (failed.length) {
+    html += '<div style="color:#C0392B;">Could not send to ' + esc(failed.join(', ')) + '.</div>';
   }
-  if (r.manual) {
-    html += '<div style="margin-top:6px;">These open on your phone \u2014 one tap each:</div>'
-      + '<div style="display:flex;flex-wrap:wrap;">' + r.manual + '</div>';
+  if (manual) {
+    html += '<div style="margin-top:6px;">These open on your phone — one tap each:</div>'
+      + '<div style="display:flex;flex-wrap:wrap;">' + manual + '</div>';
   }
-  return html || '<div style="color:#7A9086;">Nothing to send.</div>';
-}
+  if (out) out.innerHTML = html || '<div style="color:#7A9086;">Nothing to send.</div>';
 
-async function handleSendRecMulti(btn) {
-  const rec = AppState.userRecs.find(function(r) { return r.id === btn.dataset.recId; });
-  const can = rec ? AppState.canonicalById(rec.canonicalId) : null;
-  if (!rec || !can) return;
-  const boxes = Array.prototype.slice.call(document.querySelectorAll('.sr-cb:checked'));
-  if (!boxes.length) return;
-  const out = document.getElementById('sr-result');
-
-  btn.disabled = true;
-  btn.textContent = 'Sending\u2026';
-
-  const r = await sendRecToMany(rec, can, boxes.map(function(b) {
-    return { memberId: b.dataset.memberId, channel: b.dataset.channel };
-  }));
-
-  // A delivered person is unticked so a second press cannot double-send; the
-  // ones still needing a tap stay ticked.
-  const done = {};
-  r.sent.forEach(function(x) { done[x.id] = true; });
-  boxes.forEach(function(b) { if (done[b.dataset.memberId]) b.checked = false; });
-
-  if (out) out.innerHTML = sendResultHtml(r);
   srUpdateSendButton();
-  if (r.sent.length) { try { await loadUserData(); } catch (e) { /* view only */ } }
+  if (sent.length) { try { await loadUserData(); } catch (e) { /* view only */ } }
 }
 
 async function handleSendRecInApp(btn) {
@@ -8654,10 +8426,6 @@ document.addEventListener('click', function(e) {
     srOnTick(e.target);
     return;
   }
-  if (e.target && e.target.classList && e.target.classList.contains('qw-cb')) {
-    qUpdateSendLabel();
-    return;
-  }
   const target = e.target.closest('[data-action]');
   if (!target) return;
   const action = target.dataset.action;
@@ -9051,37 +8819,6 @@ document.addEventListener('click', function(e) {
   else if (action === 'send-query') {
     handleSendQuery();
   }
-  else if (action === 'q-mode') {
-    // The circle survives the switch: which people you are addressing does not
-    // change just because the verb did.
-    AppState.queryMode = target.dataset.mode === 'recommend' ? 'recommend' : 'ask';
-    const keep = document.getElementById('q-circle');
-    if (keep && keep.value) AppState.queryCircleId = keep.value;
-    showView('query');
-  }
-  else if (action === 'q-who-all') {
-    const boxes = document.querySelectorAll('.qw-cb');
-    let anyUnticked = false;
-    boxes.forEach(function(b) { if (!b.disabled && !b.checked) anyUnticked = true; });
-    boxes.forEach(function(b) { if (!b.disabled) b.checked = anyUnticked; });
-    qUpdateSendLabel();
-  }
-  else if (action === 'q-pick-item') {
-    AppState.queryItemId = target.dataset.recId;
-    const res = document.getElementById('q-item-results');
-    const box = document.getElementById('q-item-search');
-    if (res) res.style.display = 'none';
-    if (box) box.value = '';
-    qShowPickedItem();
-  }
-  else if (action === 'q-clear-item') {
-    AppState.queryItemId = null;
-    qShowPickedItem();
-  }
-  else if (action === 'q-send') {
-    if (AppState.queryMode === 'recommend') handleSendRecFromCircle(target);
-    else handleSendQuery();
-  }
   else if (action === 'resend-member') {
     handleResendMember(target);
   }
@@ -9131,10 +8868,6 @@ document.addEventListener('click', function(e) {
     const cid = target.dataset.circleId;
     const hiddenInput = document.getElementById('q-circle');
     if (hiddenInput) hiddenInput.value = cid;
-    // A different circle is a different set of people, so the list is rebuilt
-    // rather than left showing the previous circle's members.
-    AppState.queryCircleId = cid;
-    if (document.getElementById('q-who')) qWhoRefresh(cid);
     // Update visual state of all circle options
     document.querySelectorAll('.q-circle-option').forEach(function(opt) {
       const isMe = opt.dataset.circleId === cid;
@@ -9283,15 +9016,6 @@ document.addEventListener('input', function(e) {
   if (e.target && e.target.id === 'nm-search') {
     clearTimeout(window._nmSearchDebounce);
     window._nmSearchDebounce = setTimeout(refreshPeopleSearch, 180);
-    return;
-  }
-  if (e.target && e.target.id === 'q-item-search') {
-    const res = document.getElementById('q-item-results');
-    if (res) {
-      const v = (e.target.value || '').trim();
-      res.innerHTML = qItemResultsHtml(v);
-      res.style.display = v ? 'block' : 'none';
-    }
     return;
   }
   if (e.target && e.target.id === 'sr-search') {

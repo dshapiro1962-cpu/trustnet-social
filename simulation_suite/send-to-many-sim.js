@@ -91,7 +91,8 @@ const ctx = {
 ctx.SUMMARY_STYLE = '';
 vm.createContext(ctx);
 
-['modalShareRec', 'srUpdateSendButton', 'srSelectAll', 'srClearSearch', 'srOnTick', 'handleSendRecMulti']
+['modalShareRec', 'srUpdateSendButton', 'srSelectAll', 'srClearSearch', 'srOnTick',
+  'sendRecToMany', 'sendResultHtml', 'handleSendRecMulti']
   .forEach((n) => { const code = grab(n); if (code) vm.runInContext(code, ctx); });
 
 console.log('\n-- the dialog offers a tick per person --\n');

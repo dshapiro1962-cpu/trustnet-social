@@ -20,11 +20,6 @@ interface Body {
   circle_id: string;
   text: string;
   degree?: 1 | 2;
-  // ASK SOME OF THEM, NOT ALL (v0.88.0). dan: "user will also have the option
-  // to choose from circle members who to send to." Absent or empty means the
-  // whole circle, which is what every existing caller sends and therefore
-  // what they keep getting.
-  member_ids?: string[];
 }
 
 Deno.serve(async (req: Request) => {
@@ -57,23 +52,7 @@ Deno.serve(async (req: Request) => {
   const { data: members, error: mErr } = await supa
     .from("members").select("*").eq("circle_id", body.circle_id);
   if (mErr) return err("members_load_failed", 500);
-  let reachable = (members ?? []).filter((m: any) => !m.is_external_source);
-
-  // A CHOSEN SUBSET, AND ONLY AT DEGREE 1. Degree 2 means "and their contacts,
-  // anonymously" - people the sender cannot see or name - so a list of chosen
-  // members cannot describe who it reaches, and pretending otherwise would
-  // promise control the feature does not have. The client greys the list for
-  // the same reason; this is the half that cannot be bypassed.
-  const chosen = Array.isArray(body.member_ids) ? body.member_ids.filter(Boolean) : [];
-  if (chosen.length && degree === 1) {
-    const want = new Set(chosen);
-    const picked = reachable.filter((m: any) => want.has(m.id));
-    // A subset that matches nobody is a bug in the caller, not an instruction
-    // to message the whole circle. Refuse rather than over-send.
-    if (picked.length === 0) return err("no_chosen_member_is_in_this_circle");
-    reachable = picked;
-  }
-
+  const reachable = (members ?? []).filter((m: any) => !m.is_external_source);
   if (reachable.length === 0) return err("circle_has_no_reachable_members");
 
   // 3. Caller profile (for message personalisation)
