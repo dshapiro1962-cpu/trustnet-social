@@ -21,9 +21,25 @@ jobs:
       - name: Deploy all functions
         run: |
           set -e
-          # Functions that must accept unauthenticated calls:
-          # whatsapp-webhook (Meta), get-collection (public shared lists)
-          NO_JWT="whatsapp-webhook get-collection"
+          # Functions that must accept unauthenticated calls.
+          #
+          # THIS LIST WAS WRONG AND WOULD HAVE BROKEN ANSWERING (fixed 13 Sep).
+          # Production has had receive-response and response-meta on
+          # verify_jwt=false since they were written - respond.html is
+          # account-free by design - but they were missing here, so the first
+          # run of this workflow would have redeployed them WITH verification
+          # and killed the answer loop outright: no one could load a question
+          # or send an answer. build-sheet was missing for the same reason.
+          # Checked against `supabase functions list` on 13 Sep 2026.
+          #
+          #   whatsapp-webhook  Meta calls it
+          #   get-collection    public shared lists
+          #   response-meta     respond.html loads the question with a token
+          #   receive-response  respond.html sends the answer with a token
+          #   build-sheet       the answer sheet
+          #   ingest-link       the Fetch box in respond.html; it authenticates
+          #                     a user JWT *or* an unused response token itself
+          NO_JWT="whatsapp-webhook get-collection response-meta receive-response build-sheet ingest-link"
           for dir in supabase/functions/*/; do
             fn=$(basename "$dir")
             [ "$fn" = "_shared" ] && continue

@@ -5,48 +5,14 @@
 // being recommended. Returns extraction only — the app pre-fills the Add form
 // and the user confirms (visible filing, per design). No DB writes here.
 // v2: also returns image_url (og:image, absolutised) for library thumbnails.
-// Auth: a caller JWT, OR an unused response token (see below).
-// Requires secret: OPENAI_API_KEY
+// Auth: caller JWT. Requires secret: OPENAI_API_KEY
 // ============================================================================
-import { getUserId, adminClient, json, err, handleOptions } from "../_shared/utils.ts";
+import { getUserId, json, err, handleOptions } from "../_shared/utils.ts";
 
-const ENGINE = "ingest-link-v3-token";
+const ENGINE = "ingest-link-v2-image";
 const CATEGORIES = ["dining","travel","healthcare","home","culture","hobbies","professional","other"];
 
-interface Body {
-  url: string;
-  // ANSWERING IS ACCOUNT-FREE, AND SO IS THIS (v3). Everyone answers a query
-  // through respond.html?t=<token>, signed-in members included, so the Fetch
-  // box there has no user to authenticate with. Rather than open an
-  // OpenAI-backed URL fetcher to the internet, it presents the same response
-  // token the page already holds - the pattern receive-response and
-  // response-meta already use.
-  response_token?: string;
-}
-
-// A URL WE ARE WILLING TO FETCH SERVER-SIDE. This function retrieves whatever
-// it is handed, from inside Supabase's network, so it must not be pointed at
-// the metadata service or anything on a private range.
-function publicHttpUrl(raw: string): URL | null {
-  let u: URL;
-  try { u = new URL(raw); } catch { return null; }
-  if (u.protocol !== "http:" && u.protocol !== "https:") return null;
-  const h = u.hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".internal")) return null;
-  if (h === "::1" || h === "0.0.0.0") return null;
-  // IPv4 literals on private / loopback / link-local ranges.
-  const m4 = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (m4) {
-    const [a, b] = [Number(m4[1]), Number(m4[2])];
-    if (a === 10 || a === 127 || a === 0) return null;
-    if (a === 169 && b === 254) return null;              // link-local + metadata
-    if (a === 172 && b >= 16 && b <= 31) return null;
-    if (a === 192 && b === 168) return null;
-    if (a === 100 && b >= 64 && b <= 127) return null;    // carrier NAT
-  }
-  if (/^f[cd][0-9a-f]{2}:/.test(h) || h.startsWith("fe80:")) return null;  // IPv6 ULA / link-local
-  return u;
-}
+interface Body { url: string; }
 
 function pick(re: RegExp, s: string): string {
   const m = s.match(re);
@@ -58,39 +24,16 @@ Deno.serve(async (req: Request) => {
   if (pre) return pre;
   if (req.method !== "POST") return err("method_not_allowed", 405);
 
+  const userId = await getUserId(req);
+  if (!userId) return err("unauthorized", 401);
+
   const key = Deno.env.get("OPENAI_API_KEY");
   if (!key) return json({ error: "openai_not_configured" }, 502);
 
   let body: Body;
   try { body = await req.json(); } catch { return err("invalid_json"); }
-
-  // TWO WAYS IN, AND ONE OF THEM MUST HOLD. The platform no longer pre-checks
-  // the JWT for this function, so the check below IS the door. A signed-in
-  // caller passes on their user; an answerer passes on the response token they
-  // were sent, which must still be unused and inside its 72-hour life.
-  const userId = await getUserId(req);
-  if (!userId) {
-    const rt = String(body.response_token || "").trim();
-    if (!rt) return err("unauthorized", 401);
-    const { data: resp, error: rErr } = await adminClient()
-      .from("query_responses")
-      .select("id, token_used, token_expires_at")
-      .eq("response_token", rt)
-      .maybeSingle();
-    // Assert the row, not the absence of an error: a token that matches
-    // nothing returns no error and no row.
-    if (rErr) return err("token_check_failed", 500);
-    if (!resp) return err("unauthorized", 401);
-    if (resp.token_used) return err("token_already_used", 401);
-    if (resp.token_expires_at && new Date(resp.token_expires_at as string) < new Date()) {
-      return err("token_expired", 401);
-    }
-  }
-
-  const raw = (body.url || "").trim();
-  const safe = publicHttpUrl(raw);
-  if (!safe) return err("invalid_url");
-  const url = safe.href;
+  const url = (body.url || "").trim();
+  if (!/^https?:\/\/.+/i.test(url)) return err("invalid_url");
 
   // ── 1. Fetch the page (8s timeout, 300KB cap, browser-ish UA) ─────────────
   let html = "";

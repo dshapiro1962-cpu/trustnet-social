@@ -67,16 +67,6 @@
       <div id="lib-results"></div>
       <div id="lib-filled" style="display:none;font-size:11.5px;color:#1A5235;font-weight:600;">✓ Filled from your library — edit freely before sending</div>
     </div>
-    <!-- PASTE A LINK AND LET IT FILL THE FORM. The same affordance as the
-         Add to Library dialog in the app. It needs no account: ingest-link
-         accepts the response token this page already carries. -->
-    <label for="rec-url">Have a link? <span style="font-weight:400;opacity:.7;">(TikTok, Booking, Maps, any page — optional)</span></label>
-    <div style="display:flex;gap:8px;align-items:stretch;">
-      <input id="rec-url" dir="ltr" placeholder="Paste a link and let AI fill this form" maxlength="500" style="flex:1;">
-      <button type="button" id="rec-url-btn" style="flex:none;padding:0 18px;border-radius:10px;border:1.5px solid #217A4B;background:#EBF7F1;color:#1A5235;font-weight:700;font-size:14px;cursor:pointer;">Fetch</button>
-    </div>
-    <div id="rec-url-msg" style="font-size:11.5px;margin:6px 0 0;min-height:1em;"></div>
-
     <label for="rec-name">What do you recommend?</label>
     <input id="rec-name" placeholder="e.g. A. Wong, Demon Copperhead, Dr. Cohen" maxlength="120">
     <label for="rec-location">Location (optional)</label>
@@ -286,42 +276,6 @@ function showError(title, body) {
   if (body) $("error-body").textContent = body;
   show("error-view");
 }
-
-// FETCH: fill the form from a link. The token is the credential - there is no
-// account here and there never will be, so ingest-link takes the same response
-// token receive-response does. It is refused if the token is used or expired.
-$("rec-url-btn").addEventListener("click", async () => {
-  const btn = $("rec-url-btn");
-  const msg = $("rec-url-msg");
-  const url = $("rec-url").value.trim();
-  const say = (t, ok) => { msg.textContent = t; msg.style.color = ok ? "#1A5235" : "#C0392B"; };
-  if (!/^https?:\/\/.+/i.test(url)) { say("Paste a full link starting with http…", false); return; }
-  btn.disabled = true; btn.textContent = "Reading…"; say("", true);
-  let data = null;
-  try {
-    const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/ingest-link`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY },
-      body: JSON.stringify({ url, response_token: token }),
-    });
-    data = await res.json();
-    if (!res.ok) data = { error: (data && data.error) || ("http_" + res.status) };
-  } catch (e) { data = { error: "network" }; }
-  btn.disabled = false; btn.textContent = "Fetch";
-  if (!data || data.error) {
-    say("Could not read that link" + (data && data.error ? " (" + data.error + ")" : "")
-        + " — fill it in yourself below.", false);
-    return;
-  }
-  // Never overwrite something already typed.
-  const fill = (id, v) => { const el = $(id); if (el && v && !el.value.trim()) el.value = v; };
-  fill("rec-name", data.name || data.source_title || "");
-  fill("rec-location", data.location || "");
-  fill("rec-note", data.note || "");
-  say(data.needs_review
-    ? "Filled what I could — check the name before sending."
-    : "Got it — check it over and send.", true);
-});
 
 $("submit-btn").addEventListener("click", async () => {
   const recName = $("rec-name").value.trim();
