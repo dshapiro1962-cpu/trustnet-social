@@ -158,6 +158,43 @@ const ck = (n, c, x) => {
        /empty answer beats a wrong one/.test(prompt));
   }
 
+  // ── 1d. "0 FROM YOUR CIRCLE" ON A SHEET FULL OF CIRCLE ANSWERS ─────────
+  // Run the REAL counts expressions over the REAL payload build-sheet returned
+  // for dan's Apulia query on 13 Sep: may answered, Tom answered, both answers
+  // had been kept, and the header said 0.
+  console.log('\n== the counts, over the payload the live function returned ==\n');
+  {
+    const items = [
+      { name: 'מאטרה', from_you: true, recommenders: [] },
+      { name: 'מאטרה, בארי, פוליאנו אה מארה, Alberobello', from_you: true, recommenders: ['may shapiro'] },
+      { name: 'טיול עם רכב באיזור בארי', from_you: true, recommenders: ['Tom Shapiro'] },
+    ];
+    const line = (src.match(/from_circle: items\.filter\([^\n]*/) || [''])[0];
+    ck('build-sheet has a from_circle count to check', !!line);
+    if (line) {
+      const expr = line.replace(/^\s*from_circle:\s*/, '').replace(/,\s*$/, '');
+      // eslint-disable-next-line no-eval
+      const fromCircle = eval('(function(items){ return ' + expr + '; })')(items);
+      ck('THE REAL from_circle counts what the circle named, kept or not',
+         fromCircle === 2,
+         'got ' + fromCircle + ' - may and Tom both answered this query');
+    }
+    const fy = (src.match(/from_you: items\.filter\([^\n]*/) || [''])[0]
+      .replace(/^\s*from_you:\s*/, '').replace(/,\s*$/, '');
+    const co = (src.match(/corroborated: items\.filter\([^\n]*/) || [''])[0]
+      .replace(/^\s*corroborated:\s*/, '').replace(/,\s*$/, '');
+    if (fy && co) {
+      // eslint-disable-next-line no-eval
+      const nFy = eval('(function(items){ return ' + fy + '; })')(items);
+      // eslint-disable-next-line no-eval
+      const nCo = eval('(function(items){ return ' + co + '; })')(items);
+      ck('"you already had" still means library-only additions', nFy === 1,
+         'got ' + nFy);
+      ck('"corroborated" still means they named it AND you hold it', nCo === 2,
+         'got ' + nCo);
+    }
+  }
+
   // ── 2. THE OLD BAND: is vector-only actually inseparable? ───────────────
   console.log('\n== why a threshold cannot fix the old path ==\n');
   const lang = (await c.query(

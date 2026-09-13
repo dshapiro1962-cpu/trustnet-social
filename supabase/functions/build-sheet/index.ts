@@ -509,7 +509,21 @@ Deno.serve(async (req: Request) => {
     advice,
     counts: {
       total: items.length,
-      from_circle: items.filter((x) => x.recommenders.length > 0 && !x.from_you).length,
+      // WHAT THE CIRCLE NAMED, WHETHER OR NOT YOU HAVE SINCE KEPT IT.
+      //
+      // This used to exclude anything already in the library, so on dan's
+      // Apulia sheet - may answered, Tom answered, both answers kept - the
+      // header read "0 from your circle" over three items, two of which came
+      // from his circle.
+      //
+      // It got worse the moment saving from the Inbox started working
+      // (v0.89.0): the natural order is read the answers, keep them, THEN open
+      // the sheet, which moved every answer out of this count. The one sheet
+      // that matters most always said zero.
+      //
+      // corroborated still means the overlap - they named it AND you hold it -
+      // so the two numbers deliberately overlap now rather than partition.
+      from_circle: items.filter((x) => x.recommenders.length > 0).length,
       from_you: items.filter((x) => x.from_you && x.recommenders.length === 0).length,
       corroborated: items.filter((x) => x.from_you && x.recommenders.length > 0).length,
       hidden: hiddenCount,
