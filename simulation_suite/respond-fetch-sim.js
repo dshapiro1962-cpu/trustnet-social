@@ -47,6 +47,15 @@ const RESPOND = useOld
   : path.join(REPO, 'web', 'respond.html');
 const WORKFLOW = path.join(REPO, '.github', 'workflows', 'deploy-functions.yml');
 
+// TWO BASELINES, ON PURPOSE. The Fetch feature was added against v0.91.0, so
+// its control is respond.pre-v0.91.0.html. The LAYOUT fix was made against
+// v0.91.1 - which already has the Fetch row, broken - so checking the CSS
+// against the older file would fail because the row is absent, not because it
+// overflowed. A control that fails for the wrong reason is not a control.
+const RESPOND_CSS = useOld
+  ? path.join(__dirname, 'respond.pre-v0.91.1.html')
+  : path.join(REPO, 'web', 'respond.html');
+
 let pass = 0, fail = 0;
 const ck = (n, c, x) => {
   if (c) { pass++; console.log('  ok    ' + n); }
@@ -138,6 +147,32 @@ ck('it NEVER overwrites what the person already typed',
 ck('a failed fetch tells them to fill it in themselves',
    /fill it in yourself/.test(respond),
    'silence is the one unacceptable outcome');
+
+// ── 3b. THE LAYOUT, WHICH THE STYLESHEET BROKE BOTH WAYS ────────────────
+// Measured in Chrome at 390px on 13 Sep, before and after:
+//   url input 30px -> 323px   Fetch button 409px -> 78px   overflow 14px -> 0
+//   checkbox 409px -> 13px    share text 67px -> 388px
+// `input, textarea { width:100% }` and `button { width:100% }` apply to every
+// control on the page. A checkbox took the whole row and pushed "Share to
+// their network" off the right edge, where it wrapped one letter per line; the
+// Fetch button did the same to the URL field.
+console.log('\n== the layout the stylesheet was quietly breaking ==\n');
+{
+  const css = fs.readFileSync(RESPOND_CSS, 'utf8');
+  ck('checkboxes are exempt from the width:100% rule',
+     /input\[type="checkbox"\][\s\S]{0,120}width:\s*auto/.test(css),
+     'a checkbox at width:100% claims its whole flex row - that is the giant tick');
+  ck('there is a row style for an input with a button beside it',
+     /\.input-row\s*\{/.test(css));
+  ck('...whose button may size to its text instead of the full width',
+     /\.input-row button[^}]*width:\s*auto/.test(css),
+     'button{width:100%} plus flex:none is what overflowed the screen');
+  ck('...and whose input is allowed to shrink',
+     /\.input-row input[^}]*min-width:\s*0/.test(css),
+     'min-width:auto is the default and is why the field collapsed to 30px');
+  ck('the Fetch row uses it rather than fighting it inline',
+     /class="input-row"/.test(css));
+}
 
 // ── 4. THE WORKFLOW LANDMINE ────────────────────────────────────────────
 console.log('\n== the deploy workflow, which would have broken answering ==\n');

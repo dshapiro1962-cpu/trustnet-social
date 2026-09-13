@@ -17,15 +17,6 @@
   .ask-text { font-size:16px; font-style:italic; color:var(--slate); }
   label { display:block; font-size:12px; font-weight:600; color:var(--slate-light); letter-spacing:0.3px; margin-bottom:6px; text-transform:uppercase; }
   input, textarea { width:100%; padding:12px 14px; border:1.5px solid #CDD9D1; border-radius:8px; font-size:15px; font-family:inherit; margin-bottom:18px; }
-  /* THE RULE ABOVE APPLIES TO CHECKBOXES TOO, AND ALWAYS DID (fixed 13 Sep).
-     A checkbox stretched to width:100% claims its whole flex row, which is why
-     the "Share to their network" text was pushed off the right edge and wrapped
-     one letter per line on a phone. The tick looked deliberately huge; it was a
-     checkbox the width of the card. Line 25 exempts these from a font-size rule
-     inside a media query and nothing else, so the exemption goes here. */
-  input[type="checkbox"], input[type="radio"] {
-    width:auto; margin:0; padding:0; flex:none;
-  }
   input:focus, textarea:focus { outline:none; border-color:var(--green); }
   /* 15px is one pixel under the line: iOS zooms in on focus and never zooms
      back, which is what put the conversion panel off the right edge. Same
@@ -36,14 +27,6 @@
     select { font-size:16px !important; }
   }
   textarea { resize:vertical; min-height:90px; }
-  /* AN INPUT WITH A BUTTON BESIDE IT. button{width:100%} above means a button
-     in a flex row demands the entire width, and `flex:none` then forbids it to
-     shrink - so it overflowed the screen and squeezed the URL field to a
-     sliver. The button sizes to its text here; the input takes what is left and
-     is allowed to shrink (min-width:0 defeats the default min-width:auto). */
-  .input-row { display:flex; gap:8px; align-items:stretch; margin-bottom:18px; }
-  .input-row input { flex:1 1 auto; min-width:0; margin-bottom:0; }
-  .input-row button { flex:0 0 auto; width:auto; padding:0 18px; font-size:15px; }
   button { width:100%; background:var(--green); color:#fff; border:none; border-radius:8px; padding:14px; font-size:16px; font-weight:600; cursor:pointer; }
   button:hover { background:#1A5235; }
   button:disabled { opacity:0.5; cursor:not-allowed; }
@@ -87,10 +70,10 @@
     <!-- PASTE A LINK AND LET IT FILL THE FORM. The same affordance as the
          Add to Library dialog in the app. It needs no account: ingest-link
          accepts the response token this page already carries. -->
-    <label for="rec-url">Have a link? <span style="font-weight:400;opacity:.7;text-transform:none;">(optional)</span></label>
-    <div class="input-row">
-      <input id="rec-url" dir="ltr" placeholder="Paste a link" maxlength="500">
-      <button type="button" id="rec-url-btn" style="background:#EBF7F1;border:1.5px solid #217A4B;color:#1A5235;font-weight:700;">Fetch</button>
+    <label for="rec-url">Have a link? <span style="font-weight:400;opacity:.7;">(TikTok, Booking, Maps, any page — optional)</span></label>
+    <div style="display:flex;gap:8px;align-items:stretch;">
+      <input id="rec-url" dir="ltr" placeholder="Paste a link and let AI fill this form" maxlength="500" style="flex:1;">
+      <button type="button" id="rec-url-btn" style="flex:none;padding:0 18px;border-radius:10px;border:1.5px solid #217A4B;background:#EBF7F1;color:#1A5235;font-weight:700;font-size:14px;cursor:pointer;">Fetch</button>
     </div>
     <div id="rec-url-msg" style="font-size:11.5px;margin:6px 0 0;min-height:1em;"></div>
 
