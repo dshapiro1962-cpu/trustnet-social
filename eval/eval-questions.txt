@@ -1,43 +1,94 @@
-# Trustnet retrieval eval — derived from dan's 20-question corpus (28 Jul 2026).
+# Trustnet retrieval eval — rebuilt 13 Sep 2026 against the library that exists.
+#
 # Format:  future search question | expected item
-# These are searches a person would REALISTICALLY type months later, testing
-# whether the library remembers what the circle said. Lines starting with # skipped.
+# Lines starting with # are skipped.
+#
+# WHY THIS WAS REBUILT. The 28 Jul corpus was written from dan's 20-question
+# list against a library that has since been cleared. Checked with the app's own
+# resolver (match_canonical) on 13 Sep: of its 26 expectations, 8 still resolved
+# to something dan holds, and 15 had NO canonical in the database at all. An
+# eval that cannot pass whatever the engine does is an eval that stops being
+# run — and that is probably the second reason build-sheet was never measured.
+#
+# The near-misses were deliberately NOT "repaired". K2 Mindbender is not K2
+# Sender, and דר לביא is not דר לירן חורב; rewriting an expectation to match
+# whatever sits nearest is how a suite ends up passing for the wrong reason.
+# Those lines are kept below as comments instead.
+#
+# HOW TO READ THE TWO SECTIONS:
+#   A. Survivors of the original corpus — hand-written paraphrases, unchanged.
+#   B. New pairs. The EXPECTED ITEM is grounded: it is really in dan's library
+#      and really was the answer to a real question. The SEARCH WORDING is a
+#      paraphrase, written deliberately NOT to quote the original question —
+#      search_library_hybrid awards exact_bonus 1.0 when the query string
+#      appears verbatim in the catalogue document, and every item saved from a
+#      query contains that query ("asked: ..."). Quoting it would test nothing
+#      but string containment.
 
-# --- ski gear & resorts (the domain that exposed the whole memory-layer bug) ---
-wide ski touring boot for wide feet | Tecnica Mach1
-freeride ski recommendation | K2 Mindbender
+# --- A. still true of the library, from the 28 Jul corpus ---------------------
 good freeride skis | Rossignol Sender
-ski resort for beginners | Les Arcs
 steep skiing in the US like la grave | Silverton Mountain
 off piste resort america | Crested Butte
-
-# --- eating & drinking ---
-restaurant in tel aviv | Habasta
-best hummus tel aviv | Abu Hasan
-seaside restaurant tel aviv | House of Dallal
-quiet bar tel aviv | האחים
-oysters in paris | Huitrerie Régis
-מקום לאויסטרים בפריז | Clamato
 בשר איכותי קצביה | אומצה
-
-# --- home, services, professionals ---
 gas stove technician | נאור פיקס
 טכנאי תנורים | נאור פיקס
-dermatologist | דר לביא
-רופא עור מכבי | דר לביא
-picture framing | עמנואל אומנות ומסגור
-מסגרת לתמונה רמת גן | עמנואל אומנות ומסגור
-בגדי עבודה זול | הגרעין
-
-# --- travel & islands ---
-quiet greek island | Leros
-alternative to santorini | Paphos
-which season to visit israel | סתיו
-
-# --- culture & products ---
-museum in new york | Metropolitan
-modern art museum nyc | MoMA
 gas grill recommendation | Weber Spirit
-electric car alternative to tesla | Rivian
-book by the harry potter author | Christmas Pig
-yellow curry recipe | לימור לניאדו תירוש
+
+# --- B. grounded in real answers, searches paraphrased ------------------------
+
+# eating and drinking
+casual place near carmel market | Basta
+late night bar tel aviv | Minzar
+falafel tel aviv | Hakosem
+where was that pizza place in london | Vasiniko
+thai food in brooklyn | Sukh
+thai restaurant new york | Chada
+vegan place brooklyn | The Gateway
+pistachio ice cream | Arte
+israeli red wine | Margalit
+
+# people who come to the house
+someone to do the garden | Yaron
+gardener recommendation | Brian
+
+# travel
+where to go in puglia | מאטרה
+road trip in southern italy | טיול עם רכב באיזור בארי
+
+# --- C. expectations that no longer exist in the library ----------------------
+# Kept as a record so they are not silently re-added. Each had NO canonical in
+# the database on 13 Sep 2026. If these items are re-imported, move the line
+# back up rather than inventing a substitute.
+#
+# wide ski touring boot for wide feet | Tecnica Mach1
+# freeride ski recommendation | K2 Mindbender      (K2 Sender is a DIFFERENT ski)
+# ski resort for beginners | Les Arcs
+# restaurant in tel aviv | Habasta                 (Basta is a different place)
+# best hummus tel aviv | Abu Hasan                 (dan holds "אבו חסן" — the
+#                                                   expectation is in the wrong
+#                                                   script, not absent; re-add
+#                                                   it in Hebrew if wanted)
+# seaside restaurant tel aviv | House of Dallal
+# oysters in paris | Huitrerie Régis
+# מקום לאויסטרים בפריז | Clamato
+# dermatologist | דר לביא                          (דר לירן חורב is a DIFFERENT
+#                                                   doctor)
+# רופא עור מכבי | דר לביא
+# picture framing | עמנואל אומנות ומסגור
+# מסגרת לתמונה רמת גן | עמנואל אומנות ומסגור
+# בגדי עבודה זול | הגרעין
+# quiet bar tel aviv | האחים                      (NOT in the library. My own
+#                                                   check passed this on 13 Sep
+#                                                   because a SUBSTRING match hit
+#                                                   "מאפיית האחים", a bakery.
+#                                                   search-library correctly
+#                                                   returned nothing.)
+# quiet greek island | Leros                        (dan holds Alinda, a beach
+#                                                    ON Leros — not the island)
+# alternative to santorini | Paphos
+# which season to visit israel | סתיו
+# museum in new york | Metropolitan
+# modern art museum nyc | MoMA
+# electric car alternative to tesla | Rivian
+# book by the harry potter author | Christmas Pig
+# yellow curry recipe | לימור לניאדו תירוש

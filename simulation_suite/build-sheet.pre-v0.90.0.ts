@@ -14,30 +14,14 @@
 // Auth: caller JWT (must own the query). Secrets: OPENAI_API_KEY, GOOGLE_PLACES_API_KEY
 // ============================================================================
 import { adminClient, userClient, getUserId, json, err, handleOptions } from "../_shared/utils.ts";
-import { libraryRecall } from "../_shared/library_recall.ts";
 
 const CATEGORIES = ["dining","travel","healthcare","home","culture","hobbies","professional","other"];
-// sheet-v5: own-library recall moved onto search_library_hybrid + rerank
-// (_shared/library_recall.ts). The client renders this string in the sheet
-// header, so it is how a deploy is confirmed to have landed - the APP_VERSION
-// of this function.
-const ENGINE = "sheet-v6";
+const ENGINE = "sheet-v4";
 
 interface Body { query_id: string; }
 
 function norm(s: string): string {
   return (s || "").trim().toLowerCase().replace(/\s+/g, " ");
-}
-// Two renderings of the same testimony. Containment counts only when the
-// shorter side is long enough to be meaningful - otherwise a three-character
-// note would swallow everything.
-function sameNote(a: string, b: string): boolean {
-  const x = norm(a), y = norm(b);
-  if (!x || !y) return false;
-  if (x === y) return true;
-  const shorter = x.length < y.length ? x : y;
-  const longer = x.length < y.length ? y : x;
-  return shorter.length >= 20 && longer.includes(shorter);
 }
 // A recommendation name is an ENTITY, not a sentence. Long, verby strings are
 // testimony — they must never become canonicals (the Avoriaz lesson).
@@ -201,51 +185,58 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // ── own-library matches, through the SAME engine as search ──────────────
-  // WAS: match_user_recs — vector only, no threshold in the SQL at all, and a
-  // caller-side floor of max(0.25, SEARCH_MIN_SIMILARITY - 0.05) = 0.25. On a
-  // bilingual library that floor sits BELOW the similarity of two unrelated
-  // items written in the same language (Hebrew<->Hebrew averages 0.354 on dan's
-  // rows), so a Hebrew question retrieved a vet and a driving instructor for
-  // being Hebrew, and excluded the Italian restaurants for being Latin (0.191).
-  //
-  // search_library_hybrid + rerank is the mechanism v0.25.0 introduced for
-  // exactly this, in search-library, on 28 Jul. build-sheet is the last caller
-  // that never moved to it. See _shared/library_recall.ts.
+  // ── own-library semantic matches (unchanged recall path) ────────────────
   type LibItem = {
     rec_id: string; canonical_id: string; name: string; location: string;
     category: string | null; user_filed?: boolean; tags?: string[]; origin?: string;
-    emoji: string; note: string; rating: number; why?: string;
+    emoji: string; note: string; rating: number;
   };
   let library: LibItem[] = [];
-  let recallError: string | null = null;
-  {
-    const recall = await libraryRecall(admin, key, userId, q.text, 10);
-    recallError = recall.error;
-    const canIds = recall.hits.map((h) => h.canonical_id).filter(Boolean);
-    // The hybrid returns the catalogue fields but not the emoji or who filed
-    // the category, both of which the sheet shows.
-    const extra: Record<string, { emoji: string; class_source: string }> = {};
-    if (canIds.length) {
-      const { data: cans } = await admin
-        .from("canonicals").select("id,image_emoji,class_source").in("id", canIds);
-      for (const c of cans || []) {
-        extra[c.id as string] = {
-          emoji: (c.image_emoji as string) || "\ud83d\udccc",
-          class_source: (c.class_source as string) || "",
-        };
+  if (key) {
+    try {
+      const emb = await fetch("https://api.openai.com/v1/embeddings", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "text-embedding-3-large", dimensions: 1536, input: q.text }),
+      });
+      if (emb.ok) {
+        const e = await emb.json();
+        const vector = e.data?.[0]?.embedding;
+        if (vector) {
+          const minSim = Math.max(0.25, parseFloat(Deno.env.get("SEARCH_MIN_SIMILARITY") ?? "0.3") - 0.05);
+          const { data: hits } = await admin.rpc("match_user_recs", {
+            p_user: userId, p_embedding: vector, p_limit: 15,
+          });
+          const good = (hits || []).filter((h: { similarity: number }) => h.similarity >= minSim);
+          if (good.length) {
+            const recIds = good.map((h: { rec_id: string }) => h.rec_id);
+            const { data: recs } = await admin
+              .from("recommendations")
+              .select("id, note, rating, canonical_id, query_id, canonicals(id, name, location, image_emoji, primary_category, ai_tags, class_source)")
+              .in("id", recIds);
+            const originIds = [...new Set((recs || []).map((r: Record<string, unknown>) => r.query_id).filter(Boolean))];
+            const originText: Record<string, string> = {};
+            if (originIds.length) {
+              const { data: oq } = await admin.from("queries").select("id,text").in("id", originIds);
+              for (const o of oq || []) originText[o.id] = o.text;
+            }
+            library = (recs || []).map((r: Record<string, unknown>) => {
+              const cn = r.canonicals as Record<string, unknown> | null;
+              return {
+                rec_id: r.id as string, canonical_id: r.canonical_id as string,
+                name: (cn?.name as string) || "", location: (cn?.location as string) || "",
+                category: (cn?.primary_category as string) || null,
+                user_filed: (cn?.class_source as string) === "user",
+                tags: Array.isArray(cn?.ai_tags) ? (cn?.ai_tags as string[]) : [],
+                origin: r.query_id ? (originText[r.query_id as string] || "") : "",
+                emoji: (cn?.image_emoji as string) || "📌",
+                note: (r.note as string) || "", rating: (r.rating as number) || 0,
+              };
+            });
+          }
+        }
       }
-    }
-    library = recall.hits.map((h) => ({
-      rec_id: h.rec_id, canonical_id: h.canonical_id,
-      name: h.name, location: h.location || "",
-      category: h.primary_category || null,
-      user_filed: extra[h.canonical_id]?.class_source === "user",
-      tags: Array.isArray(h.ai_tags) ? h.ai_tags : [],
-      origin: "",
-      emoji: extra[h.canonical_id]?.emoji || "\ud83d\udccc",
-      note: h.note || "", rating: h.rating || 0, why: h.why || "",
-    }));
+    } catch (_) { /* best effort */ }
   }
 
   // ── VERIFICATION: answers are testimony about ONE subject ───────────────
@@ -345,12 +336,16 @@ Deno.serve(async (req: Request) => {
     entityResponses.push({ r, i });
     pending.push({ idx: i, kind: "resp", text: [r.rec_name, r.rec_location, r.rec_note].filter(Boolean).join(" | ") });
   });
-  // LIBRARY ITEMS ARE NO LONGER JUDGED HERE. libraryRecall has already ranked
-  // them for intent against this question, with a prompt that can read
-  // provenance, and it returns nothing at all when it cannot judge. Asking a
-  // second, weaker judge to re-filter them is what used to fail open.
+  library.forEach((l, i) => {
+    pending.push({ idx: i, kind: "lib", text: [
+      l.name, l.location, l.note,
+      l.tags && l.tags.length ? "tags: " + l.tags.join(", ") : "",
+      l.origin ? 'originally answered the question: "' + l.origin.slice(0, 120) + '"' : "",
+    ].filter(Boolean).join(" | ") });
+  });
 
   const respCats: Record<number, string> = {};
+  const libRelevant: Record<number, boolean> = {};
   let judgeError: string | null = null;
   if (key && pending.length) {
     try {
@@ -383,42 +378,40 @@ Deno.serve(async (req: Request) => {
         }
         if (!results) {
           judgeError = "unexpected_judge_output";
+          library.forEach((_, i) => { libRelevant[i] = true; });
         } else {
           pending.forEach((p, i) => {
             const r = results![i] || {};
             const cat = CATEGORIES.includes(r.category) ? r.category : "other";
             if (p.kind === "resp") respCats[p.idx] = cat;
+            else {
+              if (!library[p.idx].user_filed) library[p.idx].category = cat;
+              libRelevant[p.idx] = r.relevant !== false;
+            }
           });
         }
       } else {
         judgeError = "openai_" + chat.status;
+        library.forEach((_, i) => { libRelevant[i] = true; });
       }
     } catch (e) {
       judgeError = "judge_exception: " + String(e).slice(0, 100);
+      library.forEach((_, i) => { libRelevant[i] = true; });
     }
   } else {
     if (pending.length) judgeError = key ? null : "openai_not_configured";
+    library.forEach((_, i) => { libRelevant[i] = true; });
   }
 
-  // Nothing is filtered after the fact any more: an item is in `library`
-  // only because the recall rerank put it there.
-  const hiddenCount = 0;
+  const hiddenCount = library.filter((_, i) => libRelevant[i] === false).length;
+  library = library.filter((_, i) => libRelevant[i] !== false);
 
   // A REFERENCE is the thing the asker is moving away from or comparing to
   // ("something like La Grave", "alternative to Santorini", "books by the Harry
   // Potter author"). It must never be offered back as the answer.
   const refNorm = norm(cls.reference || "");
-  // EXACT, NOT CONTAINED (fixed v0.90.0). This dropped anything whose name
-  // merely CONTAINED the reference. On "bridge in Brooklyn" the classifier
-  // returns reference "Brooklyn", and "brooklyn bridge".includes("brooklyn")
-  // is true - so the Brooklyn Bridge was deleted as though it were the thing
-  // being compared against. Same for Hampstead Heath under "Hampstead": two of
-  // the forty answers in the 13 Sep eval vanished this way.
-  //
-  // A reference is one named thing ("something like La Grave"). An answer that
-  // merely mentions it is a DIFFERENT thing and is exactly what was asked for.
   if (refNorm) {
-    library = library.filter((l) => norm(l.name) !== refNorm);
+    library = library.filter((l) => norm(l.name) !== refNorm && !norm(l.name).includes(refNorm));
   }
 
   type SheetItem = {
@@ -439,7 +432,7 @@ Deno.serve(async (req: Request) => {
   for (const { r, i } of entityResponses as { r: any; i: number }[]) {
     const keyName = norm(r.rec_name as string);
     if (!keyName) continue;
-    if (refNorm && keyName === refNorm) continue; // the reference is not an answer
+    if (refNorm && (keyName === refNorm || keyName.includes(refNorm))) continue; // the reference is not an answer
     const who = whoOf(r);
     const existing = byName[keyName];
     if (existing) {
@@ -457,55 +450,11 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // ── DO I ALREADY OWN WHAT THEY NAMED? ───────────────────────────────────
-  // The corroboration above is string equality on the normalised name, so it
-  // only fires when the answer is spelled exactly as the library holds it.
-  // may's answer "מאטרה, בארי, פוליאנו אה מארה, Alberobello" and the library's
-  // "מאטרה" are the same place and never matched.
-  //
-  // match_canonical is the entity resolver the rest of the app already uses —
-  // phone key, then trigram similarity on name with a location guard. It needs
-  // no embedding, no threshold of ours and no model, so it cannot drift and it
-  // cannot return a vet: it only ever answers about the things the circle
-  // actually named. Verified against dan's real rows, 12 Sep 2026 — both
-  // answers to the Apulia query resolved and both were correctly found held.
-  for (const [k, it] of Object.entries(byName)) {
-    if (it.rec_id || it.from_you) continue;          // already known to be held
-    const { data: canId } = await admin.rpc("match_canonical", {
-      p_name: it.name, p_location: it.location || null, p_phone: null,
-    });
-    if (!canId) continue;
-    const { data: owned } = await admin
-      .from("recommendations")
-      .select("id, rating, note")
-      .eq("owner_id", userId).eq("canonical_id", canId)
-      .limit(1);
-    const mine = (owned || [])[0];
-    if (!mine) continue;
-    byName[k] = {
-      ...it,
-      from_you: true,
-      rec_id: mine.id as string,
-      rating: it.rating || ((mine.rating as number) || 0),
-      // SAME WORDS, DIFFERENT WRAPPER. The library copy of an answer is
-      // stored prefixed with who said it ("Tom Shapiro: ..."), while the
-      // response note is the bare text, so exact equality never matched and
-      // Tom's whole trip narrative appeared twice on his own sheet.
-      notes: mine.note && !it.notes.some((n) => sameNote(n.note, mine.note as string))
-        ? [...it.notes, { by: "You", note: mine.note as string }]
-        : it.notes,
-    };
-  }
-
   const items = Object.values(byName);
   return json({
     engine: ENGINE, archetype: cls.archetype, subject: "", subject_resolved: false,
     reference: cls.reference || "",
-    // recall_error is separate from judge_error: the first says why the
-    // "from your library" section is empty, the second why answers may be
-    // uncategorised. Conflating them is how a retrieval failure used to read
-    // as a categorisation failure.
-    judge_error: judgeError, recall_error: recallError, query_text: q.text,
+    judge_error: judgeError, query_text: q.text,
     advice,
     counts: {
       total: items.length,

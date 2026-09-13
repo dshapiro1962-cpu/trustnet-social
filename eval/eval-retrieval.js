@@ -31,8 +31,34 @@ const ANON = 'sb_publishable_8MAMd56FzHTyNZtnO2XK4A_cp2lFGEm';
 const AUTH_FILE = path.join(__dirname, '..', 'e2e', '.auth', 'session.json');
 const ARG_TOKEN = (() => {
   const i = process.argv.indexOf('--token');
-  return i > 0 ? process.argv[i + 1] : (process.env.TN_EVAL_TOKEN || '');
+  return i > 0 ? process.argv[i + 1] : (process.env.TN_EVAL_TOKEN || tokenFromEnvFile());
 })();
+// A token may also live in .env.local as TN_EVAL_TOKEN=... — the same
+// gitignored file the live sims read TRUSTNET_DB_URL from. That way it is
+// pasted once, into a file that never reaches git, instead of onto a command
+// line that lands in shell history.
+function tokenFromEnvFile() {
+  try {
+    const p = require('path').join(__dirname, '..', '.env.local');
+    // Anchored: an unanchored match also picks up a COMMENTED-OUT line.
+    const m = require('fs').readFileSync(p, 'utf8').match(/^TN_EVAL_TOKEN\s*=\s*(.+)$/m);
+    if (!m) return '';
+    // Chrome's console offers "Copy string as JSON literal" as well as "Copy
+    // string contents"; the first wraps the token in double quotes. Strip a
+    // matching pair rather than make that a failure.
+    const t = m[1].trim().replace(/^(["'])([\s\S]*)$/, '$2').trim();
+    // A Supabase access token is a JWT. Anything else - most likely the
+    // placeholder from a copied command - is refused here rather than sent as
+    // a bearer token, where it comes back as a 401 that reads like an expiry.
+    if (!/^eyJ[\w-]+\.[\w-]+\./.test(t)) {
+      console.error('  TN_EVAL_TOKEN in .env.local is not a JWT (got "'
+        + t.slice(0, 24) + '") - ignoring it.');
+      return '';
+    }
+    return t;
+  } catch (_) { return ''; }
+}
+
 const QUESTIONS = path.join(__dirname, 'eval-questions.txt');
 const TOP_N = 5; // "found" means: in the top N results
 
@@ -43,7 +69,9 @@ function readToken() {
     console.log('(measuring the account for the token you supplied)\n');
     return ARG_TOKEN.trim();
   }
-  console.log('(measuring the E2E TEST account — pass --token to measure your own library)\n');
+  console.log('(no TN_EVAL_TOKEN found — falling back to the E2E TEST account, whose saved\n'
+    + ' session expired on 19 Aug and whose library holds NONE of the expected items.\n'
+    + ' Add a TN_EVAL_TOKEN=<token> line to .env.local, or pass --token.)\n');
   const st = JSON.parse(fs.readFileSync(AUTH_FILE, 'utf8'));
   for (const o of st.origins || []) {
     for (const item of o.localStorage || []) {
