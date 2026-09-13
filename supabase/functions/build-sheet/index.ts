@@ -21,7 +21,7 @@ const CATEGORIES = ["dining","travel","healthcare","home","culture","hobbies","p
 // (_shared/library_recall.ts). The client renders this string in the sheet
 // header, so it is how a deploy is confirmed to have landed - the APP_VERSION
 // of this function.
-const ENGINE = "sheet-v6";
+const ENGINE = "sheet-v7";
 
 interface Body { query_id: string; }
 

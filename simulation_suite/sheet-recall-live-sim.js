@@ -138,6 +138,26 @@ const ck = (n, c, x) => {
        'containment without a length floor makes every short note a duplicate');
   }
 
+  // ── 1c. THE KIND-BEFORE-PLACE RULE ──────────────────────────────────────
+  // STRUCTURAL ONLY, and it says so: this asserts the instruction is present in
+  // the rerank prompt, not that the model obeys it. Obedience is measured by
+  // eval/eval-sheet.js against the deployed function - the two additions to
+  // watch are "wine shop in RAMAT-GAN" and "best coffe in rama gan", which on
+  // 13 Sep both returned סביח עובד, a sabich stall, because it is the only food
+  // in Ramat Gan in the library.
+  if (fs.existsSync(RECALL)) {
+    const rc = fs.readFileSync(RECALL, 'utf8');
+    const prompt = rc.replace(/\/\/[^\n]*/g, '');   // the rule must be in the PROMPT, not a comment
+    ck('the rerank prompt says a shared location is not relevance',
+       /SHARED LOCATION IS NOT RELEVANCE/.test(prompt),
+       'a sabich stall answered a question about a wine shop on 13 Sep');
+    ck('...and it still allows a place to answer "where to go" in that region',
+       /place to VISIT does/.test(prompt),
+       'over-correcting here would drop מאטרה from the Apulia sheet, which is RIGHT');
+    ck('the "empty beats wrong" instruction is still there',
+       /empty answer beats a wrong one/.test(prompt));
+  }
+
   // ── 2. THE OLD BAND: is vector-only actually inseparable? ───────────────
   console.log('\n== why a threshold cannot fix the old path ==\n');
   const lang = (await c.query(

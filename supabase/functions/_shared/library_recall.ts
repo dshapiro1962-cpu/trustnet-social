@@ -139,6 +139,17 @@ export async function libraryRecall(
             "ONLY entries that genuinely relate to that question, best first, at most " + limit + ". " +
             "Judge intent, not word overlap: a dermatologist does not answer a plumber question, " +
             "and a driving instructor does not answer a question about hotels in Italy. " +
+            // A SHARED LOCATION IS NOT RELEVANCE (13 Sep). "wine shop in RAMAT-GAN" and
+            // "best coffe in rama gan" both came back with a sabich stall, because it is
+            // the only food in Ramat Gan in the library and its document says רמת גן three
+            // times. dan holds no wine shop and no cafe there, so the correct answer to
+            // both was nothing - which the line below already asks for, and which the
+            // model ignored once the city matched.
+            "A SHARED LOCATION IS NOT RELEVANCE. Match the KIND of thing first and the " +
+            "place second: a sabich restaurant does not answer a question about a wine " +
+            "shop or a cafe, even when both are in the same town. A place to VISIT does " +
+            "answer a question about where to go in that region - that is a kind match, " +
+            "not merely a location match. " +
             "IMPORTANT: an entry SAVED IN ANSWER TO a question mentioning the subject IS relevant, " +
             'even when it is not that subject itself. Entries note the question they answered ' +
             '("asked: ..."). ' +
