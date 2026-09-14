@@ -295,8 +295,18 @@ const ck = (n, c, x) => {
       const { rows: [{ id }] } = await c.query('select public.match_canonical($1,null,null) id', [n]);
       if (id) hits.push(id);
     }
-    ck("Tom's and may's answers both resolve on the query dan reported",
-       hits.length === names.length, hits.length + ' of ' + names.length);
+    // NAMED, NOT COUNTED. This asserted that EVERY answer resolves, which broke
+    // the moment Rany answered "We only stayed at air b&b" on 13 Sep - testimony
+    // that correctly resolves to nothing. The two entity answers are what this
+    // is about, so name them.
+    const resolvesByName = async (needle) => {
+      const n = names.find((x) => String(x).indexOf(needle) > -1);
+      if (!n) return false;
+      const { rows: [{ id }] } = await c.query('select public.match_canonical($1,null,null) id', [n]);
+      return !!id;
+    };
+    ck("may's answer resolves on the query dan reported", await resolvesByName('מאטרה'));
+    ck("Tom's answer resolves too", await resolvesByName('טיול עם רכב'));
     const strayResolved = [];
     for (const s of STRAYS) {
       const { rows: [{ id }] } = await c.query('select public.match_canonical($1,null,null) id', [s]);
