@@ -11,17 +11,29 @@ Live at trustnetsocial.netlify.app. Postgres on Supabase, project
 
 ## Start here
 
-Read `docs/HANDOVER-2026-09-09.md` before touching anything. It records what is
-live, what was fixed, and what is still open. The three earlier handovers
+Read `docs/HANDOVER-2026-09-14.md` before touching anything. It records what is
+live, what was fixed, and what is still open. `HANDOVER-2026-09-09.md` carries a
+banner naming its three corrections. The three earlier handovers
 (`HANDOVER-2026-08-25.md`, `HANDOVER-2026-08-24-evening.md`,
 `HANDOVER-2026-08-24.md`) are superseded and each carries a banner saying what
 in it is wrong — read them for the testing doctrine and the record of wrong
 calls, not for the current state.
 
-**You cannot deploy.** `supabase functions deploy` is blocked by the permission
-classifier and `gh` is not installed, so workflow runs cannot be checked either.
-Say "pushed, not deployed" and give dan the command — never end a piece of work
-with a deploy block as though the change were live. And when a client change
+**You CAN deploy edge functions. You cannot deploy Netlify.** Corrected 13 Sep
+2026 — this file said both were blocked, which cost a session the ability to
+finish its own work.
+
+- `supabase functions deploy <fn> --project-ref kgsdtfrcyjrxeyqqxoic` **works**.
+  Add `--no-verify-jwt` for anything respond.html calls. Verify it afterwards
+  with `supabase functions download` and diff against git; the success message
+  is not evidence.
+- `netlify deploy` is refused by the permission classifier. `netlify sites:list`
+  is allowed. Push instead and let Netlify build from `origin/main` — it lands
+  in about 25 seconds.
+- `gh` is still not installed, so workflow runs cannot be checked.
+
+Never end a piece of work with a deploy block as though the change were live.
+And when a client change
 writes a NEW COLUMN, the migration must be applied BEFORE the push: Netlify
 deploys within a minute, and the window between would fail every save.
 
@@ -152,9 +164,15 @@ Added 25–26 Aug, same rule:
 - `circle-place-sim.js` — runs **the real `placeFits` lifted from the sweep**
 - `beta-strip-sim.js` — executes the wiring; position asserted structurally
 
-**13 sims, 245 assertions, all green with all controls failing** (9 Sep). The
-other 52 files in that directory do not run on this machine — 17 open a
-container path that does not exist here. It is 13 live sims inside an archive.
+**20 sims, all green with all controls failing** (14 Sep). Five more were added
+10–14 Sep, and three of them run against the REAL database as role
+`authenticated` with RLS in force, in a transaction that is always rolled back:
+`inbox-save-live-sim.js`, `sheet-recall-live-sim.js`, `people-search-live-sim.js`.
+Each proves the environment before asserting anything — a foreign-owner insert
+must be REFUSED, or RLS is not on and nothing below it is evidence.
+
+The other files in that directory do not run on this machine — 17 open a
+container path that does not exist here. It is 20 live sims inside an archive.
 
 **A guard that passes for the wrong reason is worse than no guard.** Four did
 on 25 Aug, in a session about guards: one searched for an identifier that
