@@ -1,5 +1,11 @@
 # Canonical merge plan · 15 Sep 2026
 
+> **Applied 15 Sep.** 181 -> 161 live canonicals, 14 tombstones,
+> 194 -> 179 recommendations, 18 -> 1 collision groups.
+>
+> The one remaining group, `ROK`, is **closed and stays unfolded**: Khorazim
+> Street is in Givatayim, not Ramat Gan, and dan has ruled it unimportant.
+
 Generated, not hand-written. Nothing has been written to the database.
 
 ```
