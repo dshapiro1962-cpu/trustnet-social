@@ -1909,7 +1909,7 @@ function statusDot(status) {
 // Accounts created from this moment onward are asked for their name; the
 // four who joined before it were named by hand and are left alone.
 const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
-const APP_VERSION = 'v0.93.0 · live';
+const APP_VERSION = 'v0.91.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -6060,14 +6060,8 @@ function renderSettings() {
 
     + '<div class="card"><div class="card-body" style="display:flex;flex-direction:column;gap:12px;">'
     + '<div style="font-size:13px;font-weight:700;color:var(--slate-700);">Data</div>'
-    // THE COPY DESCRIBED A DELETION THAT DOES NOT HAPPEN (fixed v0.93.0).
-    // handleClearData signs out and reloads; nothing is removed. The old text -
-    // "Removes your profile, circles, members, recommendations and queries" -
-    // came from an earlier intention and survived the change. It only ever
-    // failed one way: someone wanting to sign out on a shared phone read it and
-    // did not dare. The button is no longer styled as destructive either.
-    + '<button class="btn btn-secondary btn-sm" data-action="clear-data" style="align-self:flex-start;">Sign out</button>'
-    + '<div style="font-size:11px;color:var(--slate-300);">Signs you out on this device. Your circles, people and library stay exactly as they are.</div>'
+    + '<button class="btn btn-danger btn-sm" data-action="clear-data" style="align-self:flex-start;">Sign out</button>'
+    + '<div style="font-size:11px;color:var(--slate-300);">Removes your profile, circles, members, recommendations and queries. Demo data is not affected.</div>'
     + '</div></div>'
     + '</div>';
 }
@@ -9250,14 +9244,7 @@ document.addEventListener('click', function(e) {
     handleSwitchDemo(target.dataset.userId);
   }
   else if (action === 'request-intro') {
-    // IT SAID SOMETHING UNTRUE (fixed v0.93.0). This handler was one line, a
-    // toast claiming they would be notified anonymously. No network call, no
-    // row, nobody notified. A person tapped it, read that, and waited for an
-    // introduction no part of the system knew had been asked for. There is
-    // nowhere to record it yet - taste_matches and taste_match_profiles are
-    // both empty - so the honest thing is to say so rather than keep
-    // confirming it.
-    toast('Introductions are not available yet - nothing has been sent.', 'warn');
+    toast('Introduction requested — they\'ll be notified anonymously.');
   }
   else if (action === 'dismiss-reciprocal') {
     var rid = target.dataset.recipId;
@@ -9687,14 +9674,9 @@ async function showInviteBannerIfPending() {
       return;
     }
     host.innerHTML = '<div style="font-size:15px;font-weight:700;color:#0D2B1F;line-height:1.4;" dir="auto">'
-      // "his" AND "He" WERE HARDCODED (fixed v0.93.0). Every invitation said
-      // them, whoever sent it - and roughly half of the beta invitees are
-      // women. This is the first sentence a stranger reads about Trustnet.
-      // invite_preview returns a name, never a gender, so there is nothing to
-      // infer from and nothing to guess with.
-      + esc(d.inviter) + ' is inviting you to their ' + esc(d.circle) + ' circle</div>'
+      + esc(d.inviter) + ' is inviting you to his ' + esc(d.circle) + ' circle</div>'
       + '<div style="font-size:13px;color:#56695F;margin-top:4px;line-height:1.5;">'
-      + 'They value your recommendations.</div>'
+      + 'He values your recommendations.</div>'
       // ONE BUTTON, NO CODE. She taps it, WhatsApp opens with the message
       // already written, she presses send. That is the whole verification.
       + '<button class="btn btn-primary" data-action="codeless-join" data-token="' + esc(tok) + '"'
