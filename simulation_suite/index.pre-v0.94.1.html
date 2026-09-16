@@ -1910,7 +1910,7 @@ function statusDot(status) {
 // Accounts created from this moment onward are asked for their name; the
 // four who joined before it were named by hand and are left alone.
 const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
-const APP_VERSION = 'v0.94.1 · live';
+const APP_VERSION = 'v0.94.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -6596,13 +6596,13 @@ function modalAddRec() {
     // so a member with no contact details shows but cannot be ticked and
     // external sources never appear. The send is sendRecToMany, extracted in
     // v0.88.0 for exactly this - a third caller, not a third implementation.
-    + ('<div class="field" style="border-top:1px solid #E5EDE8;padding-top:14px;">'
+    + (editId ? '' : ('<div class="field" style="border-top:1px solid #E5EDE8;padding-top:14px;">'
       + '<label style="display:flex;align-items:center;gap:9px;cursor:pointer;">'
       + '<input type="checkbox" id="ar-send" style="width:18px;height:18px;flex:none;accent-color:#217A4B;cursor:pointer;">'
       + '<span style="font-size:13px;font-weight:600;color:#1C2420;">Also send it to people</span>'
       + '</label>'
       + '<div id="ar-send-box" style="display:none;margin-top:10px;"></div>'
-      + '</div>')
+      + '</div>'))
     + '</div>'
     + '<div class="modal-footer"><button class="btn btn-secondary" data-action="close-modal">Cancel</button>'
     + '<button class="btn btn-primary" id="ar-save" data-action="save-rec">Add to Library</button></div>'
