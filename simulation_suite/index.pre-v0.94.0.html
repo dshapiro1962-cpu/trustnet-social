@@ -1083,9 +1083,8 @@ body { font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robo
      That is why Profile was unreachable on mobile: its door existed, behind
      an opaque bar.
      Nothing is lost. home / circles / library are in #mobile-tabbar; `query`
-     is reached from Home - the ask box, and the FAB's "Recommend to a circle"
-     (data-action="fab-recommend"), which was "fab-ask" until v0.94.0 moved
-     asking onto Home; `profile` now has a labelled row on Home. Verified by the door guard in modalfit-sim: every routed view
+     is reached by the FAB (data-action="fab-ask"); `profile` now has a labelled
+     row on Home. Verified by the door guard in modalfit-sim: every routed view
      still has a way in. -->
 </div>
 
@@ -1910,7 +1909,7 @@ function statusDot(status) {
 // Accounts created from this moment onward are asked for their name; the
 // four who joined before it were named by hand and are left alone.
 const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
-const APP_VERSION = 'v0.94.0 · live';
+const APP_VERSION = 'v0.93.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -6585,104 +6584,9 @@ function modalAddRec() {
     + '<div class="field"><div class="field-label">CIRCLE <span style="font-weight:400;color:#A8BDAF;">(optional)</span></div>'
     + circlePickerHtml
     + '</div>'
-    // ── ALSO SEND IT (v0.94.0) ──────────────────────────────────────────
-    // THE TOGGLE IS THE GUARD, THE CIRCLE IS THE DEFAULT. Saving privately is
-    // the common case, so this starts OFF and nothing leaves the library.
-    // Turning it on is deliberate - and at that point the whole circle is the
-    // default, which is the rule v0.88.0 already set on the Recommend screen:
-    // unticking is the new gesture, not ticking. Two screens, one rule.
-    //
-    // The expanded list is qWhoHtml, the same one the Recommend screen builds,
-    // so a member with no contact details shows but cannot be ticked and
-    // external sources never appear. The send is sendRecToMany, extracted in
-    // v0.88.0 for exactly this - a third caller, not a third implementation.
-    + (editId ? '' : ('<div class="field" style="border-top:1px solid #E5EDE8;padding-top:14px;">'
-      + '<label style="display:flex;align-items:center;gap:9px;cursor:pointer;">'
-      + '<input type="checkbox" id="ar-send" style="width:18px;height:18px;flex:none;accent-color:#217A4B;cursor:pointer;">'
-      + '<span style="font-size:13px;font-weight:600;color:#1C2420;">Also send it to people</span>'
-      + '</label>'
-      + '<div id="ar-send-box" style="display:none;margin-top:10px;"></div>'
-      + '</div>'))
     + '</div>'
-    + '<div class="modal-footer"><button class="btn btn-secondary" data-action="close-modal">Cancel</button>'
-    + '<button class="btn btn-primary" id="ar-save" data-action="save-rec">Add to Library</button></div>'
+    + '<div class="modal-footer"><button class="btn btn-secondary" data-action="close-modal">Cancel</button><button class="btn btn-primary" data-action="save-rec">Add to Library</button></div>'
     + '</div>';
-}
-
-// WHOLE CIRCLE, OR NAMED PEOPLE. Collapsed is one tick for the circle the item
-// is already being filed under; expanded is the per-member list the Recommend
-// screen uses. Counts REACHABLE members only, so the number on the button is
-// the number who will actually receive it - which will not match the member
-// count on the Circles screen when someone has no contact details, and that is
-// the honest way round.
-function arSendBoxHtml(circleId, expanded) {
-  const circle = AppState.circleById(circleId);
-  if (!circleId || !circle) {
-    return '<div style="font-size:12px;color:#B4553F;padding:6px 2px;">'
-      + 'Choose a circle above first \u2014 that is who it would go to.</div>';
-  }
-  const reachable = AppState.membersOfCircle(circleId)
-    .filter(function(m) { return !m.isExternalSource && (m.linkedUserId || m.contactValue); });
-  if (!reachable.length) {
-    return '<div style="font-size:12px;color:#B4553F;padding:6px 2px;">'
-      + 'Nobody in ' + esc(circle.name) + ' can be reached yet.</div>';
-  }
-  if (expanded) {
-    return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
-      + '<span style="font-size:12px;color:#56695F;" dir="auto">' + esc(circle.name) + '</span>'
-      + '<button type="button" class="btn btn-ghost btn-sm" data-action="q-who-all" style="font-size:11.5px;">Select all</button>'
-      + '</div>'
-      + '<div id="q-who" style="max-height:200px;overflow-y:auto;border:1px solid #E5EDE8;border-radius:10px;padding:2px 8px;">'
-      + qWhoHtml(circleId) + '</div>';
-  }
-  return '<label class="qw-row" style="display:flex;align-items:center;gap:9px;padding:8px 2px;cursor:pointer;">'
-    + '<input type="checkbox" class="qw-cb" checked data-member-id="__all__" data-channel="all"'
-    + ' style="width:18px;height:18px;flex:none;accent-color:#217A4B;cursor:pointer;">'
-    + '<span style="flex:1;font-size:13px;font-weight:600;color:#1C2420;" dir="auto">Everyone in '
-    + esc(circle.name) + '</span>'
-    + '<span style="font-size:11px;color:#7A9086;">' + reachable.length + '</span>'
-    + '</label>'
-    + '<button type="button" class="btn btn-ghost btn-sm" data-action="ar-send-expand" style="font-size:11.5px;padding-inline:0;">Choose people instead \u203a</button>';
-}
-
-// Who would actually receive it. The collapsed "everyone" tick is expanded
-// HERE rather than at render time, so changing the circle needs no bookkeeping.
-function arSendTargets() {
-  if (!(document.getElementById('ar-send') || {}).checked) return [];
-  const circleId = (document.getElementById('ar-circle') || {}).value || '';
-  if (!circleId) return [];
-  const all = document.querySelector('.qw-cb[data-member-id="__all__"]');
-  if (all) {
-    if (!all.checked) return [];
-    return AppState.membersOfCircle(circleId)
-      .filter(function(m) { return !m.isExternalSource && (m.linkedUserId || m.contactValue); })
-      .map(function(m) {
-        return { memberId: m.id, channel: m.linkedUserId ? 'app' : (m.contactMethod || 'email') };
-      });
-  }
-  return qChosen();
-}
-
-// The button says what pressing it will do, and counts the way the Ask screen
-// counts, so the number means the same thing in both places.
-function arUpdateSaveLabel() {
-  const btn = document.getElementById('ar-save');
-  if (!btn) return;
-  const on = (document.getElementById('ar-send') || {}).checked;
-  if (!on) { btn.textContent = 'Add to Library'; btn.style.opacity = '1'; return; }
-  const n = arSendTargets().length;
-  btn.textContent = n ? ('Save and send to ' + n) : 'Save and send';
-  btn.style.opacity = n ? '1' : '.6';
-}
-
-// Re-render the send box for whichever circle is selected now, preserving
-// whether the person had expanded it.
-function arSendRefresh() {
-  const box = document.getElementById('ar-send-box');
-  if (!box) return;
-  const expanded = !!document.getElementById('q-who');
-  box.innerHTML = arSendBoxHtml((document.getElementById('ar-circle') || {}).value || '', expanded);
-  arUpdateSaveLabel();
 }
 
 function modalReply(params) {
@@ -7180,21 +7084,17 @@ async function handleInviteCopyLink(btn) {
 }
 
 function modalFabMenu() {
-  // THE PLUS IS FOR GIVING (v0.94.0). It used to offer "Ask a question", which
-  // was the same destination as the ask box on Home - two doors onto one screen
-  // on the one device where screen space is scarcest. Asking is on Home; this
-  // is the other direction.
   return '<div class="modal" style="max-width:360px;">'
     + '<div class="modal-body" style="padding-top:20px;">'
-    + '<button type="button" data-action="fab-save" style="display:flex;align-items:center;gap:12px;width:100%;background:#0D2B1F;border:none;border-radius:14px;padding:16px;cursor:pointer;margin-bottom:10px;text-align:left;">'
-    + '<span style="font-size:22px;">\ud83d\udccc</span>'
-    + '<span><span style="display:block;font-size:15px;font-weight:800;color:#fff;">Save a recommendation</span>'
-    + '<span style="display:block;font-size:11.5px;color:#9BC7AE;margin-top:2px;">To your library \u2014 and send it on, if you want</span></span>'
+    + '<button type="button" data-action="fab-ask" style="display:flex;align-items:center;gap:12px;width:100%;background:#0D2B1F;border:none;border-radius:14px;padding:16px;cursor:pointer;margin-bottom:10px;text-align:left;">'
+    + '<span style="font-size:22px;">🎯</span>'
+    + '<span><span style="display:block;font-size:15px;font-weight:800;color:#fff;">Ask a question</span>'
+    + '<span style="display:block;font-size:11.5px;color:#9BC7AE;margin-top:2px;">Send it to a circle you trust</span></span>'
     + '</button>'
-    + '<button type="button" data-action="fab-recommend" style="display:flex;align-items:center;gap:12px;width:100%;background:#EBF7F1;border:1.5px solid #C6EDD9;border-radius:14px;padding:16px;cursor:pointer;text-align:left;">'
-    + '<span style="font-size:22px;">\ud83e\udd1d</span>'
-    + '<span><span style="display:block;font-size:15px;font-weight:800;color:#1A5235;">Recommend to a circle</span>'
-    + '<span style="display:block;font-size:11.5px;color:#56695F;margin-top:2px;">Something already in your library</span></span>'
+    + '<button type="button" data-action="fab-save" style="display:flex;align-items:center;gap:12px;width:100%;background:#EBF7F1;border:1.5px solid #C6EDD9;border-radius:14px;padding:16px;cursor:pointer;text-align:left;">'
+    + '<span style="font-size:22px;">📌</span>'
+    + '<span><span style="display:block;font-size:15px;font-weight:800;color:#1A5235;">Save a recommendation</span>'
+    + '<span style="display:block;font-size:11.5px;color:#56695F;margin-top:2px;">To your library — link, place, anything</span></span>'
     + '</button>'
     + '</div>'
     + '</div>';
@@ -8399,32 +8299,6 @@ async function handleSaveRec() {
   // fire over a rejected write. It has already told the user why.
   try { await saveRecs([newRec.id]); } catch (e) { return; }
   requestClassify(canId, note);
-
-  // ── AND SEND IT, IF THAT WAS ASKED FOR (v0.94.0) ──────────────────────
-  // THE SAVE HAS ALREADY SUCCEEDED by this point, and that ordering is the
-  // whole design: if the send fails, the item is still in the library and the
-  // result line says who missed it. The reverse - sending first - could put a
-  // recommendation in someone's inbox for a row that was never written.
-  const targets = arSendTargets();
-  if (targets.length) {
-    const can = AppState.canonicalById(canId);
-    const r = await sendRecToMany(newRec, can, targets);
-    closeModal();
-    renderApp();
-    // sendResultHtml is markup, and toast takes text, so the counts are said
-    // plainly here. Anyone needing a tap is named rather than counted, because
-    // a browser hands off once per gesture and pretending otherwise is the one
-    // thing this must not do.
-    const bits = [];
-    if (r.sent.length) bits.push('sent to ' + r.sent.length);
-    if (r.already.length) bits.push(r.already.length + ' already had it');
-    if (r.failed.length) bits.push('could not reach ' + r.failed.join(', '));
-    toast('"' + name + '" saved' + (bits.length ? ' \u2014 ' + bits.join(', ') : '')
-      + (r.manual ? '. Some need a tap from your Library.' : '.'),
-      r.failed.length ? 'warn' : 'ok');
-    return;
-  }
-
   closeModal();
   toast('"' + name + '" added to your library.');
   renderApp();
@@ -8809,21 +8683,8 @@ document.addEventListener('click', function(e) {
     srOnTick(e.target);
     return;
   }
-  if (e.target && e.target.id === 'ar-send') {
-    const box = document.getElementById('ar-send-box');
-    if (box) {
-      box.style.display = e.target.checked ? 'block' : 'none';
-      if (e.target.checked && !box.innerHTML.trim()) arSendRefresh();
-    }
-    arUpdateSaveLabel();
-    return;
-  }
   if (e.target && e.target.classList && e.target.classList.contains('qw-cb')) {
-    // One class, two screens. qUpdateSendLabel returns immediately when there
-    // is no q-send button, so the Ask screen's handler is harmless here and
-    // this one is harmless there.
     qUpdateSendLabel();
-    arUpdateSaveLabel();
     return;
   }
   const target = e.target.closest('[data-action]');
@@ -8861,13 +8722,8 @@ document.addEventListener('click', function(e) {
   else if (action === 'open-fab') {
     openModal('fab-menu');
   }
-  else if (action === 'fab-recommend') {
-    // Straight to the Recommend verb, not to whichever one was last used -
-    // every other door into that screen is labelled Ask, and none of them sets
-    // the mode, so it lands on whatever you did last. This one says what it
-    // does and then makes it true.
+  else if (action === 'fab-ask') {
     closeModal();
-    AppState.queryMode = 'recommend';
     showView('query');
   }
   else if (action === 'fab-save') {
@@ -9194,10 +9050,6 @@ document.addEventListener('click', function(e) {
     const cid = target.dataset.circleId;
     const hiddenEl = document.getElementById('ar-circle');
     if (hiddenEl) hiddenEl.value = cid;
-    // The send list follows the filing circle: one continuous thought, rather
-    // than two circles to keep in step. Deferred so the hidden input above is
-    // already committed when the box re-reads it.
-    setTimeout(arSendRefresh, 0);
     document.querySelectorAll('.ar-circle-opt').forEach(function(opt) {
       const isMe = opt.dataset.circleId === cid;
       const c = AppState.circleById(opt.dataset.circleId);
@@ -9218,11 +9070,6 @@ document.addEventListener('click', function(e) {
         s.style.opacity = parseInt(s.dataset.n) <= n ? '1' : '0.3';
       });
     }
-  }
-  else if (action === 'ar-send-expand') {
-    const box = document.getElementById('ar-send-box');
-    if (box) box.innerHTML = arSendBoxHtml((document.getElementById('ar-circle') || {}).value || '', true);
-    arUpdateSaveLabel();
   }
   else if (action === 'save-rec') {
     handleSaveRec();
