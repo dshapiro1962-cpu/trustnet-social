@@ -164,15 +164,25 @@ Added 25–26 Aug, same rule:
 - `circle-place-sim.js` — runs **the real `placeFits` lifted from the sweep**
 - `beta-strip-sim.js` — executes the wiring; position asserted structurally
 
-**20 sims, all green with all controls failing** (14 Sep). Five more were added
-10–14 Sep, and three of them run against the REAL database as role
+**21 sims, all green with all controls failing** (16 Sep). Six were added
+10–16 Sep, and three of them run against the REAL database as role
 `authenticated` with RLS in force, in a transaction that is always rolled back:
 `inbox-save-live-sim.js`, `sheet-recall-live-sim.js`, `people-search-live-sim.js`.
 Each proves the environment before asserting anything — a foreign-owner insert
 must be REFUSED, or RLS is not on and nothing below it is evidence.
 
+**IF A CHANGE ADDS MARKUP TO A RENDER FUNCTION, THE TEST MUST RENDER IT.**
+On 16 Sep the Add to Library dialog was completely broken in production
+(`ReferenceError: editId is not defined` in `modalAddRec`) while the suite was
+green: `save-and-send-sim.js` asserted 24 correct things about the three helper
+functions and never called the builder that uses them. A vm over a hand-built
+DOM cannot catch a render that throws. `modal-render-browser-sim.js` now loads
+the real page in headless Chrome and calls all 20 modal builders; a builder that
+throws is a screen that does not open. It needs Chrome and skips cleanly (exit
+2) without it.
+
 The other files in that directory do not run on this machine — 17 open a
-container path that does not exist here. It is 20 live sims inside an archive.
+container path that does not exist here. It is 21 live sims inside an archive.
 
 **A guard that passes for the wrong reason is worse than no guard.** Four did
 on 25 Aug, in a session about guards: one searched for an identifier that
