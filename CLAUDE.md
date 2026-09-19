@@ -165,7 +165,7 @@ Added 25–26 Aug, same rule:
 - `circle-place-sim.js` — runs **the real `placeFits` lifted from the sweep**
 - `beta-strip-sim.js` — executes the wiring; position asserted structurally
 
-**22 sims, all green with all controls failing** (19 Sep). Seven were added
+**23 sims, all green with all controls failing** (19 Sep). Eight were added
 10–19 Sep, and three of them run against the REAL database as role
 `authenticated` with RLS in force, in a transaction that is always rolled back:
 `inbox-save-live-sim.js`, `sheet-recall-live-sim.js`, `people-search-live-sim.js`.
@@ -191,7 +191,7 @@ does. And a probe injected into the page must never search `document.body` —
 its own source is in there.
 
 The other files in that directory do not run on this machine — 17 open a
-container path that does not exist here. It is 22 live sims inside an archive.
+container path that does not exist here. It is 23 live sims inside an archive.
 
 **A guard that passes for the wrong reason is worse than no guard.** Four did
 on 25 Aug, in a session about guards: one searched for an identifier that
