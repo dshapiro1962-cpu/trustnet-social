@@ -42,7 +42,7 @@ const probe = [
   '  var names = ["fab-menu","add-rec","add-circle","add-member","invite","circle-link",',
   '               "interests","edit-rec","fix-category","chat-import","share-list",',
   '               "share-rec","collection-create","collection-send","edit-collection",',
-  '               "reply","resolve-query","file-suggestion","add-reciprocal","edit-circle"];',
+  '               "reply","resolve-query","file-suggestion","add-reciprocal","edit-circle","circle-more"];',
   '  for (var i = 0; i < names.length; i++) {',
   '    try {',
   '      var html = modalHtmlFor(names[i]);',
@@ -83,6 +83,7 @@ window.addEventListener('load', function () {
         case 'add-rec': return modalAddRec();
         case 'add-circle': return modalAddCircle(p);
         case 'edit-circle': return modalEditCircle(p);
+        case 'circle-more': return modalCircleMore(p);
         case 'add-member': return modalAddMember(p);
         case 'invite': return modalInvite(p);
         case 'circle-link': return modalCircleLink(p);
@@ -146,7 +147,7 @@ if (/^BOOT /.test(m[1])) {
 }
 
 const rows = m[1].split(' ||| ').filter(Boolean);
-ck('every modal was reached', rows.length >= 20, 'got ' + rows.length);
+ck('every modal was reached', rows.length >= 21, 'got ' + rows.length);
 rows.forEach((r) => {
   // "OK   add-rec" is padded, so split on runs of whitespace, not one space.
   const name = (r.trim().split(/\s+/)[1]) || '?';

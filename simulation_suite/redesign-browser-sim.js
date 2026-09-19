@@ -22,6 +22,9 @@
 //
 //   node redesign-browser-sim.js         -> must PASS
 //   node redesign-browser-sim.js --old   -> index.pre-v0.95.0.html, must FAIL
+//   node redesign-browser-sim.js --old2  -> index.pre-v0.95.1.html, must FAIL
+//        (v0.95.1's own baseline: the Home buttons, the circle's ..., and every
+//        action reachable without scrolling - group 9)
 //   --shots <dir>                        -> also write a PNG per screen
 //
 // Needs Chrome. Skips cleanly (exit 2) without it.
@@ -30,9 +33,10 @@ const fs = require('fs');
 const path = require('path');
 const cp = require('child_process');
 
-const useOld = process.argv.indexOf('--old') > -1;
-const FILE = useOld
-  ? path.join(__dirname, 'index.pre-v0.95.0.html')
+const useOld2 = process.argv.indexOf('--old2') > -1;
+const useOld = useOld2 || process.argv.indexOf('--old') > -1;
+const FILE = useOld2 ? path.join(__dirname, 'index.pre-v0.95.1.html')
+  : useOld ? path.join(__dirname, 'index.pre-v0.95.0.html')
   : path.join(__dirname, '..', 'web', 'index.html');
 if (!fs.existsSync(FILE)) { console.error('missing fixture: ' + FILE); process.exit(2); }
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
@@ -139,13 +143,16 @@ function __showLogin() {
 // once it is there. Probes run in the page; no backslashes or backticks in
 // them - they travel inside a template literal.
 const Q = (sel) => "document.querySelectorAll('" + sel + "').length";
+// Reachable without scrolling: the element's box lies inside the visible part
+// of the screen - below the top, above the tab bar.
+const SEEN = (sel) => "(function () { var e = document.querySelector('" + sel + "'); if (!e) return false; var r = e.getBoundingClientRect(); var tb = document.getElementById('mobile-tabbar'); var floor = tb && tb.getBoundingClientRect().height ? tb.getBoundingClientRect().top : window.innerHeight; return r.height > 0 && r.top >= 0 && r.bottom <= floor + 1; })()";
 const SCREENS = [
   { n: 'home-new', setup: 'fresh', go: "showView('home')",
     probe: "({ steps: " + Q('.tn-step') + ", on: [].map.call(document.querySelectorAll('.tn-step.on b'), function (b) { return b.textContent; }), locked: " + Q('.tn-step:not(.on):not(.done)') + " })" },
   { n: 'home-circle', setup: 'circleOnly', go: "showView('home')",
     probe: "({ done: " + Q('.tn-step.done') + ", on: [].map.call(document.querySelectorAll('.tn-step.on b'), function (b) { return b.textContent; }) })" },
   { n: 'home', setup: 'full', go: "showView('home')",
-    probe: "({ steps: " + Q('.tn-step') + ", ask: " + Q('.tn-askbox') + ", chips: " + Q('.tn-chip') + ", answer: (document.querySelector('a.tn-bigbtn') || {}).href || '', qcards: " + Q('.tn-qc') + ", stats: " + Q('.stat-row') + ", taste: document.getElementById('view-body').textContent.indexOf('Taste Match is available') > -1, feed: " + Q('.tn-fe') + " })" },
+    probe: "({ steps: " + Q('.tn-step') + ", ask: " + Q('.tn-askbox') + ", verbs: [].map.call(document.querySelectorAll('.tn-verbs .btn'), function (b) { return b.textContent + '|' + b.dataset.mode; }), chipBg: (function () { var c = document.querySelector('.tn-circlechips .tn-chip'); return c ? getComputedStyle(c).backgroundColor : ''; })(), chips: " + Q('.tn-chip') + ", answer: (document.querySelector('a.tn-bigbtn') || {}).href || '', qcards: " + Q('.tn-qc') + ", stats: " + Q('.stat-row') + ", taste: document.getElementById('view-body').textContent.indexOf('Taste Match is available') > -1, feed: " + Q('.tn-fe') + " })" },
   { n: 'menu', setup: 'full', go: "showView('home'); openMenu()",
     probe: "({ views: [].map.call(document.querySelectorAll('#tn-menu [data-view]'), function (e) { return e.dataset.view; }), signout: " + Q('#tn-menu [data-action=menu-signout]') + " })" },
   { n: 'fab', setup: 'full', go: "showView('home'); openModal('fab-menu')",
@@ -157,14 +164,16 @@ const SCREENS = [
   { n: 'paste-refused', setup: 'full', go: "showView('circle-detail',{circleId:'c1'}); openModal('add-member',{circleId:'c1'}); __clip(null); document.querySelector('[data-action=paste-number]').click()",
     probe: "({ note: (document.getElementById('nm-paste-note') || {}).textContent, focus: document.activeElement && document.activeElement.id })" },
   { n: 'query', setup: 'full', go: "AppState.queryMode='ask'; showView('query',{circleId:'c1'})",
-    probe: "(function () { var d2 = document.getElementById('q-deg-2'); if (d2) d2.click(); var w = document.getElementById('q-who'); return { degree: AppState.queryDegree, who: w ? w.style.pointerEvents : null, title: document.getElementById('topbar-title').textContent }; })()" },
+    probe: "(function () { var d2 = document.getElementById('q-deg-2'); if (d2) d2.click(); var w = document.getElementById('q-who'); return { degree: AppState.queryDegree, who: w ? w.style.pointerEvents : null, title: document.getElementById('topbar-title').textContent, send: " + SEEN('#q-send') + " }; })()" },
   { n: 'query-draft', setup: 'full', go: "AppState.queryMode='ask'; AppState.queryDegree=1; showView('query',{circleId:'c1'})",
     probe: "(function () { var t = document.getElementById('q-text'); t.value = 'Where to eat in Lecce'; document.getElementById('q-mode-rec').click(); var mid = document.getElementById('topbar-title').textContent; document.getElementById('q-mode-ask').click(); var t2 = document.getElementById('q-text'); return { draft: t2 ? t2.value : null, midTitle: mid }; })()" },
   { n: 'query-rec', setup: 'full', go: "AppState.queryMode='recommend'; showView('query',{circleId:'c1'})", probe: "({})" },
   { n: 'library', setup: 'full', go: "showView('library')", probe: "({ rows: " + Q('.tn-rec') + " })" },
   { n: 'circles', setup: 'full', go: "showView('circles')", probe: "({ rows: " + Q('.tn-crow') + ", cards: " + Q('.circle-card') + " })" },
   { n: 'circle', setup: 'full', go: "showView('circle-detail',{circleId:'c1'})",
-    probe: "({ faces: " + Q('.tn-face') + ", add: " + Q('.tn-face[data-modal=add-member]') + ", pair: " + Q('.tn-pair .btn') + ", back: (document.querySelector('.tn-back') || {}).textContent || '' })" },
+    probe: "({ faces: " + Q('.tn-face') + ", add: " + Q('.tn-face[data-modal=add-member]') + ", pair: " + Q('.tn-pair .btn') + ", back: (document.querySelector('.tn-back') || {}).textContent || '', more: " + SEEN('.tn-more') + ", bottom: " + Q('.tn-manage') + " })" },
+  { n: 'circle-more', setup: 'full', go: "showView('circle-detail',{circleId:'c1'}); openModal('circle-more',{circleId:'c1'})",
+    probe: "({ acts: [].map.call(document.querySelectorAll('.modal [data-action]'), function (b) { return b.dataset.action + (b.dataset.modal ? ':' + b.dataset.modal : ''); }) })" },
   { n: 'inbox', setup: 'full', go: "showView('inbox')",
     probe: "(function () { var html = document.getElementById('view-body').innerHTML; var live = html.split('respond.html?t=').length - 1; var chips = " + Q('[data-action=inbox-filter]') + "; var b = document.querySelector('[data-action=inbox-filter][data-filter=answers]'); if (b) b.click(); return { live: live, chips: chips, answers: " + Q('.tn-ib') + " }; })()" },
   { n: 'add-rec', setup: 'full', go: "showView('library'); openModal('add-rec')",
@@ -177,8 +186,9 @@ const SCREENS = [
     probe: "({ h: (document.querySelector('.tn-inv-h') || {}).textContent || '', btn: " + Q('#login [data-action=codeless-join]') + ", form: (document.getElementById('login-methods') || { style: {} }).style.display })" },
   { n: 'history', setup: 'full', go: "showView('history')", probe: "({})" },
   { n: 'history-detail', setup: 'full', go: "showView('history-detail',{queryId:'q1'})", probe: "({})" },
-  { n: 'rec-detail', setup: 'full', go: "showView('rec-detail',{recId:'r1'})", probe: "({})" },
-  { n: 'profile', setup: 'full', go: "showView('profile')", probe: "({})" },
+  { n: 'rec-detail', setup: 'full', go: "['m1','m3','m4','m6','m7'].forEach(function (m, i) { AppState.userRecs.push({ id: 'rx' + i, canonicalId: 'k1', circleId: 'c1', recommendedBy: m, note: 'The terrace room faces the olive grove. Breakfast is made in the house and it is the reason to stay; ask for the fig jam.', rating: 0, tags: [], status: 'saved', date: new Date().toISOString(), category: '' }); }); showView('rec-detail',{recId:'r1'})",
+    probe: "({ status: " + SEEN('[data-status=dismissed]') + ", recs: document.getElementById('view-body').textContent.split('olive grove').length - 1 })" },
+  { n: 'profile', setup: 'full', go: "showView('profile')", probe: "({ save: " + SEEN('[data-action=save-profile]') + " })" },
   { n: 'settings', setup: 'full', go: "showView('settings')", probe: "({})" },
   { n: 'answered', setup: 'full', go: "showView('answered')", probe: "({})" },
   { n: 'taste', setup: 'full', go: "showView('taste-match')", probe: "({})" },
@@ -287,7 +297,7 @@ ck('with a circle, step one is done and "Add friends" is live',
 ck('with people and a question asked, the steps are gone for good', P('home').steps === 0, String(P('home').steps));
 
 console.log('\n== 3. Home: ask, circles, what is waiting, your questions, what was shared ==\n');
-ck('the ask box is first', P('home').ask === 1);
+ck('Home opens with a way to ask', (P('home').verbs || []).length === 2 || P('home').ask === 1, JSON.stringify(P('home').verbs));
 ck('every circle is a chip', P('home').chips === 4, String(P('home').chips));
 ck('the question waiting for YOUR answer links to its own token', /respond\.html\?t=tok1$/.test(P('home').answer || ''), P('home').answer);
 ck('your three open questions are cards', P('home').qcards === 3, String(P('home').qcards));
@@ -336,6 +346,24 @@ ck('...one row per thing, Save on the ones not yet yours', P('sheet').items === 
 ck('sign in is one page, email one line under it', /Sign in/.test(P('login').h || '') && P('login').alt === 1, JSON.stringify(P('login')));
 ck('an invitation is the page: who asked, which circle', /Tom is inviting you to their Travel circle/.test(P('login-invite').h || ''), P('login-invite').h);
 ck('...one button, and no sign-in form', P('login-invite').btn === 1 && P('login-invite').form === 'none', JSON.stringify(P('login-invite')));
+
+console.log('\n== 9. v0.95.1: buttons that look like buttons, actions you can reach ==\n');
+ck('Home: "Ask your circles" is a button that sets Ask', (P('home').verbs || []).indexOf('Ask your circles|ask') > -1, JSON.stringify(P('home').verbs));
+ck('...beside a Recommend button that sets Recommend', (P('home').verbs || []).indexOf('Recommend|recommend') > -1);
+ck('...and no grey box pretending to be a text field', P('home').ask === 0, String(P('home').ask));
+ck('the circles under them are outlined, so Ask is the one solid green', P('home').chipBg === 'rgb(255, 255, 255)', P('home').chipBg);
+ck("a circle's own actions open from a ... on screen by its name", P('circle').more === true, String(P('circle').more));
+ck('...and nothing is left at the foot of the page', P('circle').bottom === 0, String(P('circle').bottom));
+['open-circle-link', 'open-invite', 'open-modal:edit-circle', 'circle-more-delete'].forEach(function (a) {
+  ck('...the sheet offers ' + a, (P('circle-more').acts || []).indexOf(a) > -1, JSON.stringify(P('circle-more').acts));
+});
+ck('Ask: Send is on screen without scrolling', P('query').send === true, String(P('query').send));
+ck('[precondition] the item really has a long list of recommendations', P('rec-detail').recs >= 5, String(P('rec-detail').recs));
+ck('an item: Mark visited / Save for later / Dismiss are on screen without scrolling', P('rec-detail').status === true, String(P('rec-detail').status));
+// GUARD, NOT A FIX: Profile was already fine, and this passes on --old2 on
+// purpose. It is here so the rule dan set - an action at the bottom must be
+// on screen - stays true of Profile too.
+ck('[guard] Profile: Save changes is on screen without scrolling', P('profile').save === true, String(P('profile').save));
 
 console.log('\n== 8. the source ==\n');
 const html = fs.readFileSync(FILE, 'utf8');
