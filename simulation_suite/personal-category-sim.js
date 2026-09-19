@@ -172,8 +172,11 @@ const ck = (n, c, x) => {
      a.fg === b.fg && a.bg === b.bg, a.fg + ' vs ' + b.fg);
   ck('...and a real colour, not the grey "other" fallback',
      a.fg !== X.catHue('other').fg, a.fg);
+  // The rule is that the eight have FIXED colours, from the table rather than
+  // the hashed pool. Which colours changed deliberately in v0.95.0: the
+  // redesign dan approved on 19 Sep uses a calmer palette (dining was #B84A0B).
   ck('the built-in eight keep the colours people know',
-     X.catHue('dining').fg === '#B84A0B', X.catHue('dining').fg);
+     X.catHue('dining').fg === '#97472A', X.catHue('dining').fg);
 
   console.log('\n── it is persisted ──\n');
   captured = null;

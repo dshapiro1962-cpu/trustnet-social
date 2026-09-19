@@ -11,8 +11,9 @@ Live at trustnetsocial.netlify.app. Postgres on Supabase, project
 
 ## Start here
 
-Read `docs/HANDOVER-2026-09-14.md` before touching anything. It records what is
-live, what was fixed, and what is still open. `HANDOVER-2026-09-09.md` carries a
+Read `docs/HANDOVER-2026-09-19.md` first — the v0.95.0 redesign, and what it
+did not finish — then `docs/HANDOVER-2026-09-14.md`, which records everything
+up to v0.94.1: what is live, what was fixed, and what is still open. `HANDOVER-2026-09-09.md` carries a
 banner naming its three corrections. The three earlier handovers
 (`HANDOVER-2026-08-25.md`, `HANDOVER-2026-08-24-evening.md`,
 `HANDOVER-2026-08-24.md`) are superseded and each carries a banner saying what
@@ -164,8 +165,8 @@ Added 25–26 Aug, same rule:
 - `circle-place-sim.js` — runs **the real `placeFits` lifted from the sweep**
 - `beta-strip-sim.js` — executes the wiring; position asserted structurally
 
-**21 sims, all green with all controls failing** (16 Sep). Six were added
-10–16 Sep, and three of them run against the REAL database as role
+**22 sims, all green with all controls failing** (19 Sep). Seven were added
+10–19 Sep, and three of them run against the REAL database as role
 `authenticated` with RLS in force, in a transaction that is always rolled back:
 `inbox-save-live-sim.js`, `sheet-recall-live-sim.js`, `people-search-live-sim.js`.
 Each proves the environment before asserting anything — a foreign-owner insert
@@ -181,8 +182,16 @@ the real page in headless Chrome and calls all 20 modal builders; a builder that
 throws is a screen that does not open. It needs Chrome and skips cleanly (exit
 2) without it.
 
+`redesign-browser-sim.js` (v0.95.0) goes further: 27 screens drawn at phone
+width, then USED — the first-run steps, Paste a number, Degree 2, the verb
+switch, the Save sheet's send. **Headless Chrome on Windows will not open a
+window narrower than ~512px**; `--window-size=390` silently lays out at 512
+and crops, so any phone check must render inside a 390px iframe, as this one
+does. And a probe injected into the page must never search `document.body` —
+its own source is in there.
+
 The other files in that directory do not run on this machine — 17 open a
-container path that does not exist here. It is 21 live sims inside an archive.
+container path that does not exist here. It is 22 live sims inside an archive.
 
 **A guard that passes for the wrong reason is worse than no guard.** Four did
 on 25 Aug, in a session about guards: one searched for an identifier that

@@ -206,6 +206,17 @@ flowchart LR
 
 Honest list, from the code and from this week's beta:
 
+> **v0.95.0 (19 Sep) changed four of these.** #2 is fixed — the phone menu.
+> #5 is half fixed: the **question you typed** now survives switching verb
+> (`AppState.queryDraft`); who you unticked still does not. #6 is fixed —
+> `initQueryView` draws the chosen item on every render. #7 is fixed for every
+> door that names a verb (Home box, a circle's two buttons, first-run step 3,
+> the ➕); the desktop sidebar's *Ask or recommend* still opens whichever verb
+> was used last. And one this list never had, because nobody could see it: **the
+> Degree 1 / Degree 2 buttons did nothing.** `initQueryView` threw
+> "Cannot access 'qCircle' before initialization" on every render, before
+> their listeners were attached. Fixed, and guarded by `redesign-browser-sim`.
+
 1. **Coming back on a different browser.** Joined inside WhatsApp's browser,
    later opens Safari — no session, and a WhatsApp-created account has no real
    email and no working OTP. The invite link is the only way back.
