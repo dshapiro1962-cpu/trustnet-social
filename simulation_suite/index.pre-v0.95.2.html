@@ -2381,7 +2381,7 @@ function tnMe() {
 // Accounts created from this moment onward are asked for their name; the
 // four who joined before it were named by hand and are left alone.
 const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
-const APP_VERSION = 'v0.95.2 · live';
+const APP_VERSION = 'v0.95.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -3374,81 +3374,6 @@ function channelWord(ch) {
   return ch || 'unknown';
 }
 
-// ═══ A FAILED DELIVERY, IN A SENTENCE (v0.95.2) ═════════════════════════════
-// dan, 19 Sep: Tchiya's question to Rakefet failed, and the screen showed
-// Meta's raw reply - 'Error: whatsapp_400: {"error":{"message":"(#132018)
-// There's an issue with the parameters in your template"...' - cut off at 200
-// characters mid-word. Nobody asking a friend for a hotel should read that.
-//
-// Every error our servers produce, in the words of the person holding the
-// phone: what happened, and what to do. The raw text is still there, folded
-// under "Details", because it is what anyone fixing it needs.
-//
-// ctx 'list' is for sending a list, where there is no Resend button to point
-// at, so the sentence stops at what happened.
-function deliveryErrorText(err, ctx) {
-  const e = String(err || '');
-  const m = e.match(/\(#(\d+)\)/) || e.match(/"code"\s*:\s*(\d+)/);
-  const code = m ? m[1] : '';
-  let why, todo = 'Press Resend, or add an email address.';
-  if (/^whatsapp_/.test(e) || code) {
-    if (code === '132018') {
-      why = 'WhatsApp turned it down because the question had a line break in it. We now send questions to WhatsApp on one line.';
-      todo = 'Press Resend.';
-    } else if (code === '131026') {
-      why = 'This number can\u2019t receive WhatsApp messages from us.';
-      todo = 'Check the number, or add an email address and press Resend.';
-    } else if (code === '131030') {
-      why = 'Trustnet\u2019s WhatsApp is still in test mode and isn\u2019t allowed to message this number yet.';
-      todo = 'Add an email address and press Resend.';
-    } else if (code === '100' || code === '131009' || code === '131008') {
-      why = 'WhatsApp didn\u2019t accept this number.';
-      todo = 'Check the number on their page in the circle, or add an email address and press Resend.';
-    } else if (code === '130429' || code === '131056' || code === '131048') {
-      why = 'WhatsApp asked us to slow down.';
-      todo = 'Wait a minute, then press Resend.';
-    } else if (code === '190') {
-      why = 'Trustnet\u2019s connection to WhatsApp has expired. That\u2019s on our side, not theirs.';
-      todo = 'Add an email address to reach them now.';
-    } else if (/^13200\d$|^13201\d$/.test(code)) {
-      why = 'WhatsApp rejected Trustnet\u2019s message. That\u2019s on our side, not theirs.';
-      todo = 'Add an email address to reach them now.';
-    } else if (/whatsapp_not_configured/.test(e)) {
-      why = 'Sending by WhatsApp isn\u2019t switched on. That\u2019s on our side.';
-      todo = 'Add an email address to reach them now.';
-    } else if (/whatsapp_exception/.test(e)) {
-      why = 'We couldn\u2019t reach WhatsApp just then.';
-      todo = 'Press Resend in a minute.';
-    } else {
-      why = 'WhatsApp didn\u2019t deliver it.';
-    }
-  } else if (/^email_/.test(e)) {
-    if (/email_not_configured/.test(e)) { why = 'Sending by email isn\u2019t switched on. That\u2019s on our side.'; todo = ''; }
-    else if (/email_exception/.test(e)) { why = 'We couldn\u2019t reach the email service just then.'; todo = 'Press Resend in a minute.'; }
-    else if (/email_4\d\d/.test(e)) { why = 'That email address was refused.'; todo = 'Check it and press Resend.'; }
-    else { why = 'The email didn\u2019t go through.'; todo = 'Press Resend in a minute.'; }
-  } else if (e === 'member_not_linked' || e === 'unsupported_channel' || e === 'no_contact') {
-    why = 'There\u2019s no way to reach them yet \u2014 no number or email.';
-    todo = 'Add an email address and press Resend.';
-  } else if (e === 'self_member_skipped') {
-    why = 'That\u2019s you \u2014 you don\u2019t get your own question.';
-    todo = '';
-  } else if (e === 'invalid_email') {
-    why = 'That email address doesn\u2019t look right.';
-    todo = 'Check it and try again.';
-  } else {
-    why = 'It didn\u2019t go through.';
-  }
-  return (ctx === 'list' || !todo) ? why : why + ' ' + todo;
-}
-
-// The raw error, folded away: for whoever is fixing it, not for the sender.
-function deliveryErrorDetails(err) {
-  if (!err) return '';
-  return '<details style="font-size:11px;color:#77837D;"><summary style="cursor:pointer;">Details</summary>'
-    + '<div style="word-break:break-all;margin-top:4px;">' + esc(err) + '</div></details>';
-}
-
 function renderDeliveryStrip(qs) {
   const ds = qs.deliveries;
   if (!ds || !ds.length) return '';
@@ -3467,8 +3392,7 @@ function renderDeliveryStrip(qs) {
       + '<span class="dstrip-status" style="margin-left:auto;font-size:11px;font-weight:700;color:' + statusColor + ';">' + statusWord + '</span>';
     if (isFail) {
       row += '<div style="flex-basis:100%;display:flex;flex-direction:column;gap:6px;padding-top:4px;">'
-        + '<div style="font-size:13px;color:#B3261E;line-height:1.4;">' + esc(deliveryErrorText(d.error)) + '</div>'
-        + deliveryErrorDetails(d.error)
+        + '<div style="font-size:11px;color:#C0392B;">Error: ' + esc(d.error || 'unknown') + '</div>'
         + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
         + '<input type="email" class="dstrip-email" placeholder="Add an email address" dir="auto" style="flex:1;min-width:150px;font-size:12px;padding:5px 8px;border:1px solid #CDD9D1;border-radius:8px;" />'
         + '<button class="btn btn-secondary btn-sm" data-action="resend-member" data-member-id="' + esc(d.member_id) + '" data-member-name="' + esc(d.member) + '">Resend</button>'
@@ -3760,7 +3684,7 @@ async function handleResendMember(btn) {
   if (res.error && res.ok === undefined) {
     // Validation / auth error — row state unchanged, surface verbatim
     btn.disabled = false; btn.textContent = 'Resend';
-    toast('Resend failed. ' + deliveryErrorText(res.error), 'warn');
+    toast('Resend failed: ' + res.error, 'warn');
     return;
   }
   const d = qs.deliveries.find(function(x) { return x.member_id === memberId; });
@@ -3771,7 +3695,7 @@ async function handleResendMember(btn) {
   }
   renderApp();
   if (res.ok) toast('Resent to ' + (res.member || 'contact') + ' via ' + channelWord(res.channel) + '.');
-  else toast('Resend failed. ' + deliveryErrorText(res.error), 'warn');
+  else toast('Resend failed: ' + (res.error || 'unknown'), 'warn');
 }
 
 async function handleTriageAssign(btn) {
@@ -5716,7 +5640,7 @@ async function handleSendCollection(btn) {
     } else if (d.status === 'sent') {
       right = '<span style="font-size:11px;font-weight:700;color:#2A7258;">Sent</span>';
     } else {
-      right = '<span style="font-size:12px;font-weight:600;color:#B3261E;max-width:62%;text-align:right;line-height:1.35;" title="' + esc(d.error || '') + '">' + esc(deliveryErrorText(d.error, 'list')) + '</span>';
+      right = '<span style="font-size:11px;font-weight:700;color:#C0392B;" title="' + esc(d.error || '') + '">Failed: ' + esc(d.error || 'unknown') + '</span>';
     }
     if (d.app_doorway) {
       right = '<span style="font-size:10px;font-weight:700;color:#2A7258;background:#E9F6EE;border-radius:8px;padding:2px 7px;">In-app \u2713</span> ' + right;
