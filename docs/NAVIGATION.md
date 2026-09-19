@@ -9,6 +9,39 @@ them to PDF or an image.
 
 ---
 
+## v0.95.0 · the redesign, and what it changed here (19 Sep 2026)
+
+Read this first; the sections below are the v0.88.0 map and are still right
+about everything this does not mention.
+
+**A phone now has a menu.** The ☰ in the top bar opens a drawer
+(`openMenu`, `#tn-menu`, z-index 1050) with Profile, Your questions,
+Answered by you, Taste Match, Import a WhatsApp chat, Settings, Privacy policy
+and Sign out. So the four destinations section 2 lists as having **no phone
+route** — Query history, Answered, Taste Match, Settings — all have one now,
+and Profile no longer depends on a card at the foot of Home.
+
+| Destination | Phone route since v0.95.0 |
+|---|---|
+| Your questions (`history`) | Menu, or *See all* on Home |
+| Answered by you (`answered`) | Menu |
+| Taste Match | Menu |
+| Settings | Menu |
+| Profile | Menu (top row) |
+| Ask / Recommend (`query`) | Home ask box (sets **Ask**), a circle's *Ask* / *Recommend* buttons, first-run step 3, the ➕ sheet's *Recommend* — every one of them now **sets the verb** |
+
+**Titles.** The top bar reads `trustnet` on Home, and the screen's name
+elsewhere (*Circles*, *Library*, *Inbox*, *Your questions*…). The `query`
+screen is titled by its verb, *Ask* or *Recommend*. Screens reached from
+another — a circle, an item, a question, an answer sheet — carry the way back
+instead of a title (`VIEW_BACK`), so their in-page "← back" buttons went.
+
+**Unchanged on purpose:** the four tabs and the ➕, their ids and
+`data-action`s; the desktop sidebar (three labels renamed to match the phone:
+*Ask or recommend*, *Your questions*, *Answered by you*).
+
+---
+
 ## 1 · Entry points
 
 The product is four static pages. Three of them are reachable **without an
