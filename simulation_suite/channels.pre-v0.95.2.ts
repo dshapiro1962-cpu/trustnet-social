@@ -11,30 +11,6 @@ export interface SendResult {
 // ---------------------------------------------------------------------------
 // WhatsApp — template message via Meta Cloud API
 // ---------------------------------------------------------------------------
-
-// ONE LINE, OR WHATSAPP REFUSES THE WHOLE MESSAGE (v0.95.2).
-//
-// Meta rejects a template parameter that contains a new-line, a tab, or more
-// than four consecutive spaces - error 132018, "Param text cannot have
-// new-line/tab characters or more than 4 consecutive spaces" - and it refuses
-// the entire message, not just the bad part. On 19 Sep Tchiya asked her London
-// circle "Would love to get recommendation for hotel in London,<Enter>Thank
-// you", and Rakefet never received it. The question was passed through with
-// only .trim(), which removes whitespace at the ENDS.
-//
-// Flattened HERE, in the one sender every WhatsApp message goes through
-// (send-query, resend-member, send-collection), so no caller can forget. The
-// stored text is untouched: the answer page still shows the line break; only
-// the WhatsApp copy reads on one line. Also capped, because the whole template
-// body is limited to 1024 characters and the question is the part that grows.
-export function waParam(t: string): string {
-  const flat = String(t ?? "")
-    .replace(/\s*[\r\n\t\u2028\u2029]+\s*/g, " ")
-    .replace(/ {2,}/g, " ")
-    .trim();
-  return flat.length > 700 ? flat.slice(0, 699) + "\u2026" : flat;
-}
-
 export async function sendWhatsApp(
   toPhone: string, // E.164, e.g. +972501234567
   templateName: string,
@@ -63,7 +39,7 @@ export async function sendWhatsApp(
             components: [
               {
                 type: "body",
-                parameters: bodyParams.map((t) => ({ type: "text", text: waParam(t) })),
+                parameters: bodyParams.map((t) => ({ type: "text", text: t })),
               },
             ],
           },
