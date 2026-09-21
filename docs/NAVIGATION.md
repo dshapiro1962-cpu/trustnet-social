@@ -9,6 +9,23 @@ them to PDF or an image.
 
 ---
 
+## v0.96.0 · two new screens, and a sheet with a second door (21 Sep 2026)
+
+| View | Title | Back to | Reached from |
+|---|---|---|---|
+| `topic-sheet` | *Sheet* | Library | **Make a sheet for "X"** in the Library, once three characters are typed in the search box |
+| `answer-lib` | *Answer* | Inbox | **Answer from my library** on the waiting card on Home; **From my library** on an open request in the Inbox |
+
+`sheet-send` is a **modal**, opened by *Send this sheet* on `topic-sheet`. It
+uses the same people picker as Ask / Recommend (`qWhoHtml`, `qChosen`) and
+sends through `send-collection` with `member_ids`.
+
+The existing `sheet` view — the answer sheet for a question **you** asked — is
+unchanged and still reached from a question. What changed is that a sheet of
+your own library no longer requires having asked anything.
+
+---
+
 ## v0.95.0 · the redesign, and what it changed here (19 Sep 2026)
 
 Read this first; the sections below are the v0.88.0 map and are still right
@@ -152,6 +169,11 @@ flowchart TD
   QUERY -->|Recommend| PASS["A library item →<br/>ticked members' Inbox"]
   HIST --> HD[Query detail]
   HD --> SHEET[Answer sheet]
+  LIB -->|Make a sheet for "X"| TOPIC["Topic sheet<br/><b>from your whole library</b>"]
+  TOPIC -->|Send this sheet| SSEND[[sheet-send]]
+  TOPIC -->|Save as a list| COLL
+  INBOX -->|From my library| ALIB["Answer from my library"]
+  HOME -->|waiting card| ALIB
   INBOX --> RD[Recommendation]
   INBOX --> FILE[[file-suggestion]]
   LIB --> RD
