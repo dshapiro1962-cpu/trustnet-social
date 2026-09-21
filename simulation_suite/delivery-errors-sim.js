@@ -53,7 +53,12 @@ console.log('\n   fixtures: ' + path.basename(CHANNELS) + ', ' + path.basename(P
 
 // ── 1. the server's flattening ─────────────────────────────────────────────
 console.log('== 1. what WhatsApp is sent ==\n');
-const ts = fs.readFileSync(CHANNELS, 'utf8');
+// LINE ENDINGS. dan's git runs with core.autocrlf=true, so a file that a patch
+// wrote with LF comes back from the next checkout with CRLF — and every slice
+// below that looks for "\n}\n" silently finds nothing. This sim went from 36
+// green to a crash that way, without a line of the product changing.
+const lf = (p) => fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
+const ts = lf(CHANNELS);
 let waParam = null;
 const at = ts.indexOf('export function waParam(');
 if (at > -1) {
@@ -113,7 +118,7 @@ ck('[precondition] sending a list hands over a wa.me link rather than a template
 
 // ── 3. the sentence ────────────────────────────────────────────────────────
 console.log('\n== 3. a failed delivery, in words ==\n');
-const html = fs.readFileSync(PAGE, 'utf8');
+const html = lf(PAGE);
 const script = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]).reduce((a, b) => (b.length > a.length ? b : a), '');
 let words = null;
 const w = script.indexOf('function deliveryErrorText(');

@@ -30,11 +30,7 @@ Deno.serve(async (req: Request) => {
   try { body = await req.json(); } catch { return err("invalid_json"); }
   const query = String(body.query || body.q || "").trim();  // `q` = legacy app contract
   if (!query) return err("query_required");
-  // A SEARCH AND A SHEET WANT DIFFERENT WIDTHS (v0.96.0). Typing in Library
-  // wants the best few; "everything I have about Italy" wants the lot. The
-  // caller says which, and the candidate pool grows with it - asking the
-  // reranker for 40 out of a pool of 30 would have been asking for nothing.
-  const limit = Math.min(Number(body.limit) || 10, 40);
+  const limit = Math.min(Number(body.limit) || 10, 25);
 
   const key = Deno.env.get("OPENAI_API_KEY");
   if (!key) return err("openai_key_missing", 500);
@@ -56,7 +52,7 @@ Deno.serve(async (req: Request) => {
     p_user: userId,
     p_embedding: vector,
     p_query: query,
-    p_limit: Math.max(30, limit * 2),
+    p_limit: 30,
   });
   if (rpcErr) return err("hybrid_rpc_failed: " + rpcErr.message, 500);
   const candidates = (hits || []) as Array<Record<string, unknown>>;

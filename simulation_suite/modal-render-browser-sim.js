@@ -42,7 +42,8 @@ const probe = [
   '  var names = ["fab-menu","add-rec","add-circle","add-member","invite","circle-link",',
   '               "interests","edit-rec","fix-category","chat-import","share-list",',
   '               "share-rec","collection-create","collection-send","edit-collection",',
-  '               "reply","resolve-query","file-suggestion","add-reciprocal","edit-circle","circle-more"];',
+  '               "reply","resolve-query","file-suggestion","add-reciprocal","edit-circle","circle-more",',
+  '               "sheet-send"];',
   '  for (var i = 0; i < names.length; i++) {',
   '    try {',
   '      var html = modalHtmlFor(names[i]);',
@@ -100,6 +101,7 @@ window.addEventListener('load', function () {
         case 'resolve-query': return modalResolveQuery(p);
         case 'file-suggestion': return modalFileSuggestion(p);
         case 'add-reciprocal': return modalAddReciprocal(p);
+        case 'sheet-send': return modalSheetSend(p);
         default: return '';
       }
     };
@@ -146,8 +148,18 @@ if (/^BOOT /.test(m[1])) {
   process.exit(1);
 }
 
+// THE LIST ABOVE IS HAND-KEPT, AND A HAND-KEPT LIST DRIFTS. sheet-send was
+// added to the app in v0.96.0 and this file knew nothing about it, which is the
+// same shape of gap the sim was written for. Every name openModal dispatches
+// must be a name that was called here.
+const dispatched = [...src.matchAll(/name === '([a-z-]+)'\) html = modal/g)].map((x) => x[1]);
+const probed = [...probe.matchAll(/"([a-z-]+)"/g)].map((x) => x[1]);
+const missed = dispatched.filter((n) => probed.indexOf(n) < 0);
+ck('every modal the app can open is on this list', dispatched.length > 0 && missed.length === 0,
+   dispatched.length ? missed.join(', ') : 'found no dispatch in openModal');
+
 const rows = m[1].split(' ||| ').filter(Boolean);
-ck('every modal was reached', rows.length >= 21, 'got ' + rows.length);
+ck('every modal was reached', rows.length >= dispatched.length, 'got ' + rows.length + ' of ' + dispatched.length);
 rows.forEach((r) => {
   // "OK   add-rec" is padded, so split on runs of whitespace, not one space.
   const name = (r.trim().split(/\s+/)[1]) || '?';
