@@ -12,14 +12,6 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Trustnet">
 <title>Trustnet</title>
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="Trustnet">
-<meta property="og:title" content="Trustnet">
-<meta property="og:description" content="A private place to keep and search the recommendations you trust — shared only inside your own circles.">
-<meta property="og:image" content="https://trustnetsocial.netlify.app/icons/icon-512.png">
-<meta property="og:url" content="https://trustnetsocial.netlify.app/">
-<meta name="twitter:card" content="summary">
-<meta name="description" content="A private place to keep and search the recommendations you trust — shared only inside your own circles.">
 <style>
 /* ═══════════════════════════════════════════════
    DESIGN SYSTEM — CSS VARIABLES + HARDCODED FALLBACKS
@@ -2400,7 +2392,7 @@ function tnMe() {
 // Accounts created from this moment onward are asked for their name; the
 // four who joined before it were named by hand and are left alone.
 const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
-const APP_VERSION = 'v0.96.1 · live';
+const APP_VERSION = 'v0.96.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -8122,50 +8114,12 @@ async function circleInviteLink(circleId) {
   return '';
 }
 
-// ONE INVITATION, TWO DOORS (v0.96.1). The Invite button and the shareable
-// circle link had a string each, written months apart, and they had drifted
-// into saying different things about the same product. They are one function
-// now, because the next edit will otherwise land in only one of them.
-//
-// dan chose these words on 21 Sep, after seeing the old ones arrive on a
-// phone: "the wording is not right and thus confusing". What was wrong with
-// them, specifically:
-//
-//   "Dany added you to their leros circle"  - written in the third person
-//     about the person who is SENDING it. It arrives in your chat with Dany,
-//     from Dany, so it read like a bot talking about him.
-//   "no app needed"                         - in a message inviting you to
-//     join. It was answering a question nobody had asked yet, and it
-//     contradicted the invitation in the same breath.
-//   nothing at all about what Trustnet IS   - which is the thing a stranger
-//     actually needs, and the reason the reactions dan got were confused.
-//
-// The middle paragraph is dan's own description of the product, compressed to
-// a sentence and a half at his instruction: keep and search, inside your own
-// circles, not a public review site.
-const TN_WHAT_IT_IS = 'Trustnet is a private place to keep and search the '
-  + 'recommendations you trust \u2014 a doctor, a restaurant, a plumber \u2014 '
-  + 'shared only inside your own circles, never on a public review site.';
-
-// `joined` true: they are already IN the circle - the Invite button puts them
-// there before it opens WhatsApp (v0.63.0) - so the message says so. The
-// shareable link goes to people who are not in it yet and cannot.
-function inviteMessageFor(circleName, url, joined) {
-  const opener = joined
-    ? 'Hi \u2014 you are a member of my ' + circleName + ' circle on Trustnet, '
-      + 'as someone whose recommendation I trust.'
-    : 'Hi \u2014 I keep my recommendations on Trustnet, and I would like you in my '
-      + circleName + ' circle.';
-  return opener + '\n\n'
-    + TN_WHAT_IT_IS + '\n\n'
-    + 'Tap to join \u2014 one button, no password:\n'
+function inviteMessageFor(circleName, url) {
+  const who = AppState.userProfile ? AppState.userProfile.name.split(' ')[0] : 'A friend';
+  return who + ' added you to their ' + circleName + ' circle on Trustnet \u2014 '
+    + 'where they keep recommendations from people they trust.\n\n'
+    + 'You can answer their questions straight from this link, no app needed:\n'
     + url + '\n';
-}
-
-function inviteSubjectFor(circleName) {
-  const who = AppState.userProfile && AppState.userProfile.name
-    ? String(AppState.userProfile.name).split(/\s+/)[0] : 'A friend';
-  return who + ' would like you in their ' + circleName + ' circle on Trustnet';
 }
 
 // Invite ONE member, using the contact details already on their record.
@@ -8199,7 +8153,7 @@ async function handleInviteMember(btn) {
   btn.disabled = true; btn.textContent = 'Preparing\u2026';
   const url = await circleInviteLink(circleId);
   if (!url) { btn.disabled = false; btn.textContent = 'Invite'; fail('Could not create an invite link.'); return; }
-  const text = inviteMessageFor(circleName, url, true);
+  const text = inviteMessageFor(circleName, url);
 
   if (m.contactMethod === 'whatsapp') {
     const ph = String(m.contactValue).replace(/[^0-9]/g, '');
@@ -8207,7 +8161,7 @@ async function handleInviteMember(btn) {
     toast('WhatsApp opened for ' + m.name + ' \u2014 press send there.');
   } else if (m.contactMethod === 'email') {
     window.open('mailto:' + encodeURIComponent(m.contactValue)
-      + '?subject=' + encodeURIComponent(inviteSubjectFor(circleName))
+      + '?subject=' + encodeURIComponent(inviteMessageFor(circleName, '').split(' \u2014 ')[0])
       + '&body=' + encodeURIComponent(text), 'tn_ext');
     toast('Email opened for ' + m.name + ' \u2014 press send there.');
   } else {
@@ -8312,7 +8266,7 @@ async function handleInviteNew(btn) {
   btn.disabled = true; btn.textContent = 'Preparing\u2026';
   const url = await circleInviteLink(circleId);
   if (!url) { btn.disabled = false; btn.textContent = 'Send invite'; fail('Could not create an invite link.'); return; }
-  const text = inviteMessageFor(circleName, url, true);
+  const text = inviteMessageFor(circleName, url);
 
   if (method === 'whatsapp') {
     const ph = normalizeIlPhone(contact).replace(/[^0-9]/g, '');
@@ -8320,7 +8274,7 @@ async function handleInviteNew(btn) {
     toast('WhatsApp opened \u2014 press send there.');
   } else {
     window.open('mailto:' + encodeURIComponent(contact)
-      + '?subject=' + encodeURIComponent(inviteSubjectFor(circleName))
+      + '?subject=' + encodeURIComponent('An invitation to ' + circleName + ' on Trustnet')
       + '&body=' + encodeURIComponent(text), 'tn_ext');
     toast('Email opened \u2014 press send there.');
   }
@@ -8481,7 +8435,7 @@ function modalFixCategory(params) {
 function modalCircleLink() {
   const d = AppState._circleLink;
   if (!d) return '<div class="modal"><div class="modal-body">Link not ready.</div></div>';
-  const waText = encodeURIComponent(inviteMessageFor(d.circleName, d.url, false));
+  const waText = encodeURIComponent('Join my ' + d.circleName + ' circle on Trustnet — tap to become one of the people I ask for recommendations: ' + d.url);
   return '<div class="modal" style="max-width:460px;">'
     + '<div class="modal-header">'
     + '<div><div class="modal-title">Invite link — ' + esc(d.circleName) + '</div>'
