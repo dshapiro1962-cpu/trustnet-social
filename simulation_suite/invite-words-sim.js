@@ -90,10 +90,15 @@ if (typeof ctx.inviteMessageFor === 'function') {
      !/\bDany added you\b|\bthey keep\b|added you to their/.test(personal), personal);
 
   // 2 · what it is, in dan's words, compressed
-  ck('it says what Trustnet IS', /private place to keep and search/.test(personal));
+  // THE EMPHASIS IS THE POINT, and dan corrected it on the first draft: who
+  // the recommendation came FROM, as against a review platform or an AI.
+  ck('it says a recommendation comes from a PERSON you trust',
+     /comes from someone you trust/.test(personal), personal);
   ck('...with what you would actually ask for', /a doctor, a restaurant, a plumber/.test(personal));
-  ck('...where it stays', /only inside your own circles/.test(personal));
-  ck('...and what it is not', /never on a public review site/.test(personal));
+  ck('...as against a public review site, and an AI',
+     /not from a public review site or an AI/.test(personal), personal);
+  ck('...with privacy as the last clause, not the first',
+     personal.indexOf('someone you trust') < personal.indexOf('stays inside your own circles'), personal);
   ck('...in a sentence and a half, not a paragraph',
      (personal.split('\n\n')[1] || '').split(/(?<=\.)\s/).length <= 2,
      (personal.split('\n\n')[1] || '').slice(0, 120));
@@ -112,7 +117,7 @@ if (typeof ctx.inviteMessageFor === 'function') {
   ck('the shareable link says something that is TRUE of a stranger',
      !/you are a member/.test(shared) && /would like you in my leros circle/.test(shared),
      shared.split('\n')[0]);
-  ck('...and still says what Trustnet is', /private place to keep and search/.test(shared));
+  ck('...and still says where a recommendation comes from', /comes from someone you trust/.test(shared));
 
   // 6 · it survives the trip through WhatsApp
   ck('every line break survives encodeURIComponent for wa.me',
@@ -148,7 +153,7 @@ const meta = (prop) => {
   return m ? m[1] : '';
 };
 ck('the page says what it is, so the card is not just a URL',
-   meta('og:description').length > 40, meta('og:description'));
+   /people you trust/.test(meta('og:description')), meta('og:description'));
 ck('...a title', meta('og:title') === 'Trustnet', meta('og:title'));
 ck('...a picture', /icon-512\.png$/.test(meta('og:image')), meta('og:image'));
 ck('...and an address', /^https:\/\/trustnetsocial/.test(meta('og:url')), meta('og:url'));
