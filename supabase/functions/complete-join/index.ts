@@ -127,27 +127,36 @@ Deno.serve(async (req) => {
   }
 
   // ── 4. join the circle ───────────────────────────────────────────────────
-  // Idempotent: pressing send twice must not create two memberships.
-  const { data: existingMember } = await admin
-    .from("members").select("id")
-    .eq("circle_id", circle.id).eq("linked_user_id", userId).maybeSingle();
+  //
+  // ONE DOOR (0051). This looked for a member carrying the joiner's USER id
+  // and inserted one when it found none. A row the inviter typed BEFORE that
+  // person had an account can never carry it — so every invite to someone
+  // already in the circle tried to insert, and members_person_circle_uniq
+  // refused it. Measured in production, 21 Sep: naama's account was created at
+  // 15:33:14, her membership never was, the claim was never consumed, and she
+  // read "Couldn't finish signing you in" for ever. Eleven joins had ever
+  // worked, all of them people joining a circle they were not already in.
+  //
+  // join_circle_as_user resolves the PERSON through contact_key — the same
+  // normaliser the unique index is built on — and links the row that is
+  // already there. Idempotent, so pressing send twice is still one membership.
+  const { data: joined, error: joinErr } = await admin.rpc("join_circle_as_user", {
+    p_circle_id: circle.id,
+    p_user_id: userId,
+    p_name: invitedName ?? profileName ?? null,
+  });
+  if (joinErr) return err("join_failed: " + joinErr.message, 500);
+  const res = (joined ?? {}) as Record<string, unknown>;
+  if (!res.ok) {
+    // Signing in still worked; being the owner of the circle you tapped is not
+    // a failure to sign in, so only a real refusal stops here.
+    if (res.reason !== "own_circle") {
+      return err("join_failed: " + String(res.reason ?? "unknown"), 500);
+    }
+  }
+  const outcome = String(res.outcome ?? "");
 
-  if (!existingMember) {
-    const { data: me } = await admin
-      .from("users").select("name, avatar, avatar_color, email").eq("id", userId).maybeSingle();
-    const { error: mErr } = await admin.from("members").insert({
-      owner_id: circle.owner_id, circle_id: circle.id,
-      name: invitedName ?? me?.name ?? ("+" + e164),
-      avatar: me?.avatar ?? null, avatar_color: me?.avatar_color ?? null,
-      trust_basis: "Joined via invite link",
-      // A CONTACT IS NOT OPTIONAL. Every send feature dispatches on
-      // contact_method, and a member without one is unreachable — the
-      // "unsupported_channel" failure that cost a full day.
-      contact_method: "whatsapp", contact_value: "+" + e164,
-      response_rate: "unknown", linked_user_id: userId,
-    });
-    if (mErr) return err("join_failed: " + mErr.message, 500);
-
+  if (outcome === "adopted" || outcome === "created") {
     // `uses` incremented in two steps. NOTE the earlier one-liner had
     //   (…).data?.uses ?? 0 + 1
     // which binds as `?? (0 + 1)` — an existing count of 5 stayed 5, and only a
@@ -160,11 +169,12 @@ Deno.serve(async (req) => {
       .eq("token", token);
     if (useErr) console.error("invite_uses_increment_failed", token, useErr.message);
 
+    const who = String(res.member_name ?? ("+" + e164));
     const { error: joinNotifErr } = await admin.from("notifications").insert({
       user_id: circle.owner_id, type: "invite_accepted",
-      title: (me?.name ?? ("+" + e164)) + " joined your " + circle.name + " circle",
+      title: who + " joined your " + circle.name + " circle",
       body: "They joined via your invite link and can now receive your queries.",
-      circle_id: circle.id, actor_name: me?.name ?? null,
+      circle_id: circle.id, actor_name: who,
     });
     if (joinNotifErr) console.error("join_notify_failed", circle.id, joinNotifErr.message);
   }
