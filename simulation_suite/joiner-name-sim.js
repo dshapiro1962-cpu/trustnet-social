@@ -68,8 +68,16 @@ const PLACEHOLDER = "^\\+?[0-9][0-9 ()\\-]*$";
        u ? u.name : 'none found — the fixture the bug produced');
     if (!u) throw new Error('no placeholder-named account');
 
+    // ITS OWN CIRCLE, NOT AN ARBITRARY ONE. This took `circles ... limit 1`
+    // and inserted a membership into it for the test account — which fails
+    // outright the moment that person is already in that circle, and the
+    // database refuses two memberships of one person in one circle
+    // (members_person_circle_uniq, 0036). The test then reported a duplicate
+    // key and said nothing about adopt_my_name at all. Rolled back with
+    // everything else.
     const circle = (await c.query(
-      'select id from circles where owner_id=$1 limit 1', [DAN])).rows[0].id;
+      `insert into circles (owner_id, name, domain)
+       values ($1, 'joiner-name-sim ROLLBACK', 'travel') returning id`, [DAN])).rows[0].id;
     const mid = (await c.query(
       `insert into members (id, owner_id, circle_id, name, contact_method, contact_value,
          trust_basis, response_rate, avatar_color, linked_user_id)
