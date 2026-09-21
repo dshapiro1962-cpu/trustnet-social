@@ -75,15 +75,20 @@ for (const name of targets) {
 }
 
 console.log('\n── the answer path specifically ──\n');
-const rr = read('receive-response');
+// WHERE THE LINE BREAKS IS NOT THE PROPERTY. The answer write moved inside a
+// per-item loop in v0.96.0 and now wraps across two lines, which says nothing
+// about whether its error is bound — but broke three checks that matched a
+// single line. They read a whitespace-collapsed copy instead; the claims, and
+// the order they assert, are unchanged.
+const rr = read('receive-response').replace(/\s+/g, ' ');
 
 // The answer write must bind an error.
 ck('receive-response binds the error of the answer write',
-   /const\s*\{\s*error:\s*\w+\s*\}\s*=\s*await admin\.from\("query_responses"\)\.update\(/.test(rr));
+   /const\s*\{\s*error:\s*\w+\s*\}\s*=\s*await admin\.from\("query_responses"\)\s*\.update\(/.test(rr));
 
 // And it must REFUSE, not carry on. A 5xx return has to exist between the
 // answer write and the notification, or a lost answer is still announced.
-const iWrite  = rr.indexOf('.from("query_responses").update(');
+const iWrite  = rr.indexOf('.from("query_responses") .update(');
 const iNotify = rr.indexOf('.from("notifications").insert(');
 const iReturn = rr.indexOf('return err("response_not_saved');
 ck('...and returns an error BEFORE notifying the asker',

@@ -11,7 +11,7 @@ import { sendEmail } from "../_shared/channels.ts";
 
 const ENGINE = "send-collection-v3";
 
-interface Body { token: string; circle_id: string; share_url: string; member_ids?: string[]; }
+interface Body { token: string; circle_id: string; share_url: string; }
 
 Deno.serve(async (req: Request) => {
   const pre = handleOptions(req);
@@ -54,16 +54,7 @@ Deno.serve(async (req: Request) => {
 
   const deliveries: { member_id: string; member: string; channel: string; status: string; error: string | null; app_doorway: boolean }[] = [];
 
-  // CHOSEN PEOPLE, OR THE WHOLE CIRCLE (v0.96.0). member_ids is how
-  // send-query has taken a chosen list since v0.88.0; a sheet sent from the
-  // library uses the same picker, so it sends the same way. No list means
-  // everyone, which is what every earlier caller meant.
-  const chosen = Array.isArray(body.member_ids) && body.member_ids.length
-    ? new Set(body.member_ids)
-    : null;
-  const audience = (members ?? []).filter((x: any) => !x.is_external_source && (!chosen || chosen.has(x.id)));
-  if (chosen && !audience.length) return err("no_chosen_members_in_circle");
-  for (const m of audience) {
+  for (const m of (members ?? []).filter((x: any) => !x.is_external_source)) {
     const linkedOther = !!m.linked_user_id && m.linked_user_id !== userId;
     let status = "failed"; let errMsg: string | null = "unsupported_channel"; let channel = m.contact_method ?? "unknown";
     let appDoorway = false;

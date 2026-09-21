@@ -1161,16 +1161,6 @@ body {
 .tn-more-details[open] > summary { margin-bottom: 12px; }
 
 /* the answer sheet */
-.tn-makesheet { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; width: 100%; padding: 13px 15px; border-radius: 16px; background: #E6EFEA; color: #133D2F; margin-bottom: 14px; text-align: left; }
-.tn-makesheet svg { width: 21px; height: 21px; flex: none; }
-.tn-makesheet b { font-size: 16px; font-weight: 700; }
-.tn-makesheet small { flex-basis: 100%; font-size: 13px; font-weight: 500; color: #4A5550; }
-.tn-sheet-pick { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid #E6EBE8; width: 100%; text-align: left; background: none; }
-.tn-sheet-pick .tn-quote { font-size: 14.5px; margin-top: 4px; }
-.tn-tick { width: 26px; height: 26px; border-radius: 50%; background: #1D5A45; color: #fff; display: flex; align-items: center; justify-content: center; flex: none; margin-top: 10px; }
-.tn-tick.off { background: #fff; color: transparent; box-shadow: inset 0 0 0 1.8px #C9D1CD; }
-.tn-sendbar { position: sticky; bottom: 12px; z-index: 5; box-shadow: 0 10px 22px -10px rgba(15,40,28,0.55); margin-top: 18px; }
-.tn-bigbtn.alt { background: #fff; color: #1D5A45; box-shadow: inset 0 0 0 1.6px #CBDBD2; margin-top: 8px; }
 .tn-eb { font-size: 11.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: #77837D; }
 .tn-sheet-q { font-family: Georgia, serif; font-family: var(--font-serif); font-weight: 700; font-size: 28px; line-height: 1.12; letter-spacing: -0.02em; color: #133D2F; margin-top: 6px; text-align: left; }
 .tn-byline { display: flex; align-items: center; gap: 10px; margin: 12px 0 6px; font-size: 13.5px; color: #77837D; flex-wrap: wrap; }
@@ -2338,7 +2328,6 @@ const TN_ICON_PATHS = {
   x: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
   lock: '<rect x="5.5" y="10.5" width="13" height="9.5" rx="2.2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/>',
   check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
-  list: '<path d="M9 6.5h11M9 12h11M9 17.5h11"/><path d="M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/>',
   userplus: '<circle cx="10" cy="8.2" r="3.6"/><path d="M3.2 20c.9-3.6 3.6-5.6 6.8-5.6 1.6 0 3 .5 4.2 1.4"/><path d="M18.5 13.5v6M15.5 16.5h6"/>',
   chat: '<path d="M4.5 5.5h15a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-4.5 3.5v-3.5h-1a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z"/>',
   chatcheck: '<path d="M4.5 5.5h15a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-4.5 3.5v-3.5h-1a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z"/><path d="m9 11 2 2 4-4"/>',
@@ -2392,7 +2381,7 @@ function tnMe() {
 // Accounts created from this moment onward are asked for their name; the
 // four who joined before it were named by hand and are left alone.
 const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
-const APP_VERSION = 'v0.96.0 · live';
+const APP_VERSION = 'v0.95.2 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -2421,9 +2410,7 @@ const VIEW_TITLES = {
   'rec-detail': 'Recommendation',
   'taste-match': 'Taste Match',
   profile: 'Profile',
-  settings: 'Settings',
-  'topic-sheet': 'Sheet',
-  'answer-lib': 'Answer'
+  settings: 'Settings'
 };
 // A screen you only reach FROM another carries the way back instead of a
 // title (v0.95.0). The four tabs, and anything the menu opens, need none: the
@@ -2432,9 +2419,7 @@ const VIEW_BACK = {
   'circle-detail': ['circles', 'Circles'],
   'rec-detail': ['library', 'Library'],
   'history-detail': ['history', 'Your questions'],
-  sheet: ['history', 'Your questions'],
-  'topic-sheet': ['library', 'Library'],
-  'answer-lib': ['inbox', 'Inbox']
+  sheet: ['history', 'Your questions']
 };
 
 function renderApp() {
@@ -2490,8 +2475,6 @@ function renderApp() {
   else if (AppState.currentView === 'history-detail') html = renderHistoryDetail();
   else if (AppState.currentView === 'answered') html = renderAnswered();
   else if (AppState.currentView === 'sheet') html = renderSheet();
-  else if (AppState.currentView === 'topic-sheet') html = renderTopicSheet();
-  else if (AppState.currentView === 'answer-lib') html = renderAnswerFromLibrary();
   else if (AppState.currentView === 'inbox') html = renderInbox();
   else if (AppState.currentView === 'library') html = renderLibrary();
   else if (AppState.currentView === 'rec-detail') html = renderRecDetail();
@@ -2718,13 +2701,6 @@ function homeWaitingHtml(list) {
     + '<p class="tn-t2">asked ' + esc(String(relDate(n.created_at)).toLowerCase()) + '</p>'
     + (n.body ? '<div class="tn-wq">' + tnAvatar(who || '?', 'sm') + '<p class="tn-quote" dir="auto">\u201c' + esc(n.body) + '\u201d</p></div>' : '<div style="height:12px;"></div>')
     + '<a class="tn-bigbtn" href="respond.html?t=' + esc(n.response_token) + '" target="_blank" rel="noopener">Answer' + (first ? ' ' + esc(first) : '') + '</a>'
-    // YOU MAY ALREADY HAVE THE ANSWER (v0.96.0). Typing out a place you
-    // already keep, to someone who asked you for exactly that, was the whole
-    // gap: the library IS the answer, and this sends it.
-    + '<button type="button" class="tn-bigbtn alt" data-action="answer-lib"'
-    + ' data-token="' + esc(n.response_token) + '" data-question="' + esc(n.body || '') + '"'
-    + ' data-who="' + esc(who) + '" data-when="' + esc(n.created_at || '') + '">'
-    + tnIcon('list', 2) + 'Answer from my library</button>'
     + (list.length > 1 ? '<a class="tn-more-waiting" href="#" data-action="nav" data-view="inbox">+ ' + (list.length - 1) + ' more waiting in your Inbox</a>' : '')
     + '</div>';
 }
@@ -4084,10 +4060,7 @@ function renderInbox() {
         ? '<span class="tn-done">\u2713 Answered</span>'
         : (it.lapsed
             ? '<span class="tn-t2">This request has expired</span>'
-            : '<a class="btn btn-primary btn-sm" style="text-decoration:none;" href="respond.html?t=' + esc(it.token) + '" target="_blank" rel="noopener">Answer</a>'
-              + '<button class="btn btn-secondary btn-sm" data-action="answer-lib" data-token="' + esc(it.token) + '"'
-              + ' data-question="' + esc(it.body || '') + '" data-who="' + esc(it.who || '') + '"'
-              + ' data-when="' + esc(it.ts ? new Date(it.ts).toISOString() : '') + '">From my library</button>');
+            : '<a class="btn btn-primary btn-sm" style="text-decoration:none;" href="respond.html?t=' + esc(it.token) + '" target="_blank" rel="noopener">Answer</a>');
     } else if (it.type === 'collection_shared' && it.linkUrl && /^https:\/\//.test(it.linkUrl)) {
       actions = '<a class="btn btn-primary btn-sm" style="text-decoration:none;" href="' + esc(it.linkUrl) + '" target="tn_ext" rel="noopener">View list</a>';
     } else if (it.circleId && (it.type === 'invite_accepted' || it.type === 'member_joined')) {
@@ -4115,376 +4088,6 @@ function renderInbox() {
 
 var SHEET_CAT_ORDER = ['dining','travel','culture','hobbies','healthcare','home','professional','other'];
 var SHEET_CAT_EMOJI = { dining:'🍽', travel:'🧳', culture:'🎭', hobbies:'🎯', healthcare:'🩺', home:'🏠', professional:'💼', other:'📌' };
-
-/* ═══════════════════════════════════════════════
-   SHEETS OUT OF YOUR OWN LIBRARY (v0.96.0)
-
-   dan, 21 Sep: the answer sheet is for two things - pulling everything you
-   have on a topic out of your library, "regardless from which circle it came",
-   and answering someone who asks you about that topic. Until now the only door
-   to it was a question YOU had asked, which is neither of those.
-
-   Both screens start from the same search: search-library, the hybrid recall
-   plus rerank the library's own search box already uses - so a sheet finds
-   what you have BY MEANING. Typing "Puglia" into the library matches the word;
-   the sheet also brings the masseria in Ostuni and the trattoria in Lecce.
-   ═══════════════════════════════════════════════ */
-
-// ONE SEARCH, TWO SCREENS, CACHED BY TOPIC. Re-rendering is how this app shows
-// a tick changing, and re-rendering must not re-fetch: the key is the topic, so
-// every render after the first reads the same result.
-function sheetSearch(topic, then) {
-  const key = String(topic || '').trim().toLowerCase();
-  const st = AppState._topicSheet;
-  if (st && st.key === key) return st;
-  AppState._topicSheet = { key: key, topic: topic, loading: true, ids: [], why: {}, error: null };
-  fnPost('search-library', { query: topic, limit: 40 }).then(function(r) {
-    const cur = AppState._topicSheet;
-    if (!cur || cur.key !== key) return;
-    if (r && r.ids) {
-      const why = {};
-      (r.items || []).forEach(function(it) { if (it.why) why[it.rec_id] = it.why; });
-      AppState._topicSheet = { key: key, topic: topic, loading: false, ids: r.ids, why: why, error: null };
-    } else {
-      AppState._topicSheet = { key: key, topic: topic, loading: false, ids: [], why: {},
-        error: (r && r.error) || 'unknown' };
-    }
-    if (then) then();
-  }).catch(function(e) {
-    // Observability doctrine: surface the actual failure verbatim.
-    console.error('sheet search failed:', e);
-    AppState._topicSheet = { key: key, topic: topic, loading: false, ids: [], why: {},
-      error: e ? ((e.name || 'Error') + ': ' + (e.message || String(e))) : 'unknown' };
-    if (then) then();
-  });
-  return AppState._topicSheet;
-}
-
-// The ranked ids, back into things on screen. An id with no library row is
-// dropped rather than drawn empty - the search ran against the server's copy,
-// which can be a moment ahead of this one.
-function sheetPairs(st) {
-  return (st.ids || []).map(function(id) {
-    const rec = (AppState.userRecs || []).find(function(r) { return r.id === id; });
-    const can = rec ? AppState.canonicalById(rec.canonicalId) : null;
-    return (rec && can) ? { rec: rec, can: can } : null;
-  }).filter(Boolean);
-}
-
-function sheetPicked(pairs) {
-  return pairs.filter(function(x) { return !(AppState._sheetOff && AppState._sheetOff[x.rec.id]); });
-}
-
-// A row on a sheet: what it is, where, who gave it to you and in whose words.
-// On the answering screen it is a tick instead, and carries no links: the
-// person reading it there is choosing, not going.
-function sheetLibRow(p, tick) {
-  const rec = p.rec, can = p.can;
-  var who = rec.recommendedBy ? AppState.memberById(rec.recommendedBy) : null;
-  const circle = rec.circleId ? AppState.circleById(rec.circleId) : null;
-  const facts = [itemFactsText(can), who ? 'from ' + String(who.name || '').split(/\s+/)[0] : '',
-    circle ? circle.name : ''].filter(Boolean).join(' \u00b7 ');
-  const off = !!(AppState._sheetOff && AppState._sheetOff[rec.id]);
-  return (tick
-      ? '<button type="button" class="tn-sheet-pick" data-action="sheet-tick" data-rec-id="' + esc(rec.id) + '">'
-        + '<span class="tn-tick' + (off ? ' off' : '') + '">' + tnIcon('check', 2.6) + '</span>'
-      : '<div class="tn-sheet-it">')
-    + tnTile(can.name, can.primaryCategory, can.imageUrl, 46)
-    + '<span class="tn-row-b">'
-    + '<span class="tn-t1" style="display:block;white-space:normal;" dir="auto">' + esc(can.name) + '</span>'
-    + (facts ? '<span class="tn-t2" style="display:block;white-space:normal;" dir="auto">' + esc(facts) + '</span>' : '')
-    + (rec.note ? '<span class="tn-quote" style="display:block;" dir="auto">'
-        + (who ? esc(String(who.name || '').split(/\s+/)[0]) + ': ' : '')
-        + '\u201c' + esc(rec.note) + '\u201d</span>' : '')
-    + (tick ? '' : '<span class="tn-sheet-links">'
-        + domFindLinks(can.name || '', can.location || '', '', can.primaryCategory || '', can.aiTags || [])
-        + '</span>')
-    + '</span>'
-    + (tick ? '</button>' : '</div>');
-}
-
-// Grouped the way the answer sheet groups: by what the things ARE. The group
-// word is recCategory - the owner's own word when they have set one - because
-// this screen is theirs (0045).
-function sheetGroupsHtml(pairs, tick) {
-  const groups = {};
-  const order = [];
-  pairs.forEach(function(p) {
-    const cat = recCategory(p.rec, p.can) || 'other';
-    if (!groups[cat]) { groups[cat] = []; order.push(cat); }
-    groups[cat].push(p);
-  });
-  order.sort(function(a, b) { return groups[b].length - groups[a].length; });
-  return order.map(function(cat) {
-    return '<div class="tn-sl"><bdi>' + esc(domainLabel(cat)) + '</bdi> <span>' + groups[cat].length + '</span></div>'
-      + groups[cat].map(function(p) { return sheetLibRow(p, tick); }).join('');
-  }).join('');
-}
-
-function sheetHeadHtml(eyebrow, topic) {
-  return '<p class="tn-eb" dir="auto">' + esc(eyebrow) + '</p>'
-    + '<p class="tn-sheet-q" dir="auto">' + esc(topic) + '</p>';
-}
-
-// -- 1. a topic, out of your own library -----------------------------------
-function renderTopicSheet() {
-  const topic = AppState.viewParams.topic || '';
-  const st = sheetSearch(topic, function() { if (AppState.currentView === 'topic-sheet') renderApp(); });
-  if (st.loading) {
-    return '<div class="tn-home" style="max-width:640px;">' + sheetHeadHtml('From your library', topic)
-      + '<p class="tn-t2" style="white-space:normal;padding:26px 0;">Reading your library\u2026</p></div>';
-  }
-  if (st.error) {
-    return '<div class="tn-home" style="max-width:640px;">' + sheetHeadHtml('From your library', topic)
-      + '<p class="tn-t2" style="white-space:normal;padding-top:16px;color:#B3261E;">The search did not answer ('
-      + esc(st.error) + ').</p>'
-      + '<button type="button" class="btn btn-secondary" style="margin-top:12px;" data-action="topic-sheet"'
-      + ' data-topic="' + esc(topic) + '" data-again="1">Try again</button></div>';
-  }
-  const pairs = sheetPairs(st);
-  if (!pairs.length) {
-    return '<div class="tn-home" style="max-width:640px;">' + sheetHeadHtml('From your library', topic)
-      + '<p class="tn-t2" style="white-space:normal;padding-top:16px;">Nothing in your library is about that yet. '
-      + 'What your circles answer, and what you save, lands here.</p></div>';
-  }
-  const circles = {};
-  pairs.forEach(function(p) { if (p.rec.circleId) circles[p.rec.circleId] = 1; });
-  const nC = Object.keys(circles).length;
-  return '<div class="tn-home" style="max-width:640px;">'
-    + sheetHeadHtml('From your library \u00b7 ' + pairs.length + ' item' + (pairs.length === 1 ? '' : 's')
-        + (nC ? ' \u00b7 ' + nC + ' circle' + (nC === 1 ? '' : 's') : ''), topic)
-    + '<p class="tn-t2" style="white-space:normal;margin-top:8px;">Everything you have saved about it, '
-    + 'whichever circle it came from \u2014 found by meaning, not just the word.</p>'
-    + '<div class="tn-pair">'
-    + '<button type="button" class="btn btn-primary" data-action="open-modal" data-modal="sheet-send"'
-    + ' data-topic="' + esc(topic) + '">' + tnIcon('send', 2) + 'Send this sheet</button>'
-    + '<button type="button" class="btn btn-secondary" data-action="sheet-save-list" data-topic="' + esc(topic) + '">Save as a list</button>'
-    + '</div>'
-    + sheetGroupsHtml(pairs, false)
-    + '</div>';
-}
-
-// -- 2. answering someone else, out of that same library --------------------
-function renderAnswerFromLibrary() {
-  const p = AppState.viewParams || {};
-  const question = p.question || '';
-  const who = String(p.who || '').split(/\s+/)[0] || 'them';
-  const st = sheetSearch(question, function() { if (AppState.currentView === 'answer-lib') renderApp(); });
-  const head = sheetHeadHtml((p.who ? p.who + ' asked' : 'You were asked')
-    + (p.when ? ' \u00b7 ' + String(relDate(p.when)).toLowerCase() : ''), question);
-  if (st.loading) {
-    return '<div class="tn-home" style="max-width:640px;">' + head
-      + '<p class="tn-t2" style="white-space:normal;padding:26px 0;">Reading your library\u2026</p></div>';
-  }
-  const pairs = sheetPairs(st);
-  if (st.error || !pairs.length) {
-    // NEVER A DEAD END. Their question is still open either way, and the form
-    // that has always worked is one tap from here.
-    return '<div class="tn-home" style="max-width:640px;">' + head
-      + '<p class="tn-t2" style="white-space:normal;padding-top:16px;">'
-      + (st.error ? 'The search did not answer (' + esc(st.error) + ').'
-                  : 'Nothing in your library matches what ' + esc(who) + ' asked.') + '</p>'
-      + '<a class="tn-bigbtn" style="margin-top:14px;" href="respond.html?t=' + esc(p.token || '')
-      + '" target="_blank" rel="noopener">Answer in your own words</a></div>';
-  }
-  const n = sheetPicked(pairs).length;
-  return '<div class="tn-home" style="max-width:640px;">' + head
-    + '<div class="tn-nojoin" style="margin-top:14px;">' + tnIcon('list')
-    + '<span>' + pairs.length + ' thing' + (pairs.length === 1 ? '' : 's') + ' in your library match'
-    + (pairs.length === 1 ? 'es' : '') + ' the question. Untick anything you would rather not send.</span></div>'
-    + '<div style="padding-bottom:8px;">' + sheetGroupsHtml(pairs, true) + '</div>'
-    + '<button type="button" class="btn btn-primary tn-pill tn-sendbar" id="al-send" data-action="answer-lib-send"'
-    + ' data-token="' + esc(p.token || '') + '"' + (n ? '' : ' disabled style="opacity:.5;"') + '>'
-    + (n ? 'Send ' + n + ' to ' + esc(who) : 'Pick at least one') + '</button>'
-    + '<p class="tn-t2" style="white-space:normal;margin-top:10px;">They arrive as your answers, each with your '
-    + 'words, in ' + esc(who) + '\u2019s own answer sheet.</p>'
-    + '<a class="tn-bigbtn alt" href="respond.html?t=' + esc(p.token || '')
-    + '" target="_blank" rel="noopener">Or answer in your own words</a>'
-    + '</div>';
-}
-
-// One answer per thing, all from you, through the link they sent you.
-// receive-response takes the list as of v0.96.0.
-async function handleAnswerFromLibrary(btn) {
-  const st = AppState._topicSheet;
-  if (!st) return;
-  const picked = sheetPicked(sheetPairs(st));
-  if (!picked.length) return;
-  const who = String((AppState.viewParams && AppState.viewParams.who) || '').split(/\s+/)[0] || 'them';
-  const label = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Sending\u2026';
-  const items = picked.map(function(x) {
-    return { rec_name: x.can.name, rec_note: x.rec.note || '', rec_location: x.can.location || '' };
-  });
-  let r;
-  try { r = await fnPost('receive-response', { token: btn.dataset.token, items: items }); }
-  catch (e) {
-    btn.disabled = false; btn.textContent = label;
-    toast('Could not reach the server. Nothing was sent.', 'warn');
-    return;
-  }
-  if (!r || !r.success) {
-    btn.disabled = false; btn.textContent = label;
-    const why = (r && r.error) || 'unknown';
-    toast(/token_already_used/.test(why) ? 'You have already answered that question.'
-      : (/token_expired/.test(why) ? 'That request is more than 72 hours old, so the answer link has expired.'
-        : 'It did not send: ' + why), 'warn');
-    return;
-  }
-  // The request is answered, so the Inbox must stop offering to answer it. The
-  // server marks the same row (0046); this keeps the screen honest without a
-  // round trip.
-  (AppState._notifications || []).forEach(function(n) {
-    if (n.response_token === btn.dataset.token) n.handled_at = new Date().toISOString();
-  });
-  AppState._sheetOff = {};
-  AppState._topicSheet = null;
-  updateInboxBadge();
-  showView('inbox');
-  toast('Sent ' + (r.stored || items.length) + ' to ' + who + '.');
-}
-
-// -- sending a sheet: the picker Recommend uses -----------------------------
-//
-// dan: "for frame 2 use the same people picker as Recommend". Same markup,
-// same qChosen() - deliberately NOT qWhoRefresh(), which also applies the ask
-// screen's degree rule and would grey this list out for anyone whose last
-// question went to degree 2.
-function modalSheetSend(params) {
-  const topic = (params && params.topic) || (AppState.viewParams && AppState.viewParams.topic) || '';
-  const circles = AppState.userCircles || [];
-  if (!circles.length) {
-    return '<div class="modal"><div class="modal-body"><p class="tn-t2" style="white-space:normal;">'
-      + 'A sheet goes to people, and people live in circles. Make a circle first.</p></div>'
-      + '<div class="modal-footer"><button class="btn btn-secondary" data-action="close-modal" style="flex:1;">Close</button></div></div>';
-  }
-  const cid = (AppState.sheetSendCircleId && circles.some(function(c) { return c.id === AppState.sheetSendCircleId; }))
-    ? AppState.sheetSendCircleId : circles[0].id;
-  AppState.sheetSendCircleId = cid;
-  return '<div class="modal" style="max-width:460px;">'
-    + '<div class="modal-header"><div class="modal-title">Send \u201c' + esc(topic) + '\u201d</div>'
-    + '<button class="modal-close" data-action="close-modal">\u00d7</button></div>'
-    + '<div class="modal-body">'
-    + '<div class="tn-sl" style="margin-top:0;">Which circle</div>'
-    + '<div class="tn-hscroll tn-filters">'
-    + circles.map(function(c) {
-        const n = AppState.membersOfCircle(c.id).filter(function(m) { return !m.isExternalSource; }).length;
-        return '<button type="button" class="filter-chip ss-circle' + (c.id === cid ? ' active selected' : '') + '"'
-          + ' data-action="sheet-send-circle" data-circle-id="' + esc(c.id) + '"><bdi>' + esc(c.name) + '</bdi>'
-          + (n ? '&nbsp;<span style="opacity:.6;font-size:12px;">' + n + '</span>' : '') + '</button>';
-      }).join('')
-    + '</div>'
-    + '<div class="tn-sl">Who gets it <button type="button" data-action="q-who-all">Select all</button></div>'
-    + '<div id="q-who">' + qWhoHtml(cid) + '</div>'
-    + '<input type="hidden" id="ss-circle" value="' + esc(cid) + '">'
-    + '<p class="tn-t2" style="white-space:normal;margin-top:8px;">They get one page with everything on this sheet, '
-    + 'and can keep the lot in one tap. WhatsApp goes from your own WhatsApp, personally.</p>'
-    + '<div id="ss-result" style="margin-top:10px;"></div>'
-    + '</div>'
-    + '<div class="modal-footer"><button class="btn btn-primary" id="ss-send" data-action="sheet-send-go"'
-    + ' data-topic="' + esc(topic) + '" style="flex:1;justify-content:center;">'
-    + ssSendLabel(sheetSendCount(cid)) + '</button></div>'
-    + '</div>';
-}
-
-function sheetSendCount(circleId) {
-  return AppState.membersOfCircle(circleId).filter(function(m) {
-    return !m.isExternalSource && (m.linkedUserId || m.contactValue);
-  }).length;
-}
-
-function ssSendLabel(n) {
-  return n === 0 ? 'Pick someone' : 'Send to ' + (n === 1 ? '1 person' : n + ' people');
-}
-
-// One class, several screens: like qUpdateSendLabel, this returns at once when
-// its own button is not on screen, so each is harmless to the others.
-function ssUpdateSendLabel() {
-  const btn = document.getElementById('ss-send');
-  if (!btn) return;
-  const n = qChosen().length;
-  btn.disabled = n === 0;
-  btn.style.opacity = n === 0 ? '.5' : '1';
-  btn.textContent = ssSendLabel(n);
-}
-
-// A sheet travels as a list: one page, everything on it, savable in one tap.
-async function sheetToCollection(topic) {
-  const st = AppState._topicSheet;
-  const pairs = st ? sheetPairs(st) : [];
-  if (!pairs.length) return { error: 'there is nothing on this sheet' };
-  const token = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
-  const desc = 'Everything in my library about ' + topic + '.';
-  const ins = await sb.from('collections').insert({
-    owner_id: CURRENT_UID, token: token, title: topic, description: desc,
-  }).select('id').single();
-  if (ins.error || !ins.data) return { error: (ins.error && ins.error.message) || 'could not create the list' };
-  const rows = pairs.map(function(p, i) { return { collection_id: ins.data.id, rec_id: p.rec.id, position: i }; });
-  const ii = await sb.from('collection_items').insert(rows);
-  if (ii.error) return { error: ii.error.message };
-  AppState.userCollections.push({ id: ins.data.id, token: token, title: topic, description: desc,
-    recIds: pairs.map(function(p) { return p.rec.id; }) });
-  return { token: token, id: ins.data.id, count: pairs.length };
-}
-
-async function handleSheetSaveList(btn) {
-  const label = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Saving\u2026';
-  const r = await sheetToCollection(btn.dataset.topic || '');
-  btn.disabled = false;
-  btn.textContent = label;
-  if (r.error) { toast('Could not save the list: ' + r.error, 'warn'); return; }
-  toast('Saved as a list of ' + r.count + ' \u2014 it is in your Library, under More.');
-}
-
-async function handleSheetSend(btn) {
-  const chosen = qChosen();
-  const resEl = document.getElementById('ss-result');
-  const topic = btn.dataset.topic || '';
-  if (!chosen.length) {
-    if (resEl) resEl.innerHTML = '<p class="tn-t2">Nobody is ticked.</p>';
-    return;
-  }
-  btn.disabled = true;
-  btn.textContent = 'Sending\u2026';
-  const made = await sheetToCollection(topic);
-  if (made.error) {
-    btn.disabled = false; btn.textContent = ssSendLabel(chosen.length);
-    if (resEl) resEl.innerHTML = '<p class="tn-t2" style="color:#B3261E;">' + esc(made.error) + '</p>';
-    return;
-  }
-  const circleId = (document.getElementById('ss-circle') || {}).value || AppState.sheetSendCircleId;
-  let r;
-  try {
-    r = await fnPost('send-collection', {
-      token: made.token, circle_id: circleId, share_url: collectionUrl(made.token),
-      member_ids: chosen.map(function(x) { return x.memberId; }),
-    });
-  } catch (e) {
-    btn.disabled = false; btn.textContent = ssSendLabel(chosen.length);
-    // The list itself was created, so nothing is lost.
-    if (resEl) resEl.innerHTML = '<p class="tn-t2" style="color:#B3261E;">Could not reach the server. '
-      + 'The sheet is saved as a list in your Library, so you can send it from there.</p>';
-    return;
-  }
-  if (!r || r.error) {
-    btn.disabled = false; btn.textContent = ssSendLabel(chosen.length);
-    if (resEl) resEl.innerHTML = '<p class="tn-t2" style="color:#B3261E;">'
-      + esc(deliveryErrorText((r && r.error) || 'unknown', 'list')) + '</p>';
-    return;
-  }
-  // The same delivery rows as sending a list from the Library, one-tap
-  // WhatsApp links and all: a browser hands off once per gesture, and
-  // pretending otherwise is the one thing this must not do.
-  if (resEl) resEl.innerHTML = collectionSendResultHtml(r, made.token, topic);
-  btn.textContent = 'Done \u2014 close when finished';
-  btn.disabled = false;
-  btn.dataset.action = 'close-modal';
-  const sent = (r.deliveries || []).filter(function(d) { return d.status === 'sent'; }).length;
-  toast(sent ? 'Sheet sent to ' + sent + '.' : 'Sheet ready \u2014 finish the WhatsApp ones below.');
-}
 
 function renderSheet() {
   const queryId = AppState.viewParams.queryId;
@@ -4655,14 +4258,7 @@ function sheetShellHtml(q, inner) {
   // back, and the question does not need a box to be the most important thing.
   const circle = AppState.circleById(q.circleId);
   const resp = q.responses || [];
-  const seenWho = {};
-  const people = resp.filter(function(r) {
-    const k = r.isAnonymous ? 'anon:' + r.id : 'member:' + (r.contactId || r.id);
-    if (seenWho[k]) return false;
-    seenWho[k] = 1;
-    return true;
-  });
-  const faces = people.slice(0, 4).map(function(r) {
+  const faces = resp.slice(0, 4).map(function(r) {
     const m = r.isAnonymous ? null : AppState.memberById(r.contactId);
     return '<span class="avatar avatar-xs" style="background:' + esc((m && m.avatarColor) || '#5E7D8C') + ';">' + esc(((m && m.name) || '?').charAt(0).toUpperCase()) + '</span>';
   }).join('');
@@ -4671,8 +4267,7 @@ function sheetShellHtml(q, inner) {
     + '<p class="tn-eb" dir="auto">' + esc(circle ? circle.name : 'Your question') + ' \u00b7 asked ' + esc(String(relDate(q.sentAt)).toLowerCase()) + '</p>'
     + '<p class="tn-sheet-q" dir="auto">' + esc(q.text) + '</p>'
     + '<div class="tn-byline">'
-    + (people.length ? '<span class="tn-stack">' + faces + '</span><span><b>' + people.length + (invited ? ' of ' + invited : '') + ' answered</b></span>'
-        + (resp.length > people.length ? '<span class="tn-t2">\u00b7 ' + resp.length + ' recommendations</span>' : '')
+    + (resp.length ? '<span class="tn-stack">' + faces + '</span><span><b>' + resp.length + (invited ? ' of ' + invited : '') + ' answered</b></span>'
                    : '<span>No answers yet</span>')
     + '<button type="button" class="btn btn-ghost btn-sm" data-action="nav-history-detail" data-query-id="' + esc(q.id) + '" style="margin-left:auto;">The question</button>'
     + '</div>'
@@ -5348,17 +4943,6 @@ function libQuestionLineHtml(g) {
   return html;
 }
 
-// WHAT YOU TYPED IS ALREADY A TOPIC (v0.96.0). The library search box is
-// where someone says "Paris"; the sheet is everything they have about it. Two
-// characters is not a topic, so the offer waits for three.
-function libSheetCtaHtml() {
-  const q = (AppState.searchQuery || '').trim();
-  if (q.length < 3) return '';
-  return '<button type="button" class="tn-makesheet" data-action="topic-sheet" data-topic="' + esc(q) + '">'
-    + tnIcon('list', 2) + '<b>Make a sheet for \u201c' + esc(q) + '\u201d</b>'
-    + '<small>Everything in your library about it, from every circle</small></button>';
-}
-
 function libResultsHtml(f) {
   const search = (AppState.searchQuery || '').trim();
   const shimmer = (AppState._semPending && search.length >= 3)
@@ -5375,8 +4959,6 @@ function libResultsHtml(f) {
 function libUpdateResultsInPlace() {
   const resultsEl = document.getElementById('lib-results');
   const countEl = document.getElementById('lib-count');
-  const ctaEl = document.getElementById('lib-sheetcta');
-  if (ctaEl) ctaEl.innerHTML = libSheetCtaHtml();
   if (!resultsEl) { renderApp(); return; }
   const f = libFilterRecs();
   f.groups = libGroupByCanonical(f);
@@ -6121,15 +5703,6 @@ async function handleSendCollection(btn) {
     btn.disabled = false; btn.textContent = 'Send';
     errEl.textContent = 'Send failed: ' + ((res && res.error) || 'unknown'); errEl.style.display = 'block'; return;
   }
-  const resEl = document.getElementById('cs-results');
-  if (resEl) resEl.innerHTML = collectionSendResultHtml(res, token, title);
-  btn.textContent = 'Done \u2014 close when finished';
-  btn.disabled = false;
-  btn.dataset.action = 'close-modal';
-  toast('List sent to the circle.');
-}
-
-function collectionSendResultHtml(res, token, title) {
   const waText = '\u201c' + title + '\u201d \u2014 my recommendations list on Trustnet: ' + collectionUrl(token);
   const rows = (res.deliveries || []).map(function(d) {
     let right;
@@ -6153,7 +5726,12 @@ function collectionSendResultHtml(res, token, title) {
       + '<span style="font-size:10.5px;color:#7A9086;">' + esc(channelWord(d.channel)) + '</span>'
       + right + '</div>';
   }).join('');
-  return '<div style="margin:10px 0 4px;font-size:11px;font-weight:700;color:#56695F;letter-spacing:0.5px;">DELIVERY</div>' + rows;
+  const resEl = document.getElementById('cs-results');
+  if (resEl) resEl.innerHTML = '<div style="margin:10px 0 4px;font-size:11px;font-weight:700;color:#56695F;letter-spacing:0.5px;">DELIVERY</div>' + rows;
+  btn.textContent = 'Done \u2014 close when finished';
+  btn.disabled = false;
+  btn.dataset.action = 'close-modal';
+  toast('List sent to the circle.');
 }
 
 function modalCollectionCreate() {
@@ -6373,7 +5951,6 @@ function renderLibrary() {
     + (trayOpen ? renderTriageTray() : '')
     + filterBar.replace('@@LIBTAIL@@', trayToggle + moreToggle)
     + (moreOpen ? (catBar + renderCollectionsStrip()) : '')
-    + '<div id="lib-sheetcta">' + libSheetCtaHtml() + '</div>'
     + '<div id="lib-count" style="font-size:12px;color:#7A9086;margin-bottom:16px;">' + libCountLabel(f) + '</div>'
     + '<div id="lib-results">' + cardsHtml + '</div>'
     + '</div>';
@@ -6655,8 +6232,6 @@ function inboxItems() {
     const ts = new Date(n.created_at).getTime() || 0;
     items.push({ kind: 'notif', type: n.type || 'note', title: n.title || '', body: n.body || '', linkUrl: n.link_url || '',
       circleId: n.circle_id || null, token: n.response_token || null,
-      // Who asked - carried so the answer screen can say their name.
-      who: n.actor_name || '',
       // ANSWERED. Set by receive-response through 0046, and backfilled for
       // everything already spent.
       handled: !!n.handled_at,
@@ -7248,7 +6823,6 @@ function openModal(name, params) {
   else if (name === 'fix-category') html = modalFixCategory(params);
   else if (name === 'resolve-query') html = modalResolveQuery(params);
   else if (name === 'fab-menu') html = modalFabMenu();
-  else if (name === 'sheet-send') html = modalSheetSend(params);
   else if (name === 'circle-more') html = modalCircleMore(params);
   else if (name === 'collection-create') html = modalCollectionCreate();
   else if (name === 'collection-send') html = modalCollectionSend(params);
@@ -10012,7 +9586,6 @@ document.addEventListener('click', function(e) {
     // this one is harmless there.
     qUpdateSendLabel();
     arUpdateSaveLabel();
-    ssUpdateSendLabel();
     return;
   }
   const target = e.target.closest('[data-action]');
@@ -10050,41 +9623,6 @@ document.addEventListener('click', function(e) {
   else if (action === 'open-fab') {
     openModal('fab-menu');
   }
-  else if (action === 'topic-sheet') {
-    if (target.dataset.again) AppState._topicSheet = null;
-    AppState._sheetOff = {};
-    showView('topic-sheet', { topic: target.dataset.topic || '' });
-  }
-  else if (action === 'answer-lib') {
-    AppState._topicSheet = null;
-    AppState._sheetOff = {};
-    showView('answer-lib', { token: target.dataset.token || '', question: target.dataset.question || '',
-      who: target.dataset.who || '', when: target.dataset.when || '' });
-  }
-  else if (action === 'sheet-tick') {
-    const rid = target.dataset.recId;
-    AppState._sheetOff = AppState._sheetOff || {};
-    if (AppState._sheetOff[rid]) delete AppState._sheetOff[rid]; else AppState._sheetOff[rid] = true;
-    renderApp();
-  }
-  else if (action === 'answer-lib-send') { handleAnswerFromLibrary(target); }
-  else if (action === 'sheet-save-list') { handleSheetSaveList(target); }
-  else if (action === 'sheet-send-circle') {
-    const cid = target.dataset.circleId;
-    AppState.sheetSendCircleId = cid;
-    const hid = document.getElementById('ss-circle');
-    if (hid) hid.value = cid;
-    // A different circle is a different set of people, so the list is rebuilt.
-    const who = document.getElementById('q-who');
-    if (who) who.innerHTML = qWhoHtml(cid);
-    document.querySelectorAll('.ss-circle').forEach(function(b) {
-      const isMe = b.dataset.circleId === cid;
-      b.classList.toggle('active', isMe);
-      b.classList.toggle('selected', isMe);
-    });
-    ssUpdateSendLabel();
-  }
-  else if (action === 'sheet-send-go') { handleSheetSend(target); }
   else if (action === 'open-menu') { openMenu(); }
   else if (action === 'close-menu') { closeMenu(); }
   else if (action === 'menu-go') { closeMenu(); showView(target.dataset.view); }
@@ -10486,7 +10024,6 @@ document.addEventListener('click', function(e) {
     boxes.forEach(function(b) { if (!b.disabled && !b.checked) anyUnticked = true; });
     boxes.forEach(function(b) { if (!b.disabled) b.checked = anyUnticked; });
     qUpdateSendLabel();
-    ssUpdateSendLabel();
   }
   else if (action === 'q-pick-item') {
     AppState.queryItemId = target.dataset.recId;
