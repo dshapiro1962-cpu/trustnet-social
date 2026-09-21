@@ -90,15 +90,23 @@ if (typeof ctx.inviteMessageFor === 'function') {
      !/\bDany added you\b|\bthey keep\b|added you to their/.test(personal), personal);
 
   // 2 · what it is, in dan's words, compressed
-  // THE EMPHASIS IS THE POINT, and dan corrected it on the first draft: who
-  // the recommendation came FROM, as against a review platform or an AI.
-  ck('it says a recommendation comes from a PERSON you trust',
-     /comes from someone you trust/.test(personal), personal);
+  // THE TWO VERBS, which are also the app's own two words (Ask / Recommend on
+  // Home). Three drafts were rejected before this: one described what the app
+  // IS, one led with privacy, and one let the nouns attach to the wrong thing.
+  ck('it names what you DO here: ask', /where you ask people you trust/.test(personal), personal);
+  ck('...and recommend back', /and recommend back/.test(personal), personal);
   ck('...with what you would actually ask for', /a doctor, a restaurant, a plumber/.test(personal));
-  ck('...as against a public review site, and an AI',
-     /not from a public review site or an AI/.test(personal), personal);
-  ck('...with privacy as the last clause, not the first',
-     personal.indexOf('someone you trust') < personal.indexOf('stays inside your own circles'), personal);
+  ck('...as against public reviews and algorithmic feeds',
+     /No public reviews, no algorithmic feeds/.test(personal), personal);
+
+  // dan, on a draft that read "ask people you trust — a doctor, a restaurant,
+  // a plumber": "could be misunderstood as if you trust the doctor". The list
+  // has to hang off the ASKING. "ask ... for a doctor" can only mean the thing
+  // you want; a list sitting beside "people you trust" cannot.
+  ck('the doctor is what you ask FOR, never who you trust',
+     /trust for a doctor/.test(personal), personal);
+  ck('...so the nouns never sit beside "people you trust"',
+     !/people you trust\s*[—-]\s*a doctor/.test(personal), personal);
   ck('...in a sentence and a half, not a paragraph',
      (personal.split('\n\n')[1] || '').split(/(?<=\.)\s/).length <= 2,
      (personal.split('\n\n')[1] || '').slice(0, 120));
@@ -117,7 +125,7 @@ if (typeof ctx.inviteMessageFor === 'function') {
   ck('the shareable link says something that is TRUE of a stranger',
      !/you are a member/.test(shared) && /would like you in my leros circle/.test(shared),
      shared.split('\n')[0]);
-  ck('...and still says where a recommendation comes from', /comes from someone you trust/.test(shared));
+  ck('...and still says what you do here', /ask people you trust for a doctor/.test(shared), shared);
 
   // 6 · it survives the trip through WhatsApp
   ck('every line break survives encodeURIComponent for wa.me',
@@ -154,6 +162,9 @@ const meta = (prop) => {
 };
 ck('the page says what it is, so the card is not just a URL',
    /people you trust/.test(meta('og:description')), meta('og:description'));
+ck('...and the card says the same thing the message says',
+   /No public reviews, no algorithmic feeds/.test(meta('og:description'))
+   && !/people you trust\s*[—-]\s*a doctor/.test(meta('og:description')), meta('og:description'));
 ck('...a title', meta('og:title') === 'Trustnet', meta('og:title'));
 ck('...a picture', /icon-512\.png$/.test(meta('og:image')), meta('og:image'));
 ck('...and an address', /^https:\/\/trustnetsocial/.test(meta('og:url')), meta('og:url'));

@@ -15,11 +15,11 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Trustnet">
 <meta property="og:title" content="Trustnet">
-<meta property="og:description" content="Recommendations from the people you trust — not from public review sites or an AI, and only inside your own circles.">
+<meta property="og:description" content="Ask the people you trust for a doctor, a restaurant, a plumber — and recommend back. No public reviews, no algorithmic feeds.">
 <meta property="og:image" content="https://trustnetsocial.netlify.app/icons/icon-512.png">
 <meta property="og:url" content="https://trustnetsocial.netlify.app/">
 <meta name="twitter:card" content="summary">
-<meta name="description" content="Recommendations from the people you trust — not from public review sites or an AI, and only inside your own circles.">
+<meta name="description" content="Ask the people you trust for a doctor, a restaurant, a plumber — and recommend back. No public reviews, no algorithmic feeds.">
 <style>
 /* ═══════════════════════════════════════════════
    DESIGN SYSTEM — CSS VARIABLES + HARDCODED FALLBACKS
@@ -2400,7 +2400,7 @@ function tnMe() {
 // Accounts created from this moment onward are asked for their name; the
 // four who joined before it were named by hand and are left alone.
 const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
-const APP_VERSION = 'v0.96.2 · live';
+const APP_VERSION = 'v0.96.3 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -8143,13 +8143,19 @@ async function circleInviteLink(circleId) {
 // The middle paragraph is dan's own description of the product, compressed to
 // a sentence and a half at his instruction: keep and search, inside your own
 // circles, not a public review site.
-// WHERE THE EMPHASIS GOES, corrected by dan on the first draft: the point is
-// not privacy, it is WHO the recommendation came from - a person whose
-// judgement you trust - as against a public review platform or an AI.
-// Privacy is the last clause, not the first.
-const TN_WHAT_IT_IS = 'Everything on Trustnet comes from someone you trust '
-  + '\u2014 a doctor, a restaurant, a plumber \u2014 not from a public review '
-  + 'site or an AI, and it stays inside your own circles.';
+// WHAT THE SENTENCE HAS TO DO, in dan's words and after three drafts he
+// rejected: name the two things you DO here - ask, and recommend - with the
+// people you trust, against public reviews and algorithmic feeds. Not what
+// the app IS, and not privacy: privacy is a property, not a reason.
+//
+// THE NOUNS HANG OFF THE ASKING, NOT OFF THE PEOPLE. An earlier draft read
+// "ask people you trust \u2014 a doctor, a restaurant, a plumber", where the
+// list sits beside "people you trust" and reads as though the DOCTOR is the
+// one you trust. "ask ... for a doctor" can only mean the thing you want.
+// dan caught it; invite-words-sim now refuses that shape.
+const TN_WHAT_IT_IS = 'Trustnet is where you ask people you trust for a doctor, '
+  + 'a restaurant, a plumber \u2014 and recommend back. '
+  + 'No public reviews, no algorithmic feeds.';
 
 // `joined` true: they are already IN the circle - the Invite button puts them
 // there before it opens WhatsApp (v0.63.0) - so the message says so. The
