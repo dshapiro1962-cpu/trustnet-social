@@ -179,8 +179,10 @@ Added 21 Sep, same rule:
 - `join-adopts-sim.js` — the REAL join functions against the REAL database,
   rolled back; proves the constraint and the trigger are there before it claims
   anything, and its control restores the pre-0051 path from the 0025 migration
+- `invite-words-sim.js` — lifts the REAL invite-message builders out of the page
+  and executes them, then reads the message a person actually receives
 
-**25 sims, all green with all controls failing** (21 Sep). Eight were added
+**26 sims, all green with all controls failing** (21 Sep). Eight were added
 10–19 Sep, and three of them run against the REAL database as role
 `authenticated` with RLS in force, in a transaction that is always rolled back:
 `inbox-save-live-sim.js`, `sheet-recall-live-sim.js`, `people-search-live-sim.js`.
