@@ -45,7 +45,11 @@ we need is for the app to work properly from now on so we can release it for
 beta". Do not spend time correcting rows. If a row is wrong, fix what produced
 it and leave the row.
 
-**Three identity triggers are dropped on purpose.** Do not arm them. Identity is
+**Three identity triggers are dropped on purpose.** They are on `canonicals`.
+Do not arm them. `trg_member_identity` on `members` is a different thing, it IS
+armed, and it must stay armed: it gives every member row its `person_id`, which
+is what `members_person_circle_uniq` and migration 0051 both stand on. Reading
+this line as covering members cost a session an hour on 21 Sep. Identity is
 no longer *blocked* — nothing is rewriting canonicals underneath it — but Tier 1
 still folds on normalised name alone, and the whole live problem is five
 collision groups. Not what beta needs.
@@ -172,8 +176,11 @@ Added 21 Sep, same rule:
 - `library-sheet-sim.js` — runs **the real item normaliser** of
   `receive-response` and **the real audience filter** of `send-collection` in a
   vm, and RENDERS AND USES the three sheet screens in Chrome at 390px
+- `join-adopts-sim.js` — the REAL join functions against the REAL database,
+  rolled back; proves the constraint and the trigger are there before it claims
+  anything, and its control restores the pre-0051 path from the 0025 migration
 
-**24 sims, all green with all controls failing** (21 Sep). Eight were added
+**25 sims, all green with all controls failing** (21 Sep). Eight were added
 10–19 Sep, and three of them run against the REAL database as role
 `authenticated` with RLS in force, in a transaction that is always rolled back:
 `inbox-save-live-sim.js`, `sheet-recall-live-sim.js`, `people-search-live-sim.js`.
