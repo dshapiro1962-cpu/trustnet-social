@@ -15,8 +15,16 @@
 // BROWSER TAB THAT HOLDS THE TOKEN — turns a claim into an account.
 // A forged claim with no corresponding browser session achieves nothing.
 //
+// TWO KINDS OF TOKEN (0052). The same proof - a message that can only have
+// come from that number - now also signs people in with no circle involved.
+// The 6-digit code it replaces had never once worked: nine codes requested
+// since 10 August, none ever used, because wa-signin sent a free-form message
+// and WhatsApp refuses those outside a 24-hour window. dan: "no digit path
+// discard it", and sign-in and sign-up are one act.
+//
 // Body: { token, phone }   phone must match the recorded claim exactly.
-// Returns: { access_token, refresh_token, is_new, circle }
+// Returns: { access_token, refresh_token, is_new, circle }   circle is null
+//          when the token was a sign-in rather than an invitation.
 // Auth: none — the caller is by definition signed out. The TOKEN is the
 // credential, and it is 32 random characters held only by whoever tapped the
 // invite.
@@ -60,11 +68,22 @@ Deno.serve(async (req) => {
     .from("circle_invite_links").select("token, circle_id, owner_id, active")
     .eq("token", token).eq("active", true).maybeSingle();
   if (linkErr) return err("link_lookup_failed: " + linkErr.message, 500);
-  if (!link) return err("invite_no_longer_valid", 410);
 
-  const { data: circle } = await admin
-    .from("circles").select("id, name, owner_id").eq("id", link.circle_id).maybeSingle();
-  if (!circle) return err("circle_gone", 410);
+  // NO CIRCLE BEHIND IT? Then it is a sign-in token, or it is nothing. Asked
+  // of the database rather than assumed: only a live, unspent one counts.
+  let isSignin = false;
+  if (!link) {
+    const { data: live, error: liveErr } = await admin
+      .rpc("is_live_signin_token", { p_token: token });
+    if (liveErr) return err("signin_token_lookup_failed: " + liveErr.message, 500);
+    if (!live) return err("invite_no_longer_valid", 410);
+    isSignin = true;
+  }
+
+  const { data: circle } = link
+    ? await admin.from("circles").select("id, name, owner_id").eq("id", link.circle_id).maybeSingle()
+    : { data: null };
+  if (link && !circle) return err("circle_gone", 410);
 
   // ── 3. find or create the account for this phone ─────────────────────────
   // THE INVITER USUALLY ALREADY HAS A NAME FOR THEM. naama appeared in dan's
@@ -74,12 +93,14 @@ Deno.serve(async (req) => {
   // available is the one the person who invited her already wrote down.
   const key = phoneKey(phone);
   const e164 = toE164(phone);
-  const { data: knownAs } = await admin
-    .from("members").select("name")
-    .eq("owner_id", link.owner_id)
-    .eq("contact_value", "+" + e164)
-    .not("name", "is", null)
-    .limit(1).maybeSingle();
+  const { data: knownAs } = link
+    ? await admin
+        .from("members").select("name")
+        .eq("owner_id", link.owner_id)
+        .eq("contact_value", "+" + e164)
+        .not("name", "is", null)
+        .limit(1).maybeSingle()
+    : { data: null };
   // Reject a "name" that is just the number again, or we would adopt the same
   // placeholder we are trying to avoid.
   const invitedName = (knownAs?.name && !/^\+?\d[\d\s\-()]*$/.test(knownAs.name))
@@ -140,11 +161,15 @@ Deno.serve(async (req) => {
   // join_circle_as_user resolves the PERSON through contact_key — the same
   // normaliser the unique index is built on — and links the row that is
   // already there. Idempotent, so pressing send twice is still one membership.
-  const { data: joined, error: joinErr } = await admin.rpc("join_circle_as_user", {
-    p_circle_id: circle.id,
-    p_user_id: userId,
-    p_name: invitedName ?? profileName ?? null,
-  });
+  // A SIGN-IN JOINS NOTHING. Everything below this point that is about a
+  // circle is skipped, and the session is minted exactly the same way.
+  const { data: joined, error: joinErr } = circle
+    ? await admin.rpc("join_circle_as_user", {
+        p_circle_id: circle.id,
+        p_user_id: userId,
+        p_name: invitedName ?? profileName ?? null,
+      })
+    : { data: { ok: true, outcome: "signin" }, error: null };
   if (joinErr) return err("join_failed: " + joinErr.message, 500);
   const res = (joined ?? {}) as Record<string, unknown>;
   if (!res.ok) {
@@ -156,7 +181,7 @@ Deno.serve(async (req) => {
   }
   const outcome = String(res.outcome ?? "");
 
-  if (outcome === "adopted" || outcome === "created") {
+  if (circle && (outcome === "adopted" || outcome === "created")) {
     // `uses` incremented in two steps. NOTE the earlier one-liner had
     //   (…).data?.uses ?? 0 + 1
     // which binds as `?? (0 + 1)` — an existing count of 5 stayed 5, and only a
@@ -189,6 +214,12 @@ Deno.serve(async (req) => {
   if (claimErr2) {
     console.error("invite_claim_not_consumed", claim.id, claimErr2.message);
   }
+  // And the sign-in token itself, for the same reason: one message, one
+  // session. Loud rather than fatal - the session below is already earned.
+  if (isSignin) {
+    const { error: stErr } = await admin.rpc("consume_signin_token", { p_token: token });
+    if (stErr) console.error("signin_token_not_consumed", stErr.message);
+  }
 
   // ── 6. mint a session — same mechanism wa-signin already uses ────────────
   const { data: linkData, error: lErr } = await admin.auth.admin.generateLink({
@@ -207,6 +238,6 @@ Deno.serve(async (req) => {
     access_token: verified.session.access_token,
     refresh_token: verified.session.refresh_token,
     is_new: isNew,
-    circle: circle.name,
+    circle: circle ? circle.name : null,
   });
 });
