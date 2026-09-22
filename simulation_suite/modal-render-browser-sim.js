@@ -43,7 +43,7 @@ const probe = [
   '               "interests","edit-rec","fix-category","chat-import","share-list",',
   '               "share-rec","collection-create","collection-send","edit-collection",',
   '               "reply","resolve-query","file-suggestion","add-reciprocal","edit-circle","circle-more",',
-  '               "sheet-send"];',
+  '               "sheet-send","home-screen"];',
   '  for (var i = 0; i < names.length; i++) {',
   '    try {',
   '      var html = modalHtmlFor(names[i]);',
@@ -102,6 +102,7 @@ window.addEventListener('load', function () {
         case 'file-suggestion': return modalFileSuggestion(p);
         case 'add-reciprocal': return modalAddReciprocal(p);
         case 'sheet-send': return modalSheetSend(p);
+        case 'home-screen': return modalHomeScreen();
         default: return '';
       }
     };
