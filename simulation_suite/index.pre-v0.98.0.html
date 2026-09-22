@@ -1169,14 +1169,6 @@ body {
 .tn-more-details[open] > summary { margin-bottom: 12px; }
 
 /* the answer sheet */
-/* The home-screen sheet (v0.98.0) */
-.tn-a2-route { margin-top: 14px; }
-.tn-a2-route .tn-a2-h { display: block; font-size: 11.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: #77837D; margin-bottom: 8px; }
-.tn-a2-step { display: flex; align-items: center; gap: 10px; font-size: 14.5px; color: #1C2420; padding: 4px 0; }
-.tn-a2-n { width: 21px; height: 21px; border-radius: 50%; background: #1D5A45; color: #fff; font-size: 11.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex: none; }
-.tn-a2-key { display: inline-flex; align-items: center; justify-content: center; min-width: 27px; height: 25px; padding: 0 7px; border-radius: 7px; background: #F2F6F3; box-shadow: inset 0 0 0 1.4px #CBDBD2; font-size: 15px; font-weight: 700; color: #133D2F; }
-.tn-a2-note { font-size: 12.5px; color: #6B7A73; line-height: 1.55; margin-top: 16px; }
-.tn-a2-out { font-size: 12.5px; color: #7A9086; text-decoration: underline; margin-top: 14px; display: inline-block; }
 .tn-makesheet { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; width: 100%; padding: 13px 15px; border-radius: 16px; background: #E6EFEA; color: #133D2F; margin-bottom: 14px; text-align: left; }
 .tn-makesheet svg { width: 21px; height: 21px; flex: none; }
 .tn-makesheet b { font-size: 16px; font-weight: 700; }
@@ -2406,7 +2398,7 @@ const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
 // The Trustnet business number, in one place: the invite join and the
 // sign-in both open WhatsApp with it.
 const TN_WA_NUMBER = '972587786049';
-const APP_VERSION = 'v0.98.0 · live';
+const APP_VERSION = 'v0.97.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -2595,50 +2587,6 @@ function reciprocalNudgeHtml() {
    VIEW: HOME
    ═══════════════════════════════════════════════ */
 
-// WHERE THE APP IS BEING USED (v0.98.0).
-//
-// Three facts decide what the first step of onboarding says, and all three are
-// read rather than guessed:
-//
-//   standalone  it was opened from a home-screen icon. The ONLY one of the
-//               three that is a fact rather than a string: the browser tells
-//               us, and it is how the step ticks itself.
-//   inWhatsApp  WhatsApp's in-app browser, which cannot add anything to a
-//               home screen at all - so the step there is "open it in Chrome",
-//               not "add it".
-//   phone       iOS or Android. A laptop has nowhere to put an icon, and no
-//               install prompt either (there is no service worker, and Chrome
-//               requires one), so the step does not exist there.
-//
-// dan asked for this to gate the rest "like with a real app". It gates on a
-// PHONE only, and the sheet carries one escape, because a gate that cannot be
-// passed is worse than no gate: an old iPhone genuinely has no such menu item.
-function tnPlatform() {
-  const ua = navigator.userAgent || '';
-  let standalone = false;
-  try {
-    standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
-      || navigator.standalone === true;
-  } catch (e) { standalone = navigator.standalone === true; }
-  const ios = /iPhone|iPad|iPod/i.test(ua);
-  const android = /Android/i.test(ua);
-  return {
-    standalone: standalone,
-    inWhatsApp: /WhatsApp/i.test(ua),
-    ios: ios,
-    android: android,
-    // Chrome on iOS identifies itself as CriOS; everything else there is
-    // Safari's engine under some other name, and the share button is in a
-    // different place.
-    chromeIOS: ios && /CriOS/i.test(ua),
-    phone: ios || android,
-  };
-}
-
-function a2hsSkipped() {
-  try { return localStorage.getItem('tn_a2hs_skipped') === '1'; } catch (e) { return false; }
-}
-
 function onboardingSteps() {
   // THE THREE STEPS, EACH OPENING THE NEXT (v0.95.0). dan: "create your first
   // circle, add friends, ask or recommend ... a create circle toggle (with an
@@ -2650,15 +2598,8 @@ function onboardingSteps() {
   const hasCircle = AppState.userCircles.length > 0;
   const hasPeople = AppState.userMembers.length > 0;
   const hasActed = AppState.userQueries.length > 0 || recommended;
-  // THE HOME SCREEN IS A STEP (v0.98.0), and on a phone it is the first one.
-  const p = tnPlatform();
-  const wantsHome = p.phone && !p.standalone && !a2hsSkipped();
   return { hasCircle: hasCircle, hasPeople: hasPeople, hasActed: hasActed,
-           // `allDone` deliberately ignores the home screen: someone who has a
-           // circle, people and a question has finished, and a tick they never
-           // asked for must not keep the whole card on screen for ever.
            allDone: hasCircle && hasPeople && hasActed,
-           onHomeScreen: p.standalone, wantsHome: wantsHome, platform: p,
            firstCircle: AppState.userCircles[0] || null };
 }
 
@@ -2667,9 +2608,7 @@ function renderOnboarding(withIntro) {
   const st = onboardingSteps();
   if (st.allDone) return '';
   const fc = st.firstCircle;
-  const homeStep = st.wantsHome || st.onHomeScreen;
-  const stepNo = (st.wantsHome ? 1 : (!st.hasCircle ? 1 : (!st.hasPeople ? 2 : 3)) + (homeStep ? 1 : 0));
-  const stepTotal = homeStep ? 4 : 3;
+  const stepNo = !st.hasCircle ? 1 : (!st.hasPeople ? 2 : 3);
   const on = function(tag, icon, title, sub, attrs) {
     return '<button type="button" class="tn-step on" ' + attrs + '>'
       + '<span class="tn-step-tag">' + tag + '</span>'
@@ -2684,47 +2623,26 @@ function renderOnboarding(withIntro) {
       + (attrs ? '<button type="button" class="btn btn-ghost btn-sm" ' + attrs + '>Open</button>' : '')
       + '</div>';
   };
-  // A LOCKED STEP THAT TEACHES. While the home screen is outstanding the rest
-  // are locked - dan: "like with a real app it should gate" - but tapping one
-  // opens the sheet that explains how to pass it, rather than doing nothing.
-  const locked = function(title, sub, gated) {
-    const attrs = gated ? ' data-action="open-modal" data-modal="home-screen"' : '';
-    return '<' + (gated ? 'button type="button"' : 'div') + ' class="tn-step"' + attrs + '>'
+  const locked = function(title, sub) {
+    return '<div class="tn-step">'
       + '<span class="tn-step-i">' + tnIcon('lock', 1.9) + '</span>'
-      + '<span class="tn-step-t"><b>' + title + '</b><small>' + sub + '</small></span>'
-      + '</' + (gated ? 'button' : 'div') + '>';
+      + '<span class="tn-step-t"><b>' + title + '</b><small>' + sub + '</small></span></div>';
   };
-  const gate = st.wantsHome;
-  const s0 = st.onHomeScreen
-    ? done('On your home screen', 'Opens like an app')
-    : (st.wantsHome
-        ? on('Start here', 'bmplus',
-             st.platform.inWhatsApp ? 'Open Trustnet in your browser' : 'Put Trustnet on your home screen',
-             st.platform.inWhatsApp ? 'WhatsApp cannot keep it \u2014 your browser can'
-                                    : 'Two taps \u2014 it then opens like an app',
-             'data-action="open-modal" data-modal="home-screen"')
-        : '');
 
-  const s1 = gate
-    ? locked('Create your first circle', 'Once Trustnet is on your home screen', true)
-    : !st.hasCircle
+  const s1 = !st.hasCircle
     ? on('Start here', 'plus', 'Create your first circle', 'Name it for what you\u2019d ask about',
          'data-action="open-modal" data-modal="add-circle"')
     : done(esc(fc.name), 'Your first circle',
            'data-action="nav" data-view="circle-detail" data-circle-id="' + esc(fc.id) + '"');
   const people = AppState.userMembers.filter(function(m) { return !m.isExternalSource; });
-  const s2 = gate
-    ? locked('Add friends', 'Once Trustnet is on your home screen', true)
-    : !st.hasCircle
+  const s2 = !st.hasCircle
     ? locked('Add friends', 'Opens once your circle exists')
     : (!st.hasPeople
         ? on('Next', 'userplus', 'Add friends', 'People you\u2019d trust with ' + esc(fc.name),
              'data-action="open-modal" data-modal="add-member" data-circle-id="' + esc(fc.id) + '"')
         : done(people.length === 1 ? esc(people[0].name) : people.length + ' people in your circles',
                'Added', ''));
-  const s3 = gate
-    ? locked('Ask or recommend', 'Once Trustnet is on your home screen', true)
-    : !(st.hasCircle && st.hasPeople)
+  const s3 = !(st.hasCircle && st.hasPeople)
     ? locked('Ask or recommend', 'Opens once someone\u2019s in your circle')
     : '<div class="tn-step on"><span class="tn-step-tag">Next</span>'
       + '<span class="tn-step-i">' + tnIcon('chat', 2) + '</span>'
@@ -2738,8 +2656,8 @@ function renderOnboarding(withIntro) {
       ? '<div class="tn-intro"><div class="tn-intro-big">Ask &amp; share</div>'
         + '<p class="tn-intro-sub">recommendations with the people you trust.</p></div>'
       : '')
-    + '<div class="tn-sl tn-steps-h" id="onboarding-card">Let\u2019s get started <span>Step ' + stepNo + ' of ' + stepTotal + '</span></div>'
-    + '<div class="tn-steps">' + s0 + s1 + s2 + s3 + '</div>';
+    + '<div class="tn-sl tn-steps-h" id="onboarding-card">Let\u2019s get started <span>Step ' + stepNo + ' of 3</span></div>'
+    + '<div class="tn-steps">' + s1 + s2 + s3 + '</div>';
 }
 
 function renderHome() {
@@ -7337,7 +7255,6 @@ function openModal(name, params) {
   else if (name === 'resolve-query') html = modalResolveQuery(params);
   else if (name === 'fab-menu') html = modalFabMenu();
   else if (name === 'sheet-send') html = modalSheetSend(params);
-  else if (name === 'home-screen') html = modalHomeScreen();
   else if (name === 'circle-more') html = modalCircleMore(params);
   else if (name === 'collection-create') html = modalCollectionCreate();
   else if (name === 'collection-send') html = modalCollectionSend(params);
@@ -8567,71 +8484,6 @@ function modalFixCategory(params) {
       }).join('')
     + '</div>'
     + '</div>';
-}
-
-// THE HOME-SCREEN SHEET (v0.98.0).
-//
-// dan used Chrome's share button on his iPhone and it worked - the icon opens
-// standalone, with no address bar, and still signed in. Chrome is therefore
-// first, and Safari is second "just in case", because his people are in
-// Chrome and the two menus are in different places:
-//
-//   Chrome iOS   the share icon BESIDE THE ADDRESS, top right. Not the three
-//                dots - dan hunted that menu and could not find it, which is
-//                what this sheet exists to prevent.
-//   Safari iOS   the share icon at the BOTTOM.
-//   Chrome       the three dots, top right.
-//   Android
-//
-// It needs iOS 16.4 or later on an iPhone; before that Apple did not let a
-// browser other than Safari do it at all, which is the case the escape at the
-// bottom is for.
-function modalHomeScreen() {
-  const p = tnPlatform();
-  const step = function(n, html) {
-    return '<div class="tn-a2-step"><span class="tn-a2-n">' + n + '</span>' + html + '</div>';
-  };
-  const key = function(ch) { return '<span class="tn-a2-key">' + ch + '</span>'; };
-  const route = function(title, one, two) {
-    return '<div class="tn-a2-route"><b class="tn-a2-h">' + title + '</b>'
-      + step(1, one) + step(2, two) + '</div>';
-  };
-
-  // Inside WhatsApp's browser nothing can be added to a home screen at all,
-  // so the sheet stops talking about home screens and gets them out of it.
-  if (p.inWhatsApp) {
-    return '<div class="modal" style="max-width:460px;">'
-      + '<div class="modal-header"><div class="modal-title">Open Trustnet in your browser</div>'
-      + '<button class="modal-close" data-action="close-modal">\u00d7</button></div>'
-      + '<div class="modal-body">'
-      + '<p class="tn-t2" style="white-space:normal;">You are reading this inside WhatsApp, which cannot keep Trustnet on your home screen. One step first, and you stay signed in.</p>'
-      + route('In WhatsApp', 'Tap ' + key('\u22ef') + ' at the top right', 'Choose <b>Open in Chrome</b>')
-      + '<p class="tn-a2-note">Then add it from there \u2014 this step ticks itself once you open Trustnet from the icon.</p>'
-      + '<button type="button" class="tn-a2-out" data-action="a2hs-skip">I can\u2019t do this \u2014 carry on</button>'
-      + '</div>'
-      + '<div class="modal-footer">'
-      + '<button class="btn btn-secondary" data-action="close-modal" style="flex:1;">Later</button>'
-      + '<button class="btn btn-primary" data-action="copy-app-link" style="flex:1;">Copy the link</button>'
-      + '</div></div>';
-  }
-
-  const routes = p.android
-    ? route('In Chrome', 'Tap ' + key('\u22ee') + ' at the top right', 'Choose <b>Add to home screen</b>')
-    : route('In Chrome', 'Tap ' + key('\u2191') + ' beside the address', 'Choose <b>Add to Home Screen</b>')
-      + route('In Safari', 'Tap ' + key('\u2191') + ' at the bottom', 'Choose <b>Add to Home Screen</b>');
-
-  return '<div class="modal" style="max-width:460px;">'
-    + '<div class="modal-header"><div class="modal-title">Put Trustnet on your home screen</div>'
-    + '<button class="modal-close" data-action="close-modal">\u00d7</button></div>'
-    + '<div class="modal-body">'
-    + '<p class="tn-t2" style="white-space:normal;">It opens like an app \u2014 no address bar \u2014 and it is one tap away instead of a link you have to find again.</p>'
-    + routes
-    + '<p class="tn-a2-note">You stay signed in, and this step ticks itself the next time you open Trustnet from the icon.</p>'
-    + '<button type="button" class="tn-a2-out" data-action="a2hs-skip">I can\u2019t do this \u2014 carry on</button>'
-    + '</div>'
-    + '<div class="modal-footer">'
-    + '<button class="btn btn-primary" data-action="close-modal" style="flex:1;">Got it</button>'
-    + '</div></div>';
 }
 
 function modalCircleLink() {
@@ -10251,23 +10103,6 @@ document.addEventListener('click', function(e) {
   }
   else if (action === 'open-fab') {
     openModal('fab-menu');
-  }
-  else if (action === 'a2hs-skip') {
-    // THE ONE WAY PAST IT. An old iPhone has no such menu item at all, and a
-    // gate nobody can pass is worse than no gate: it would end the product for
-    // that person. Recorded so it is never asked again.
-    try { localStorage.setItem('tn_a2hs_skipped', '1'); } catch (e) {}
-    closeModal();
-    renderApp();
-    toast('No problem \u2014 you can add it later from the menu.');
-  }
-  else if (action === 'copy-app-link') {
-    const link = location.origin + '/';
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(link).then(function() {
-        toast('Link copied \u2014 paste it into Chrome.');
-      }).catch(function() { toast(link); });
-    } else { toast(link); }
   }
   else if (action === 'topic-sheet') {
     if (target.dataset.again) AppState._topicSheet = null;
