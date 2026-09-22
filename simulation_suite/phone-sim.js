@@ -46,6 +46,10 @@ if (!fs.existsSync(INDEX)) {
 }
 const web = fs.readFileSync(INDEX, 'utf8');
 
+const completeJoin = fs.readFileSync(
+  path.join(__dirname, '..', 'supabase', 'functions', 'complete-join', 'index.ts'), 'utf8')
+  .replace(/\r\n/g, '\n');
+
 let pass = 0, fail = 0;
 const ck = (n, c, x) => { if (c) { pass++; console.log('  \u2713', n); }
                           else { fail++; console.log('  \u2717', n, x === undefined ? '' : x); } };
@@ -65,7 +69,7 @@ function phoneCtx(withLibrary) {
   }
   // lift the phone layer out of index.html by name, so the test runs THE REAL
   // FUNCTIONS rather than a copy that can drift from them
-  const names = ['phoneLib', 'phoneCountries', 'toE164', 'phoneNational', 'countryOptions', 'waLoginPhoneOk'];
+  const names = ['phoneLib', 'phoneCountries', 'toE164', 'phoneNational', 'countryOptions'];
   let src = '';
   for (const n of names) {
     const re = new RegExp('function ' + n + '\\s*\\(');
@@ -184,14 +188,22 @@ for (const [typed, iso] of signin) {
   }
 }
 ck('E.164 produces the SAME server key as the old typed form', allSame, drift.join(', '));
-ck('the login validator accepts E.164', L.waLoginPhoneOk('+972505543402'));
-ck('...and still accepts an as-typed number', L.waLoginPhoneOk('0505543402'));
-ck('sign-in still works with the library absent',
-   N.waLoginPhoneOk(N.toE164('0505543402', 'IL').e164)
-   && serverPhoneKey(N.toE164('0505543402', 'IL').e164) === '505543402');
-ck('the login field has a country picker', /id="login-country"/.test(web));
-ck('...and the send path normalises before sending',
-   /toE164\(typed, iso\)/.test(web));
+// SIGNING IN NO LONGER TAKES A TYPED NUMBER (v0.97.0). The phone field, its
+// country picker and waLoginPhoneOk went with the 6-digit code: WhatsApp
+// supplies the number now, and the five checks that used to live here were
+// about a screen that no longer exists. What they were really protecting -
+// that a number reaches the server as the same key however it was written -
+// is still protected, in the place where numbers are still TYPED.
+ck('nobody types a number to sign in any more',
+   !/id="login-phone"/.test(web) && !/id="login-country"/.test(web));
+ck('...and the number WhatsApp reports is keyed the same way on both sides',
+   /phoneKey\(claim\.claimed_phone\) !== phoneKey\(phone\)/.test(completeJoin));
+ck('adding a member still normalises what was typed',
+   /id="nm-country"/.test(web) && /countryOptions\(emCountry\)/.test(web));
+ck('...through the same E.164 conversion',
+   serverPhoneKey(L.toE164('0505543402', 'IL').e164) === '505543402');
+ck('...which still works with the phone library absent',
+   serverPhoneKey(N.toE164('0505543402', 'IL').e164) === '505543402');
 
 // KNOWN AND ACCEPTED RISK, recorded here so it is not rediscovered as a
 // mystery: phone_key is the last nine digits GLOBALLY. Two numbers in

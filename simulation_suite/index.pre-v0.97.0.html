@@ -1302,27 +1302,19 @@ body {
            that is precisely the friction dan objected to. -->
       <div id="login-methods">
       <h1 class="tn-login-h">Sign in</h1>
-      <p class="tn-login-sub">Recommendations from the people you trust. No password, no code to type &mdash; you send one message and you&rsquo;re in.</p>
+      <p class="tn-login-sub">Recommendations from the people you trust. No password &mdash; we&rsquo;ll send you a code.</p>
 
       <div style="display:none;gap:6px;margin-bottom:16px;">
         <button type="button" id="login-tab-wa" class="btn btn-sm" style="flex:1;background:#E6EFEA;border:1.5px solid #1D5A45;color:#133D2F;font-weight:700;">WhatsApp</button>
         <button type="button" id="login-tab-email" class="btn btn-sm" style="flex:1;background:#fff;border:1.5px solid #CDD9D1;color:#56695F;font-weight:600;">Email</button>
       </div>
 
-      <!-- ONE BUTTON (v0.97.0). The 6-digit code that used to live here had
-           never worked once: nine codes requested since 10 August, none ever
-           used, because wa-signin sent a free-form WhatsApp message and Meta
-           refuses those outside a 24-hour window. The screen said "We sent a
-           6-digit code" every time anyway. dan: "no digit path discard it".
-
-           What is here instead is the machinery the invite flow has always
-           used: WhatsApp opens with the message already written, you press
-           send, and the fact that it arrives FROM YOUR NUMBER is the proof.
-           Nothing to type, and no number to enter - WhatsApp already knows
-           which phone it is. -->
       <div id="login-wa-pane">
-        <button class="btn btn-primary" id="login-wa-go" style="width:100%;">Continue with WhatsApp</button>
-        <p style="font-size:12.5px;color:#7A9086;line-height:1.6;margin-top:10px;text-align:center;">WhatsApp opens with a message ready. Press send, come back, and you&rsquo;re in.</p>
+        <div style="display:flex;gap:8px;margin-bottom:14px;">
+          <select class="field-input" id="login-country" style="flex:0 0 42%;min-width:0;"></select>
+          <input class="field-input" id="login-phone" type="tel" inputmode="tel" dir="ltr" placeholder="50 123 4567" style="flex:1;min-width:0;">
+        </div>
+        <button class="btn btn-primary" id="login-wa-send" style="width:100%;">Send code on WhatsApp</button>
         <a href="#" class="tn-login-alt" id="login-to-email">Use email instead</a>
       </div>
 
@@ -1337,6 +1329,19 @@ body {
       <p id="login-err" style="font-size:12px;color:#C0392B;margin-top:10px;display:none;"></p>
     </div>
 
+    <div id="login-wa-sent" style="display:none;text-align:center;padding:10px 0;">
+      <h2 style="font-size:18px;font-weight:800;color:#0D2B1F;margin-bottom:8px;">Check WhatsApp</h2>
+      <p style="font-size:13px;color:#56695F;line-height:1.7;">We sent a 6-digit code to <b id="login-wa-addr"></b>.</p>
+      <div style="margin-top:16px;text-align:left;">
+        <div style="font-size:11px;font-weight:700;color:#56695F;letter-spacing:0.5px;margin-bottom:6px;">ENTER THE CODE</div>
+        <div style="display:flex;gap:8px;">
+          <input class="field-input" id="login-wa-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" style="flex:1;text-align:center;font-size:20px;letter-spacing:6px;font-weight:700;">
+          <button class="btn btn-primary" id="login-wa-verify" style="white-space:nowrap;">Sign in</button>
+        </div>
+        <p id="login-wa-err" style="font-size:12px;color:#C0392B;margin-top:8px;display:none;"></p>
+        <p style="font-size:11.5px;color:#7A9086;margin-top:12px;line-height:1.6;">Wrong number? <a href="#" id="login-wa-back" style="color:#1D5A45;font-weight:600;">Go back</a></p>
+      </div>
+    </div>
     <div id="login-sent" style="display:none;text-align:center;padding:10px 0;">
       <div style="font-size:40px;margin-bottom:12px;">📬</div>
       <h2 style="font-size:18px;font-weight:800;color:#0D2B1F;margin-bottom:8px;">Check your email</h2>
@@ -2395,10 +2400,7 @@ function tnMe() {
 // Accounts created from this moment onward are asked for their name; the
 // four who joined before it were named by hand and are left alone.
 const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
-// The Trustnet business number, in one place: the invite join and the
-// sign-in both open WhatsApp with it.
-const TN_WA_NUMBER = '972587786049';
-const APP_VERSION = 'v0.97.0 · live';
+const APP_VERSION = 'v0.96.3 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -10377,7 +10379,7 @@ document.addEventListener('click', function(e) {
   else if (action === 'codeless-join') {
     // The Trustnet business number. She never types it; wa.me prefills the
     // whole message and she only presses send.
-    startCodelessJoin(target.dataset.token, TN_WA_NUMBER);
+    startCodelessJoin(target.dataset.token, '972587786049');
   }
   else if (action === 'confirm-interest') {
     handleSetInterests(target.dataset.circleId, (target.dataset.interest || '').split(',').filter(Boolean), 'confirmed');
@@ -10872,23 +10874,46 @@ function hideLoadingScreen() {
 // ── WhatsApp sign-in ────────────────────────────────────────────────────────
 // Most Trustnet users arrive through WhatsApp, so this is the primary door;
 // email remains available behind the second tab.
+function waLoginPhoneOk(v) {
+  const d = String(v || '').replace(/\D/g, '');
+  return d.length >= 9 && d.length <= 15;
+}
 
 function wireWhatsAppLogin() {
-  // SIGNING IN IS SENDING A MESSAGE (v0.97.0).
+  const tabWa = document.getElementById('login-tab-wa');
+  const tabEm = document.getElementById('login-tab-email');
+  const paneWa = document.getElementById('login-wa-pane');
+  const paneEm = document.getElementById('login-email-pane');
+  const err = document.getElementById('login-err');
+  if (!tabWa || tabWa._wired) return;
+  tabWa._wired = true;
+
+  const activate = function(which) {
+    const on = 'background:#E6EFEA;border:1.5px solid #1D5A45;color:#133D2F;font-weight:700;';
+    const off = 'background:#fff;border:1.5px solid #CDD9D1;color:#56695F;font-weight:600;';
+    tabWa.style.cssText = 'flex:1;' + (which === 'wa' ? on : off);
+    tabEm.style.cssText = 'flex:1;' + (which === 'wa' ? off : on);
+    paneWa.style.display = which === 'wa' ? '' : 'none';
+    paneEm.style.display = which === 'wa' ? 'none' : '';
+    if (err) err.style.display = 'none';
+  };
+  tabWa.addEventListener('click', function() { activate('wa'); });
+  tabEm.addEventListener('click', function() { activate('email'); });
+  // The tabs are hidden since v0.95.0: WhatsApp is the way almost everyone
+  // signs in, so it is the page, and email is one line under it.
+  const toEm = document.getElementById('login-to-email');
+  const toWa = document.getElementById('login-to-wa');
+  if (toEm) toEm.addEventListener('click', function(ev) { ev.preventDefault(); activate('email'); });
+  if (toWa) toWa.addEventListener('click', function(ev) { ev.preventDefault(); activate('wa'); });
+
+  // Same country picker as add-member. (v0.71.0)
   //
-  // This used to take a phone number, ask wa-signin for a 6-digit code and
-  // wait for it to be typed. It had never worked: nine codes were requested
-  // between 10 August and 22 September, not one was ever used, and not one
-  // wrong-code attempt was recorded - nobody ever received a code to type.
-  // wa-signin sent a FREE-FORM WhatsApp message, and Meta only allows those
-  // within 24 hours of that person messaging the business. The screen said
-  // "We sent a 6-digit code to ..." regardless, because the server returned
-  // `delivered: false` and this code threw the value away.
+  // MATCHING IS UNCHANGED AND NOBODY CAN BE LOCKED OUT: wa-signin resolves an
+  // account with phoneKey(), the LAST NINE DIGITS, so +972501234567 and
+  // 0501234567 have always been the same key and still are. This only changes
+  // what gets TYPED and what gets STORED in users.phone — from whatever the
+  // user happened to write, to canonical E.164.
   //
-  // The invite flow next to it has worked all along, by turning the proof
-  // round: the person sends US a message, from their own number, which is a
-  // thing only they can do. That is now the whole sign-in. Same machinery,
-  // same polling, same ?claimed= fallback when the tab does not survive.
   // KNOWN AND ACCEPTED RISK (dan, 22 Aug 2026): phone_key is the last nine
   // digits GLOBALLY, so two numbers in different countries sharing their last
   // nine digits produce the same key. Before 0038 that mislabelled one row in
@@ -10898,61 +10923,99 @@ function wireWhatsAppLogin() {
   // to key on full E.164, which means re-keying every contact and changing a
   // generated column; dan has accepted the risk for now rather than take that
   // change today. IF A COLLISION IS EVER SEEN, THIS IS THE CAUSE.
-  //
-  // IT CARRIES MORE WEIGHT SINCE v0.97.0, not less: this is now the only way
-  // a session is resolved to an account, so a collision would sign one person
-  // into another's account rather than mislabel a row. Unchanged, still
-  // accepted, and written here because this is where it now lives.
-  const goBtn = document.getElementById('login-wa-go');
-  if (!goBtn || goBtn._wired) return;
-  goBtn._wired = true;
+  // Defensive: an exception thrown here aborts wireWhatsAppLogin and takes the
+  // WHOLE login screen's wiring with it — the send button, the verify button,
+  // the back link. A missing or unexpected element must degrade to "no picker",
+  // never to "cannot sign in". Caught by addsearch-sim, which renders the login
+  // screen against a DOM stub where `.options` does not exist. (v0.71.0)
+  try {
+    const lc = document.getElementById('login-country');
+    if (lc && lc.options && !lc.options.length && typeof countryOptions === 'function') {
+      lc.innerHTML = countryOptions('IL');
+    }
+  } catch (e) { console.error('country picker unavailable:', e); }
 
-  // THE OTHER DOOR. Email is the fallback for anyone without WhatsApp on this
-  // device, and the two links that swap the panes were wired inside the code
-  // path this replaced - deleting that left "Use email instead" dead, which
-  // would have stranded exactly the people who need it.
-  const paneWa = document.getElementById('login-wa-pane');
-  const paneEm = document.getElementById('login-email-pane');
-  const show = function(which) {
-    if (paneWa) paneWa.style.display = which === 'wa' ? '' : 'none';
-    if (paneEm) paneEm.style.display = which === 'wa' ? 'none' : '';
-    const e = document.getElementById('login-err');
-    if (e) e.style.display = 'none';
-  };
-  const toEm = document.getElementById('login-to-email');
-  const toWa = document.getElementById('login-to-wa');
-  if (toEm) toEm.addEventListener('click', function(ev) { ev.preventDefault(); show('email'); });
-  if (toWa) toWa.addEventListener('click', function(ev) { ev.preventDefault(); show('wa'); });
-  goBtn.addEventListener('click', async function() {
-    const err = document.getElementById('login-err');
-    goBtn.disabled = true;
-    goBtn.textContent = 'Opening WhatsApp\u2026';
+  const sendBtn = document.getElementById('login-wa-send');
+  sendBtn.addEventListener('click', async function() {
+    const iso = (document.getElementById('login-country') || {}).value || 'IL';
+    const typed = (document.getElementById('login-phone') || {}).value || '';
+    const parsed = toE164(typed, iso);
+    // Fail open, exactly as add-member does: if libphonenumber did not load we
+    // send what was typed, and phoneKey() on the server reduces it the same way
+    // it always has. A sign-in that refuses to work is worse than one that
+    // sends an unnormalised number.
+    const phone = parsed.e164 || typed;
+    if (!waLoginPhoneOk(phone)) {
+      err.textContent = 'Enter your WhatsApp number, e.g. 50 123 4567.';
+      err.style.display = 'block'; return;
+    }
+    err.style.display = 'none';
+    sendBtn.disabled = true; sendBtn.textContent = 'Sending\u2026';
     try {
-      // The token is minted server-side and lives ten minutes. It means
-      // nothing on its own: it is useful only to this browser, and only once
-      // somebody sends it from their own WhatsApp.
-      const r = await sb.rpc('mint_signin_token');
-      if (r.error || !r.data) throw new Error(r.error ? r.error.message : 'no token');
-      // The invite banner's host doubles as the "press send" panel, so the
-      // signed-out screen has one place that speaks and not two.
-      const host = document.getElementById('login-invite');
-      if (host) host.style.display = 'block';
-      const methods = document.getElementById('login-methods');
-      if (methods) methods.style.display = 'none';
-      startCodelessJoin(r.data, TN_WA_NUMBER);
-    } catch (e) {
-      console.error('mint_signin_token failed:', e);
-      goBtn.disabled = false;
-      goBtn.textContent = 'Continue with WhatsApp';
-      if (err) {
-        err.textContent = 'Could not start the sign-in: ' + (e.message || 'network error')
-          + '. You can use email instead.';
+      const res = await fetch(SUPABASE_URL + '/functions/v1/wa-signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY },
+        body: JSON.stringify({ action: 'start', phone: phone }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+      if (d.retry_in) {
+        err.textContent = 'A code was just sent. Try again in ' + d.retry_in + 's.';
         err.style.display = 'block';
+      } else {
+        AppState._waLoginPhone = phone;
+        document.getElementById('login-wa-addr').textContent = phone;
+        document.getElementById('login-form').style.display = 'none';
+        document.getElementById('login-wa-sent').style.display = 'block';
+        const ci = document.getElementById('login-wa-code'); if (ci) ci.focus();
       }
+    } catch (e) {
+      err.textContent = 'Could not send the code: ' + (e.message || 'network error');
+      err.style.display = 'block';
+    }
+    sendBtn.disabled = false; sendBtn.textContent = 'Send code on WhatsApp';
+  });
+
+  const verifyBtn = document.getElementById('login-wa-verify');
+  verifyBtn.addEventListener('click', async function() {
+    const code = ((document.getElementById('login-wa-code') || {}).value || '').replace(/\D/g, '');
+    const cerr = document.getElementById('login-wa-err');
+    if (code.length !== 6) { cerr.textContent = 'Enter the 6-digit code.'; cerr.style.display = 'block'; return; }
+    cerr.style.display = 'none';
+    verifyBtn.disabled = true; verifyBtn.textContent = 'Signing in\u2026';
+    try {
+      const res = await fetch(SUPABASE_URL + '/functions/v1/wa-signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY },
+        body: JSON.stringify({ action: 'verify', phone: AppState._waLoginPhone, code: code }),
+      });
+      const d = await res.json();
+      if (!res.ok || !d.access_token) {
+        const map = {
+          wrong_code: 'That code is not right.',
+          code_expired: 'That code has expired \u2014 ask for a new one.',
+          no_pending_code: 'No code was requested for this number.',
+          too_many_attempts: 'Too many tries. Ask for a fresh code.',
+        };
+        throw new Error(map[d.error] || d.error || ('HTTP ' + res.status));
+      }
+      const set = await sb.auth.setSession({ access_token: d.access_token, refresh_token: d.refresh_token });
+      if (set.error) throw new Error(set.error.message);
+      location.reload();
+    } catch (e) {
+      cerr.textContent = e.message || 'Sign-in failed.';
+      cerr.style.display = 'block';
+      verifyBtn.disabled = false; verifyBtn.textContent = 'Sign in';
     }
   });
-}
 
+  const back = document.getElementById('login-wa-back');
+  if (back) back.addEventListener('click', function(e) {
+    e.preventDefault();
+    document.getElementById('login-wa-sent').style.display = 'none';
+    document.getElementById('login-form').style.display = 'block';
+  });
+}
 
 // Resolve a pending invite token and lead with it. Runs before sign-in, so it
 // cannot read the visitor's account — invite_preview (0032) is callable by
