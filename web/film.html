@@ -8,25 +8,30 @@
 <title>Trustnet — what it is</title>
 <style>
 /* ═══════════════════════════════════════════════════════════════════
-   TRUSTNET · a silent film for beta recruits.  39 seconds, six beats.
+   TRUSTNET · a silent film for beta recruits.  26 seconds, six beats.
 
-   A STANDALONE PAGE. index.html does not know it exists; nothing links
-   here; it is noindex. Remove with: git rm web/film.html
+   A STANDALONE PAGE. index.html does not know it exists, nothing links
+   here, it is noindex.  Remove with: git rm web/film.html
 
-   WHAT CHANGED AFTER THE FIRST CUT, all of it dan's:
-     · "you cant have this blanks"   - the grey cards read as a loading
-       screen, not as a feed. Every card now carries real content.
-     · "its all running to fast especially 5" - 25s became 39s, and the
-       send-from-your-library beat went from 3s to 7s.
-     · "doesnt bring out the essence" - several circles, one place. The
-       circles are now in beat 2 and the whole of beat 4 is the library
-       with Travel, Books and Restaurants in it together.
-     · shown, not narrated: beat 1 has no words at all.
+   THE CUT, and why it is this one (dan, 23 Sep):
+     · "the first 3 frames could be one ... it cant start out of thin
+       air" — they are one beat now, under a heading that says what you
+       are looking at, and the items arrive under it in turn.
+     · "there has to be some indication that ... is WhatsApp" — a chat
+       header, the wallpaper, timestamps and the blue double ticks. No
+       logo and no wordmark on screen: the layout is recognisable
+       without borrowing a trademark for a film sent to strangers.
+     · "insert a frame about the recommendation feature" — beat 4. The
+       app has two verbs and the film showed one.
+     · "41 seconds is much to long it should be around 25" — 26. Two
+       things paid for it: the sponsored-feed card went (the review and
+       the lost thread already make that point), and asking and being
+       answered became ONE beat, which is one story on one card.
 
-   Silent by design - nobody plays sound in WhatsApp.
+   Silent by design — nobody plays sound in WhatsApp.
 
      ?lang=he   Hebrew, right to left
-     ?t=12      freeze at 12 seconds (for stills)
+     ?t=12      freeze at 12 seconds, for stills
    ═══════════════════════════════════════════════════════════════════ */
 :root {
   --green: #1D5A45;
@@ -41,89 +46,95 @@
 html, body { height: 100%; background: #fff; font-family: var(--sans); overflow: hidden; }
 #stage { position: fixed; inset: 0; background: #fff; overflow: hidden; }
 
-.beat { position: absolute; inset: 0; padding: 26px 28px; display: flex; flex-direction: column;
-        justify-content: center; opacity: 0; transition: opacity .45s ease; pointer-events: none; }
+.beat { position: absolute; inset: 0; padding: 22px 26px; display: flex; flex-direction: column;
+        justify-content: center; opacity: 0; transition: opacity .4s ease; pointer-events: none; }
 .beat.on { opacity: 1; }
-.beat > * { width: 100%; max-width: 340px; margin-left: auto; margin-right: auto; }
+.beat > * { width: 100%; max-width: 344px; margin-left: auto; margin-right: auto; }
 
-/* everything that moves does it the same way */
-.anim { opacity: 0; transform: translateY(10px); transition: opacity .45s ease, transform .45s ease; }
+.anim { opacity: 0; transform: translateY(9px); transition: opacity .4s ease, transform .4s ease; }
 .anim.in { opacity: 1; transform: none; }
-.anim.out { opacity: 0; transform: translateY(-8px); }
+.anim.out { opacity: 0; transform: translateY(-7px); height: 0; margin: 0; overflow: hidden;
+            transition: opacity .3s ease, transform .3s ease, height .3s ease, margin .3s ease; }
 
-.line { font-family: var(--serif); font-size: 29px; line-height: 1.2; color: var(--green-d);
+.line { font-family: var(--serif); font-size: 28px; line-height: 1.18; color: var(--green-d);
         letter-spacing: -0.01em; }
-.sub { font-size: 14.5px; color: var(--grey); margin-top: 9px; line-height: 1.45; }
+.sub { font-size: 14px; color: var(--grey); margin-top: 7px; line-height: 1.4; }
 [dir="rtl"] .beat { text-align: right; }
 
-/* ── beat 1 · the world now. No placeholder blocks anywhere. ─────── */
-.card { border: 1px solid var(--line); border-radius: 16px; padding: 15px 16px; background: #fff;
-        box-shadow: 0 16px 34px -26px rgba(13,43,31,0.45); }
-.stars { font-size: 27px; letter-spacing: 2px; color: #E8A020; direction: ltr; unicode-bidi: isolate; }
-.rev-h { font-size: 13.5px; color: var(--grey); margin-top: 4px; }
-.rev-q { font-family: var(--serif); font-style: italic; font-size: 16px; color: #39443E;
-         margin-top: 12px; line-height: 1.4; }
-.rev-by { font-size: 12px; color: var(--grey); margin-top: 7px; }
-.ad { font-size: 10.5px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase;
-      color: #9AA5A0; }
-.ad-t { font-size: 17px; font-weight: 700; color: var(--ink); margin-top: 7px; line-height: 1.3; }
-.ad-n { font-size: 12px; color: var(--grey); margin-top: 9px; }
-.chats { display: flex; flex-direction: column; gap: 8px; }
-.bub { align-self: flex-end; max-width: 80%; background: #DCF8C6; border-radius: 14px 14px 4px 14px;
-       padding: 9px 12px; font-size: 13.5px; color: #1C2420; }
-[dir="rtl"] .bub { align-self: flex-start; border-radius: 14px 14px 14px 4px; }
-.who { font-size: 11px; color: #6E7B74; margin-bottom: 2px; }
-.nores { margin-top: 14px; }
-.nores-b { display: flex; align-items: center; gap: 8px; border-radius: 11px; background: #F2F4F3;
-           padding: 10px 13px; font-size: 14.5px; color: var(--ink); }
-.nores-t { font-size: 13px; color: #B4553F; margin-top: 8px; }
+.card { border: 1px solid var(--line); border-radius: 15px; padding: 13px 14px; background: #fff;
+        box-shadow: 0 14px 30px -24px rgba(13,43,31,0.45); }
+
+/* ── beat 1 ─────────────────────────────────────────────────────── */
+.stars { font-size: 22px; letter-spacing: 2px; color: #E8A020; direction: ltr; unicode-bidi: isolate; }
+.rev-h { font-size: 12.5px; color: var(--grey); margin-top: 3px; }
+.rev-q { font-family: var(--serif); font-style: italic; font-size: 15px; color: #39443E;
+         margin-top: 9px; line-height: 1.35; }
+.rev-by { font-size: 11.5px; color: var(--grey); margin-top: 6px; }
+
+/* A WhatsApp thread, recognisable without a logo: the header, the
+   wallpaper, the timestamps, and the blue double ticks. */
+.wa { border-radius: 15px; overflow: hidden; border: 1px solid var(--line);
+      box-shadow: 0 14px 30px -24px rgba(13,43,31,0.45); }
+.wa-top { display: flex; align-items: center; gap: 9px; background: #128C7E; padding: 9px 12px; }
+.wa-av { width: 27px; height: 27px; border-radius: 50%; background: #DDEDEA; color: #128C7E;
+         font-weight: 800; font-size: 12.5px; display: flex; align-items: center; justify-content: center; }
+.wa-nm { color: #fff; font-size: 14px; font-weight: 600; line-height: 1.1; }
+.wa-on { color: #CFE9E4; font-size: 10.5px; }
+.wa-body { background: #EAE0D6; padding: 9px 10px; display: flex; flex-direction: column; gap: 6px; }
+.wa-b { align-self: flex-end; max-width: 84%; background: #DCF8C6; border-radius: 11px 11px 3px 11px;
+        padding: 7px 10px 5px; font-size: 12.5px; color: #1C2420; line-height: 1.3; }
+[dir="rtl"] .wa-b { align-self: flex-start; border-radius: 11px 11px 11px 3px; }
+.wa-to { font-size: 10.5px; color: #6E7B74; margin-bottom: 2px; }
+.wa-meta { display: flex; gap: 3px; align-items: center; justify-content: flex-end;
+           font-size: 9.5px; color: #7A8A80; margin-top: 2px; }
+.ticks { color: #34B7F1; font-size: 10px; letter-spacing: -2px; }
+.wa-find { background: #fff; padding: 9px 11px; display: flex; align-items: center; gap: 7px;
+           font-size: 13px; color: var(--ink); border-top: 1px solid #E3E8E5; }
+.wa-none { background: #fff; padding: 0 11px 10px; font-size: 12px; color: #B4553F; }
 
 /* ── the product beats ──────────────────────────────────────────── */
-.q { font-family: var(--serif); font-size: 19px; color: var(--green-d); line-height: 1.3; }
-.chips { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
-.chip { font-size: 12.5px; padding: 6px 11px; border-radius: 999px; border: 1px solid #CBDBD2;
+.q { font-family: var(--serif); font-size: 18px; color: var(--green-d); line-height: 1.3; }
+.chips { display: flex; gap: 5px; margin-top: 10px; flex-wrap: wrap; }
+.chip { font-size: 12px; padding: 5px 10px; border-radius: 999px; border: 1px solid #CBDBD2;
         color: #3E4944; transition: background .4s ease, color .4s ease, border-color .4s ease; }
 .chip.on { background: var(--green); color: #fff; border-color: var(--green); }
-.row { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0;
-       border-bottom: 1px solid var(--line); }
+.row { display: flex; gap: 9px; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid var(--line); }
 .row:last-child { border-bottom: 0; }
-.tile { width: 38px; height: 38px; border-radius: 10px; background: #DCE8F1; color: #2C5877;
-        font-weight: 800; font-size: 16px; display: flex; align-items: center; justify-content: center; flex: none; }
+.tile { width: 35px; height: 35px; border-radius: 9px; background: #DCE8F1; color: #2C5877;
+        font-weight: 800; font-size: 15px; display: flex; align-items: center; justify-content: center; flex: none; }
 .tile.w { background: #F3E4DC; color: #9A5B3C; }
 .tile.g { background: #E0EFE6; color: #22654A; }
 .tile.p { background: #EAE4F3; color: #5B3E9E; }
-.nm { font-size: 14px; font-weight: 700; color: var(--ink); }
-.qt { font-family: var(--serif); font-style: italic; font-size: 13.5px; color: #39443E;
-      margin-top: 2px; line-height: 1.35; }
-.by { font-size: 11.5px; color: var(--grey); margin-top: 3px; }
-.tag { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .04em;
-       text-transform: uppercase; color: #2A7258; background: #E9F6EE; border-radius: 7px;
-       padding: 2px 7px; margin-inline-start: 6px; vertical-align: 1px; }
-.search { display: flex; align-items: center; gap: 8px; border-radius: 11px; background: #F2F6F3;
-          padding: 10px 13px; font-size: 15px; color: var(--ink); }
-.caret { display: inline-block; width: 2px; height: 16px; background: var(--green); vertical-align: -3px;
+.nm { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+.qt { font-family: var(--serif); font-style: italic; font-size: 13px; color: #39443E; margin-top: 1px; line-height: 1.3; }
+.by { font-size: 11px; color: var(--grey); margin-top: 2px; }
+.tag { display: inline-block; font-size: 9.5px; font-weight: 700; letter-spacing: .04em;
+       text-transform: uppercase; color: #2A7258; background: #E9F6EE; border-radius: 6px;
+       padding: 2px 6px; margin-inline-start: 5px; vertical-align: 1px; }
+.search { display: flex; align-items: center; gap: 7px; border-radius: 10px; background: #F2F6F3;
+          padding: 9px 12px; font-size: 14px; color: var(--ink); }
+.caret { display: inline-block; width: 2px; height: 15px; background: var(--green); vertical-align: -3px;
          animation: blink 1s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
-.tick { width: 21px; height: 21px; border-radius: 50%; background: var(--green); color: #fff;
-        font-size: 12px; display: flex; align-items: center; justify-content: center; flex: none;
-        margin-top: 9px; }
-.send { margin-top: 14px; background: var(--green); color: #fff; border-radius: 999px; text-align: center;
-        padding: 13px; font-weight: 700; font-size: 15px; transition: background .3s ease; }
+.tick { width: 19px; height: 19px; border-radius: 50%; background: var(--green); color: #fff;
+        font-size: 11px; display: flex; align-items: center; justify-content: center; flex: none; margin-top: 8px; }
+.send { margin-top: 12px; background: var(--green); color: #fff; border-radius: 999px; text-align: center;
+        padding: 11px; font-weight: 700; font-size: 14.5px; transition: background .3s ease; }
 .send.done { background: #E9F6EE; color: #133D2F; }
-.wordmark { font-family: var(--serif); font-size: 42px; color: var(--green); letter-spacing: -0.015em; }
-.icon { width: 72px; height: 72px; border-radius: 18px; background: var(--green); color: #fff;
-        font-family: var(--serif); font-size: 40px; display: flex; align-items: center; justify-content: center;
-        margin: 0 auto 18px; }
-#b6 { text-align: center; }
-[dir="rtl"] #b6 { text-align: center; }
+.wordmark { font-family: var(--serif); font-size: 40px; color: var(--green); letter-spacing: -0.015em; }
+.icon { width: 68px; height: 68px; border-radius: 17px; background: var(--green); color: #fff;
+        font-family: var(--serif); font-size: 38px; display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 16px; }
+#b6, [dir="rtl"] #b6 { text-align: center; }
 </style>
 </head>
 <body>
 <div id="stage">
 
-  <!-- ══ 1 · the world now · 0–9s · not one word ══════════════════ -->
+  <!-- ══ 1 · no more of this · 0–6s ═══════════════════════════════ -->
   <section class="beat" id="b1">
-    <div class="card anim" id="a1">
+    <div class="line anim" id="a0" data-en="No more of this." data-he="נמאס מזה.">No more of this.</div>
+    <div class="card anim" id="a1" style="margin-top:16px;">
       <div class="stars">★★★★☆</div>
       <div class="rev-h" data-en="4.3 · 1,204 reviews" data-he="4.3 · 1,204 ביקורות">4.3 · 1,204 reviews</div>
       <div class="rev-q" data-en="“Great place, would definitely come again!!”"
@@ -131,73 +142,60 @@ html, body { height: 100%; background: #fff; font-family: var(--sans); overflow:
       <div class="rev-by" data-en="Anonymous · 2 years ago · 1 review"
                           data-he="אנונימי · לפני שנתיים · ביקורת אחת">Anonymous · 2 years ago · 1 review</div>
     </div>
-    <div class="card anim" id="a2" style="margin-top:14px;">
-      <div class="ad" data-en="Sponsored" data-he="ממומן">Sponsored</div>
-      <div class="ad-t" data-en="The 10 best hotels in Puglia" data-he="10 המלונות הטובים בפוליה">The 10 best hotels in Puglia</div>
-      <div class="ad-n" data-en="1 of 47 · chosen for you" data-he="1 מתוך 47 · נבחר עבורך">1 of 47 · chosen for you</div>
-    </div>
-    <div class="anim" id="a3" style="margin-top:16px;">
-      <div class="chats">
-        <div class="bub"><div class="who">Tal</div><span data-en="Anywhere good to stay in Puglia?" data-he="יש לך מקום טוב לישון בפוליה?">Anywhere good to stay in Puglia?</span></div>
-        <div class="bub"><div class="who">Rany</div><span data-en="Anywhere good to stay in Puglia?" data-he="יש לך מקום טוב לישון בפוליה?">Anywhere good to stay in Puglia?</span></div>
-        <div class="bub"><div class="who">May</div><span data-en="Anywhere good to stay in Puglia?" data-he="יש לך מקום טוב לישון בפוליה?">Anywhere good to stay in Puglia?</span></div>
-        <div class="bub"><div class="who">Tom</div><span data-en="Anywhere good to stay in Puglia?" data-he="יש לך מקום טוב לישון בפוליה?">Anywhere good to stay in Puglia?</span></div>
+    <div class="wa anim" id="a2" style="margin-top:12px;">
+      <div class="wa-top"><div class="wa-av">T</div>
+        <div><div class="wa-nm">Tal</div><div class="wa-on" data-en="online" data-he="מחובר">online</div></div></div>
+      <div class="wa-body">
+        <div class="wa-b"><span data-en="Anywhere good to stay in Puglia?" data-he="יש לך מקום טוב לישון בפוליה?">Anywhere good to stay in Puglia?</span>
+          <div class="wa-meta">09:14 <span class="ticks">✓✓</span></div></div>
+        <div class="wa-b"><div class="wa-to" data-en="forwarded to Rany" data-he="הועבר לרני">forwarded to Rany</div>
+          <span data-en="Anywhere good to stay in Puglia?" data-he="יש לך מקום טוב לישון בפוליה?">Anywhere good to stay in Puglia?</span>
+          <div class="wa-meta">09:15 <span class="ticks">✓✓</span></div></div>
+        <div class="wa-b"><div class="wa-to" data-en="forwarded to May, Tom" data-he="הועבר למאי, תום">forwarded to May, Tom</div>
+          <span data-en="Anywhere good to stay in Puglia?" data-he="יש לך מקום טוב לישון בפוליה?">Anywhere good to stay in Puglia?</span>
+          <div class="wa-meta">09:15 <span class="ticks">✓✓</span></div></div>
       </div>
-      <div class="nores anim" id="a4">
-        <div class="nores-b"><span style="color:var(--grey);">⌕</span><span>Puglia</span><span class="caret"></span></div>
-        <div class="nores-t" data-en="No results · 4 months ago" data-he="אין תוצאות · לפני 4 חודשים">No results · 4 months ago</div>
-      </div>
+      <div class="wa-find anim" id="a3"><span style="color:var(--grey);">⌕</span><span>Puglia</span><span class="caret"></span></div>
+      <div class="wa-none anim" id="a4" data-en="No results · 4 months later"
+           data-he="אין תוצאות · 4 חודשים אחר כך">No results · 4 months later</div>
     </div>
   </section>
 
-  <!-- ══ 2 · ask · 9–15s ═════════════════════════════════════════ -->
+  <!-- ══ 2 · ask, and they answer · 6–11.5s ═══════════════════════ -->
   <section class="beat" id="b2">
-    <div class="anim" id="c1">
+    <div class="anim" id="c0">
       <div class="line" data-en="Ask the people you trust." data-he="שאלו את מי שאתם סומכים עליו.">Ask the people you trust.</div>
-      <div class="sub" data-en="A circle for each part of your life."
-                       data-he="מעגל לכל תחום בחיים שלכם.">A circle for each part of your life.</div>
+      <div class="sub" data-en="In their words — not a score." data-he="במילים שלהם — לא בכוכבים.">In their words — not a score.</div>
     </div>
-    <div class="card anim" id="c2" style="margin-top:22px;">
+    <div class="card anim" id="c1" style="margin-top:18px;">
       <div class="q" data-en="Anywhere good to stay in Puglia?" data-he="יש לכם מקום טוב לישון בפוליה?">Anywhere good to stay in Puglia?</div>
-      <div class="chips">
+      <div class="chips anim" id="c2">
         <div class="chip" id="chipTravel" data-en="Travel" data-he="טיולים">Travel</div>
         <div class="chip" data-en="Books" data-he="ספרים">Books</div>
         <div class="chip" data-en="Restaurants" data-he="מסעדות">Restaurants</div>
         <div class="chip" data-en="Doctors" data-he="רופאים">Doctors</div>
       </div>
       <div class="send anim" id="c3" data-en="Ask 6 people" data-he="שאלו 6 אנשים">Ask 6 people</div>
-    </div>
-  </section>
-
-  <!-- ══ 3 · they answer · 15–21s ════════════════════════════════ -->
-  <section class="beat" id="b3">
-    <div class="line anim" id="d0" data-en="In their words — not a score."
-         data-he="במילים שלהם — לא בכוכבים.">In their words — not a score.</div>
-    <div class="card" style="margin-top:20px;">
-      <div class="row anim" id="d1"><div class="tile">M</div><div>
+      <div class="row anim" id="c4"><div class="tile">M</div><div>
         <div class="nm">Masseria Moroseta</div>
         <div class="qt" data-en="“Book the room with the terrace.”" data-he="״קחו את החדר עם המרפסת.״">“Book the room with the terrace.”</div>
-        <div class="by" data-en="Tal · Travel" data-he="טל · טיולים">Tal · Travel</div></div></div>
-      <div class="row anim" id="d2"><div class="tile w">A</div><div>
+        <div class="by" data-en="Tal" data-he="טל">Tal</div></div></div>
+      <div class="row anim" id="c5"><div class="tile w">A</div><div>
         <div class="nm">Arte, Lecce</div>
-        <div class="qt" data-en="“Ask for the orecchiette — it’s not on the menu.”"
-                        data-he="״בקשו את האורקייטה — היא לא בתפריט.״">“Ask for the orecchiette — it’s not on the menu.”</div>
-        <div class="by" data-en="May · Travel" data-he="מאי · טיולים">May · Travel</div></div></div>
-      <div class="row anim" id="d3"><div class="tile g">P</div><div>
-        <div class="nm">Polignano a Mare</div>
-        <div class="qt" data-en="“Go at six, before dinner.”" data-he="״לכו בשש, לפני ארוחת ערב.״">“Go at six, before dinner.”</div>
-        <div class="by" data-en="Rany · Travel" data-he="רני · טיולים">Rany · Travel</div></div></div>
+        <div class="qt" data-en="“Ask for the orecchiette — not on the menu.”"
+                        data-he="״בקשו את האורקייטה — היא לא בתפריט.״">“Ask for the orecchiette — not on the menu.”</div>
+        <div class="by" data-en="May" data-he="מאי">May</div></div></div>
     </div>
   </section>
 
-  <!-- ══ 4 · one place · 21–29.5s ════════════════════════════════ -->
-  <section class="beat" id="b4">
+  <!-- ══ 3 · one place · 11.5–16.5s ═══════════════════════════════ -->
+  <section class="beat" id="b3">
     <div class="anim" id="e0">
       <div class="line" data-en="Everything in one place." data-he="הכול במקום אחד.">Everything in one place.</div>
-      <div class="sub" data-en="Travel, books, restaurants — and you can find it again."
-                       data-he="טיולים, ספרים, מסעדות — ותמיד תמצאו את זה שוב.">Travel, books, restaurants — and you can find it again.</div>
+      <div class="sub" data-en="Travel, books, restaurants — and you find it again."
+                       data-he="טיולים, ספרים, מסעדות — ותמיד תמצאו את זה שוב.">Travel, books, restaurants — and you find it again.</div>
     </div>
-    <div class="card" style="margin-top:18px;">
+    <div class="card" style="margin-top:16px;">
       <div class="search anim" id="e4"><span style="color:var(--grey);">⌕</span><span id="typed"></span><span class="caret"></span></div>
       <div class="row anim" id="e1"><div class="tile">M</div><div>
         <div class="nm">Masseria Moroseta<span class="tag" data-en="Travel" data-he="טיולים">Travel</span></div>
@@ -210,23 +208,43 @@ html, body { height: 100%; background: #fff; font-family: var(--sans); overflow:
         <div class="by" data-en="from Rany" data-he="מרני">from Rany</div></div></div>
       <div class="row anim" id="e5"><div class="tile g">P</div><div>
         <div class="nm">Polignano a Mare<span class="tag" data-en="Travel" data-he="טיולים">Travel</span></div>
-        <div class="by" data-en="from Rany · found by meaning" data-he="מרני · נמצא לפי משמעות">from Rany · found by meaning</div></div></div>
+        <div class="by" data-en="found by meaning" data-he="נמצא לפי משמעות">found by meaning</div></div></div>
     </div>
   </section>
 
-  <!-- ══ 5 · and they ask you · 29.5–36.5s ═══════════════════════ -->
+  <!-- ══ 4 · recommend · 16.5–20s ═════════════════════════════════ -->
+  <section class="beat" id="b4">
+    <div class="anim" id="h0">
+      <div class="line" data-en="Found something good? Pass it on."
+           data-he="מצאתם משהו טוב? העבירו הלאה.">Found something good? Pass it on.</div>
+      <div class="sub" data-en="Before anyone asks." data-he="עוד לפני ששואלים.">Before anyone asks.</div>
+    </div>
+    <div class="card anim" id="h1" style="margin-top:16px;">
+      <div class="row" style="border-bottom:0;padding-top:2px;"><div class="tile p">S</div><div>
+        <div class="nm">Stoner</div>
+        <div class="qt" data-en="“The best novel nobody has read.”" data-he="״הרומן הכי טוב שאף אחד לא קרא.״">“The best novel nobody has read.”</div></div></div>
+      <div class="chips">
+        <div class="chip" data-en="Travel" data-he="טיולים">Travel</div>
+        <div class="chip" id="chipBooks" data-en="Books" data-he="ספרים">Books</div>
+        <div class="chip" data-en="Restaurants" data-he="מסעדות">Restaurants</div>
+      </div>
+      <div class="send anim" id="h2" data-en="Send to 4 people" data-he="שלחו ל-4 אנשים">Send to 4 people</div>
+    </div>
+  </section>
+
+  <!-- ══ 5 · and they ask you · 20–24.5s ══════════════════════════ -->
   <section class="beat" id="b5">
     <div class="anim" id="f0">
       <div class="line" data-en="And when they ask you…" data-he="וכשפונים אליכם…">And when they ask you…</div>
       <div class="sub" data-en="…it is already in your library." data-he="…זה כבר בספרייה שלכם.">…it is already in your library.</div>
     </div>
-    <div class="card anim" id="f1" style="margin-top:18px;">
+    <div class="card anim" id="f1" style="margin-top:16px;">
       <div class="by" data-en="Tom asked · today" data-he="תום שאל · היום">Tom asked · today</div>
-      <div class="q" style="margin-top:3px;" data-en="Puglia in June — where to stay?"
+      <div class="q" style="margin-top:2px;" data-en="Puglia in June — where to stay?"
            data-he="פוליה ביוני — איפה לישון?">Puglia in June — where to stay?</div>
-      <div class="row anim" id="f2" style="margin-top:6px;"><div class="tick">✓</div><div class="tile">M</div>
+      <div class="row anim" id="f2" style="margin-top:4px;"><div class="tick">✓</div><div class="tile">M</div>
         <div><div class="nm">Masseria Moroseta</div>
-        <div class="by" data-en="Ostuni · from Tal" data-he="אוסטוני · מטל">Ostuni · from Tal</div></div></div>
+        <div class="by" data-en="from Tal" data-he="מטל">from Tal</div></div></div>
       <div class="row anim" id="f3"><div class="tick">✓</div><div class="tile g">P</div>
         <div><div class="nm">Polignano a Mare</div>
         <div class="by" data-en="from Rany" data-he="מרני">from Rany</div></div></div>
@@ -234,12 +252,12 @@ html, body { height: 100%; background: #fff; font-family: var(--sans); overflow:
     </div>
   </section>
 
-  <!-- ══ 6 · the end · 36.5–39s ══════════════════════════════════ -->
+  <!-- ══ 6 · the end · 24.5–26s ═══════════════════════════════════ -->
   <section class="beat" id="b6">
     <div class="anim" id="g1">
       <div class="icon">T</div>
       <div class="wordmark">trustnet</div>
-      <div class="sub" style="margin-top:10px;" data-en="Recommendations from the people you trust."
+      <div class="sub" style="margin-top:9px;" data-en="Recommendations from the people you trust."
            data-he="המלצות מהאנשים שאתם סומכים עליהם.">Recommendations from the people you trust.</div>
     </div>
   </section>
@@ -247,59 +265,62 @@ html, body { height: 100%; background: #fff; font-family: var(--sans); overflow:
 </div>
 
 <script>
-// ── THE TIMELINE, IN SECONDS ───────────────────────────────────────────────
-// Driven in JavaScript rather than CSS keyframes because every one of dan's
-// notes on the first cut was about TIMING, and a cue sheet can be retimed in
-// one line where twenty keyframe blocks cannot. It also loops cleanly: with
-// CSS delays, the second time round everything was already in its end state.
-var TOTAL = 39;
+// ── THE CUE SHEET, IN SECONDS ──────────────────────────────────────────────
+// [when, what, which]. Driven here rather than in CSS keyframes because every
+// note dan has given on this film has been about TIMING, and a cue sheet
+// retimes in one line where twenty keyframe blocks do not.
+var TOTAL = 26;
 var CUES = [
-  // beat 1 — the world now. No words, three images.
-  [0.2,  'beat', 'b1'],
-  [0.5,  'in',   'a1'],
-  [3.0,  'out',  'a1'],
-  [3.2,  'in',   'a2'],
-  [5.8,  'out',  'a2'],
-  [6.0,  'in',   'a3'],
-  [7.4,  'in',   'a4'],
+  // 1 · no more of this — the heading first, so nothing appears unexplained
+  [0.15, 'beat', 'b1'],
+  [0.35, 'in',   'a0'],
+  [1.10, 'in',   'a1'],
+  [2.60, 'in',   'a2'],
+  [4.20, 'in',   'a3'],
+  [4.90, 'in',   'a4'],
 
-  // beat 2 — ask
-  [9.0,  'beat', 'b2'],
-  [9.4,  'in',   'c1'],
-  [10.6, 'in',   'c2'],
-  [11.8, 'chip', 'chipTravel'],
-  [12.6, 'in',   'c3'],
+  // 2 · ask, and they answer — one story, one card
+  [6.00, 'beat', 'b2'],
+  [6.25, 'in',   'c0'],
+  [7.00, 'in',   'c1'],
+  [7.10, 'in',   'c2'],
+  [7.60, 'chip', 'chipTravel'],
+  [8.10, 'in',   'c3'],
+  [9.10, 'out',  'c3'],
+  [9.15, 'out',  'c2'],
+  [9.30, 'in',   'c4'],
+  [10.10, 'in',  'c5'],
 
-  // beat 3 — in their words
-  [15.0, 'beat', 'b3'],
-  [15.4, 'in',   'd0'],
-  [16.4, 'in',   'd1'],
-  [17.2, 'in',   'd2'],
-  [18.0, 'in',   'd3'],
+  // 3 · one place
+  [11.50, 'beat', 'b3'],
+  [11.75, 'in',   'e0'],
+  [12.40, 'in',   'e1'],
+  [12.85, 'in',   'e2'],
+  [13.30, 'in',   'e3'],
+  [14.10, 'in',   'e4'],
+  [14.35, 'type', 'Puglia'],
+  [15.45, 'out',  'e2'],
+  [15.55, 'in',   'e5'],
 
-  // beat 4 — one place. Three circles stack, then the search finds them.
-  [21.0, 'beat', 'b4'],
-  [21.4, 'in',   'e0'],
-  [22.4, 'in',   'e1'],
-  [23.0, 'in',   'e2'],
-  [23.6, 'in',   'e3'],
-  [24.8, 'in',   'e4'],
-  [25.2, 'type', 'Puglia'],
-  [26.8, 'out',  'e2'],
-  [27.0, 'in',   'e5'],
+  // 4 · recommend — the second verb
+  [16.50, 'beat', 'b4'],
+  [16.75, 'in',   'h0'],
+  [17.60, 'in',   'h1'],
+  [18.30, 'chip', 'chipBooks'],
+  [18.80, 'in',   'h2'],
 
-  // beat 5 — and they ask you. The slowest beat: dan could not see it.
-  [29.5, 'beat', 'b5'],
-  [29.9, 'in',   'f0'],
-  [31.0, 'in',   'f1'],
-  [31.8, 'in',   'f2'],
-  [32.4, 'in',   'f3'],
-  [33.2, 'in',   'f4'],
-  [35.0, 'sent', 'f4'],
+  // 5 · and when they ask you — four things, and time to read them
+  [20.00, 'beat', 'b5'],
+  [20.25, 'in',   'f0'],
+  [21.00, 'in',   'f1'],
+  [21.60, 'in',   'f2'],
+  [22.05, 'in',   'f3'],
+  [22.60, 'in',   'f4'],
+  [23.60, 'sent', 'f4'],
 
-  // the end
-  [36.8, 'beat', 'b6'],
-  [37.1, 'in',   'g1']
+  // 6 · the end
+  [24.50, 'beat', 'b6'],
+  [24.75, 'in',   'g1']
 ];
 
 var SENT = { en: 'Sent to Tom ✓', he: 'נשלח לתום ✓' };
@@ -307,21 +328,24 @@ var lang = 'en';
 
 function reset() {
   var i, els = document.querySelectorAll('.anim');
-  for (i = 0; i < els.length; i++) els[i].className = els[i].className.replace(/ (in|out)\b/g, '');
+  for (i = 0; i < els.length; i++) {
+    els[i].classList.remove('in');
+    els[i].classList.remove('out');
+    els[i].style.cssText = els[i].getAttribute('data-style') || '';
+  }
   els = document.querySelectorAll('.beat');
   for (i = 0; i < els.length; i++) els[i].classList.remove('on');
-  var chip = document.getElementById('chipTravel');
-  if (chip) chip.classList.remove('on');
+  var t = document.getElementById('chipTravel'); if (t) t.classList.remove('on');
+  var b = document.getElementById('chipBooks'); if (b) b.classList.remove('on');
   document.getElementById('typed').textContent = '';
   var send = document.getElementById('f4');
   send.classList.remove('done');
   send.textContent = send.dataset[lang];
 }
 
-// A cue is [seconds, action, target]. Reading cue[0] as the action - which is
-// the TIME - made every cue a no-op and the whole film a blank white screen.
-// The still being empty is what caught it.
-function apply(cue, t) {
+// A cue is [seconds, action, target]. Reading cue[0] as the action — which is
+// the TIME — once made every cue a no-op and the whole film a blank screen.
+function apply(cue, frozen) {
   var action = cue[1], target = cue[2];
   var el = document.getElementById(target);
   if (action === 'beat') {
@@ -335,57 +359,54 @@ function apply(cue, t) {
   if (action === 'chip') { el.classList.add('on'); return; }
   if (action === 'sent') { el.classList.add('done'); el.textContent = SENT[lang]; return; }
   if (action === 'type') {
-    // Typed one letter at a time, unless we are frozen for a still.
     var word = target, box = document.getElementById('typed');
-    if (t !== undefined) { box.textContent = word; return; }
+    if (frozen) { box.textContent = word; return; }
     var n = 0;
     var tick = setInterval(function () {
       n++; box.textContent = word.slice(0, n);
       if (n >= word.length) clearInterval(tick);
-    }, 110);
+    }, 95);
     return;
   }
 }
 
 (function () {
+  var els = document.querySelectorAll('.anim');
+  for (var i = 0; i < els.length; i++) els[i].setAttribute('data-style', els[i].style.cssText);
+
   var p = new URLSearchParams(location.search);
   if (p.get('lang') === 'he') {
     lang = 'he';
     document.documentElement.lang = 'he';
     document.documentElement.dir = 'rtl';
-    var els = document.querySelectorAll('[data-he]');
-    for (var i = 0; i < els.length; i++) els[i].textContent = els[i].dataset.he;
+    var hs = document.querySelectorAll('[data-he]');
+    for (var j = 0; j < hs.length; j++) hs[j].textContent = hs[j].dataset.he;
   }
 
-  // A still: apply every cue up to that second and stop.
+  // A STILL CANNOT WAIT FOR A TRANSITION: headless Chrome's virtual clock does
+  // not run them, and a frozen frame came out blank. The end state is written
+  // straight onto the elements instead.
   var freeze = p.get('t');
   if (freeze !== null) {
     var at = parseFloat(freeze);
     reset();
-    for (var j = 0; j < CUES.length; j++) if (CUES[j][0] <= at) apply(CUES[j], at);
-    // A STILL CANNOT WAIT FOR A TRANSITION. Headless Chrome's virtual clock
-    // does not run them, so a frozen frame came out entirely blank. The end
-    // state is written straight onto the elements instead.
-    var i, el, all = document.querySelectorAll('.anim');
-    for (i = 0; i < all.length; i++) {
-      el = all[i];
-      el.style.transition = 'none';
-      if (el.classList.contains('in') && !el.classList.contains('out')) {
-        el.style.opacity = '1'; el.style.transform = 'none';
-      } else if (el.classList.contains('out')) {
-        el.style.opacity = '0';
-      }
+    for (var k = 0; k < CUES.length; k++) if (CUES[k][0] <= at) apply(CUES[k], true);
+    var all = document.querySelectorAll('.anim'), e;
+    for (var m = 0; m < all.length; m++) {
+      e = all[m];
+      e.style.transition = 'none';
+      if (e.classList.contains('out')) { e.style.opacity = '0'; e.style.height = '0'; e.style.margin = '0'; }
+      else if (e.classList.contains('in')) { e.style.opacity = '1'; e.style.transform = 'none'; }
     }
     var bs = document.querySelectorAll('.beat');
-    for (i = 0; i < bs.length; i++) {
-      bs[i].style.transition = 'none';
-      bs[i].style.opacity = bs[i].classList.contains('on') ? '1' : '0';
+    for (var n = 0; n < bs.length; n++) {
+      bs[n].style.transition = 'none';
+      bs[n].style.opacity = bs[n].classList.contains('on') ? '1' : '0';
     }
     return;
   }
 
-  var start = Date.now();
-  var next = 0;
+  var start = Date.now(), next = 0;
   reset();
   setInterval(function () {
     var t = (Date.now() - start) / 1000;
