@@ -8,7 +8,7 @@
 <title>Trustnet — what it is</title>
 <style>
 /* ═══════════════════════════════════════════════════════════════════
-   TRUSTNET · a silent film for beta recruits.  26 seconds, six beats.
+   TRUSTNET · a silent film for beta recruits.  29.5 seconds, six beats.
 
    A STANDALONE PAGE. index.html does not know it exists, nothing links
    here, it is noindex.  Remove with: git rm web/film.html
@@ -23,7 +23,8 @@
        without borrowing a trademark for a film sent to strangers.
      · "insert a frame about the recommendation feature" — beat 4. The
        app has two verbs and the film showed one.
-     · "41 seconds is much to long it should be around 25" — 26. Two
+     · "41 seconds is much to long it should be around 25" — 26, then
+       29.5 when dan timed three beats himself: 6s, 4.5s, 5.5s. Two
        things paid for it: the sponsored-feed card went (the review and
        the lost thread already make that point), and asking and being
        answered became ONE beat, which is one story on one card.
@@ -146,13 +147,13 @@ html, body { height: 100%; background: #fff; font-family: var(--sans); overflow:
       <div class="wa-top"><div class="wa-av">T</div>
         <div><div class="wa-nm">Tal</div><div class="wa-on" data-en="online" data-he="מחובר">online</div></div></div>
       <div class="wa-body">
-        <div class="wa-b"><span data-en="Anywhere good to stay in Puglia?" data-he="יש לך מקום טוב לישון בפוליה?">Anywhere good to stay in Puglia?</span>
+        <div class="wa-b"><span data-en="Need recommendations for my Puglia trip" data-he="צריך המלצות לטיול שלי בפוליה">Need recommendations for my Puglia trip</span>
           <div class="wa-meta">09:14 <span class="ticks">✓✓</span></div></div>
         <div class="wa-b"><div class="wa-to" data-en="forwarded to Rany" data-he="הועבר לרני">forwarded to Rany</div>
-          <span data-en="Anywhere good to stay in Puglia?" data-he="יש לך מקום טוב לישון בפוליה?">Anywhere good to stay in Puglia?</span>
+          <span data-en="Need recommendations for my Puglia trip" data-he="צריך המלצות לטיול שלי בפוליה">Need recommendations for my Puglia trip</span>
           <div class="wa-meta">09:15 <span class="ticks">✓✓</span></div></div>
         <div class="wa-b"><div class="wa-to" data-en="forwarded to May, Tom" data-he="הועבר למאי, תום">forwarded to May, Tom</div>
-          <span data-en="Anywhere good to stay in Puglia?" data-he="יש לך מקום טוב לישון בפוליה?">Anywhere good to stay in Puglia?</span>
+          <span data-en="Need recommendations for my Puglia trip" data-he="צריך המלצות לטיול שלי בפוליה">Need recommendations for my Puglia trip</span>
           <div class="wa-meta">09:15 <span class="ticks">✓✓</span></div></div>
       </div>
       <div class="wa-find anim" id="a3"><span style="color:var(--grey);">⌕</span><span>Puglia</span><span class="caret"></span></div>
@@ -168,7 +169,7 @@ html, body { height: 100%; background: #fff; font-family: var(--sans); overflow:
       <div class="sub" data-en="In their words — not a score." data-he="במילים שלהם — לא בכוכבים.">In their words — not a score.</div>
     </div>
     <div class="card anim" id="c1" style="margin-top:18px;">
-      <div class="q" data-en="Anywhere good to stay in Puglia?" data-he="יש לכם מקום טוב לישון בפוליה?">Anywhere good to stay in Puglia?</div>
+      <div class="q" data-en="Need recommendations for my Puglia trip" data-he="צריך המלצות לטיול שלי בפוליה">Need recommendations for my Puglia trip</div>
       <div class="chips anim" id="c2">
         <div class="chip" id="chipTravel" data-en="Travel" data-he="טיולים">Travel</div>
         <div class="chip" data-en="Books" data-he="ספרים">Books</div>
@@ -240,8 +241,8 @@ html, body { height: 100%; background: #fff; font-family: var(--sans); overflow:
     </div>
     <div class="card anim" id="f1" style="margin-top:16px;">
       <div class="by" data-en="Tom asked · today" data-he="תום שאל · היום">Tom asked · today</div>
-      <div class="q" style="margin-top:2px;" data-en="Puglia in June — where to stay?"
-           data-he="פוליה ביוני — איפה לישון?">Puglia in June — where to stay?</div>
+      <div class="q" style="margin-top:2px;" data-en="Need recommendations for my Puglia trip"
+           data-he="צריך המלצות לטיול שלי בפוליה">Need recommendations for my Puglia trip</div>
       <div class="row anim" id="f2" style="margin-top:4px;"><div class="tick">✓</div><div class="tile">M</div>
         <div><div class="nm">Masseria Moroseta</div>
         <div class="by" data-en="from Tal" data-he="מטל">from Tal</div></div></div>
@@ -269,9 +270,9 @@ html, body { height: 100%; background: #fff; font-family: var(--sans); overflow:
 // [when, what, which]. Driven here rather than in CSS keyframes because every
 // note dan has given on this film has been about TIMING, and a cue sheet
 // retimes in one line where twenty keyframe blocks do not.
-var TOTAL = 26;
+var TOTAL = 29.5;
 var CUES = [
-  // 1 · no more of this — the heading first, so nothing appears unexplained
+  // 1 · no more of this — 6s. The heading first, so nothing is unexplained.
   [0.15, 'beat', 'b1'],
   [0.35, 'in',   'a0'],
   [1.10, 'in',   'a1'],
@@ -279,7 +280,7 @@ var CUES = [
   [4.20, 'in',   'a3'],
   [4.90, 'in',   'a4'],
 
-  // 2 · ask, and they answer — one story, one card
+  // 2 · ask, and they answer — 5.5s. One story, one card.
   [6.00, 'beat', 'b2'],
   [6.25, 'in',   'c0'],
   [7.00, 'in',   'c1'],
@@ -291,36 +292,38 @@ var CUES = [
   [9.30, 'in',   'c4'],
   [10.10, 'in',  'c5'],
 
-  // 3 · one place
+  // 3 · everything in one place — 6s (dan). The search result now holds for
+  //     a second and a half instead of being swept away by the next beat.
   [11.50, 'beat', 'b3'],
   [11.75, 'in',   'e0'],
-  [12.40, 'in',   'e1'],
-  [12.85, 'in',   'e2'],
-  [13.30, 'in',   'e3'],
-  [14.10, 'in',   'e4'],
-  [14.35, 'type', 'Puglia'],
-  [15.45, 'out',  'e2'],
-  [15.55, 'in',   'e5'],
+  [12.45, 'in',   'e1'],
+  [12.95, 'in',   'e2'],
+  [13.45, 'in',   'e3'],
+  [14.40, 'in',   'e4'],
+  [14.70, 'type', 'Puglia'],
+  [16.00, 'out',  'e2'],
+  [16.10, 'in',   'e5'],
 
-  // 4 · recommend — the second verb
-  [16.50, 'beat', 'b4'],
-  [16.75, 'in',   'h0'],
-  [17.60, 'in',   'h1'],
-  [18.30, 'chip', 'chipBooks'],
-  [18.80, 'in',   'h2'],
+  // 4 · pass it on — 4.5s (dan). The button holds, rather than flashing past.
+  [17.50, 'beat', 'b4'],
+  [17.75, 'in',   'h0'],
+  [18.70, 'in',   'h1'],
+  [19.60, 'chip', 'chipBooks'],
+  [20.20, 'in',   'h2'],
 
-  // 5 · and when they ask you — four things, and time to read them
-  [20.00, 'beat', 'b5'],
-  [20.25, 'in',   'f0'],
-  [21.00, 'in',   'f1'],
-  [21.60, 'in',   'f2'],
-  [22.05, 'in',   'f3'],
-  [22.60, 'in',   'f4'],
-  [23.60, 'sent', 'f4'],
+  // 5 · and when they ask you — 5.5s (dan). Four things, and time to read
+  //     each: the question, two ticks, the button, and Sent.
+  [22.00, 'beat', 'b5'],
+  [22.25, 'in',   'f0'],
+  [23.00, 'in',   'f1'],
+  [23.70, 'in',   'f2'],
+  [24.20, 'in',   'f3'],
+  [24.80, 'in',   'f4'],
+  [25.90, 'sent', 'f4'],
 
-  // 6 · the end
-  [24.50, 'beat', 'b6'],
-  [24.75, 'in',   'g1']
+  // 6 · the end — 2s
+  [27.50, 'beat', 'b6'],
+  [27.75, 'in',   'g1']
 ];
 
 var SENT = { en: 'Sent to Tom ✓', he: 'נשלח לתום ✓' };
