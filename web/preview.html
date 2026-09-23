@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#ffffff">
+<title>Trustnet — first run, as a new member sees it</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   FIRST RUN, WITHOUT AN ACCOUNT.
+
+   dan, 23 Sep: "cant you just give me an address i will mail it to
+   myself and open it on the phone". The onboarding screen only exists
+   for someone who has nothing set up, and his account has everything -
+   so there was no way to look at it on his own phone short of signing
+   in as somebody else.
+
+   THIS IS NOT A COPY OF THE APP. It loads the real index.html in an
+   iframe - same origin - and puts it into the state a new member is in:
+   signed in, nothing created. So it cannot drift from the app, and
+   whatever ships is what you see here.
+
+   Nothing is written anywhere. Buttons that would save something will
+   fail, because there is no account behind this; it is for looking at
+   the screen, not for using it.
+
+   Remove with: git rm web/preview.html
+   ═══════════════════════════════════════════════════════════════════ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #0D2B1F; overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+#note { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; text-align: center;
+  color: #CFE0D8; font-size: 11.5px; padding: 7px 12px calc(7px + env(safe-area-inset-bottom, 0px));
+  background: #0D2B1F; }
+/* AN IFRAME IS A REPLACED ELEMENT: with height:auto it takes its intrinsic
+   150px and ignores a top/bottom stretch, which is exactly what it did. */
+#frame { position: fixed; left: 0; top: 0; width: 100%; height: calc(100vh - 30px);
+  height: calc(100dvh - 30px); border: 0; background: #fff; display: block; }
+</style>
+</head>
+<body>
+<iframe id="frame" src="index.html" title="Trustnet, first run"></iframe>
+<div id="note">Preview · what a new member sees · nothing here is saved</div>
+<script>
+// The app boots, finds no session and shows its sign-in screen. Rather than
+// race that, the state is re-applied for a few seconds and then left alone -
+// whichever order things happen in, the screen settles on first run.
+(function () {
+  var f = document.getElementById('frame');
+  var tries = 0;
+
+  // AppState IS A const, so it is not a property of the iframe's window and
+  // this page cannot reach it from outside. The state has to be set by a
+  // script running INSIDE that document, where the const is in scope.
+  var SETUP = [
+    "showLoginScreen = function () {};",
+    "var ls = document.getElementById('loading-screen'); if (ls) ls.style.display = 'none';",
+    "var lg = document.getElementById('login'); if (lg) lg.style.display = 'none';",
+    "var ap = document.getElementById('app'); if (ap) ap.style.display = 'flex';",
+    "AppState.userProfile = { id: 'preview', name: 'You', avatar: 'Y', avatarColor: '#1D5A45' };",
+    "AppState._feedFetched = true; AppState._notifFetched = true;",
+    "AppState.userCircles = []; AppState.userMembers = []; AppState.userRecs = [];",
+    "AppState.userCanonicals = []; AppState.userQueries = []; AppState._notifications = [];",
+    // The home-screen step is the first thing a new member meets, so the
+    // preview must not arrive with it already skipped.
+    "try { localStorage.removeItem('tn_a2hs_skipped'); } catch (e) {}",
+    "showView('home');"
+  ].join(';\n');
+
+  function paint() {
+    tries++;
+    var d;
+    try { d = f.contentWindow.document; } catch (e) { return; }
+    if (!d || !d.body || !d.getElementById('app')) return;
+    var sc = d.createElement('script');
+    sc.textContent = SETUP;
+    d.body.appendChild(sc);
+    sc.parentNode.removeChild(sc);
+  }
+
+  // The app boots, finds no session and shows its sign-in screen. Rather than
+  // race that, this re-applies for a few seconds and then hands off.
+  f.addEventListener('load', function () {
+    paint();
+    var iv = setInterval(function () {
+      paint();
+      if (tries > 14) clearInterval(iv);   // about three seconds
+    }, 200);
+  });
+})();
+</script>
+</body>
+</html>
