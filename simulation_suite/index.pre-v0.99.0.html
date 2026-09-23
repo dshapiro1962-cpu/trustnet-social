@@ -1170,35 +1170,6 @@ body {
 
 /* the answer sheet */
 /* The home-screen sheet (v0.98.0) */
-/* THE WAY INTO THE FILM (v0.99.0). dan: "the menu is not the place its
-   buried a new user will not go to the menue it has to be present on the
-   onboarding page". A card rather than a link, and with a real frame of the
-   film on it: a still says what is behind it, where a line of text asks you
-   to imagine. */
-.tn-film { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px;
-  border-radius: 16px; border: 1px solid #E5EDE8; background: #fff; text-align: left;
-  margin: 2px 0 20px; box-shadow: 0 14px 30px -26px rgba(13,43,31,0.5); }
-.tn-film-th { width: 88px; height: 64px; border-radius: 11px; overflow: hidden; background: #F2F6F3;
-  flex: none; position: relative; }
-.tn-film-th img { width: 100%; height: 100%; object-fit: cover; object-position: center 46%; }
-.tn-film-play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
-.tn-film-play i { width: 27px; height: 27px; border-radius: 50%; background: rgba(13,43,31,.72);
-  color: #fff; display: flex; align-items: center; justify-content: center; font-size: 10px;
-  font-style: normal; padding-left: 2px; }
-.tn-film-t { flex: 1; min-width: 0; }
-.tn-film-t b { display: block; font-size: 15px; font-weight: 700; color: #1C2420; }
-.tn-film-t small { display: block; font-size: 12.5px; color: #7A9086; margin-top: 2px; }
-.tn-film > svg { width: 18px; height: 18px; color: #C2CFC8; flex: none; }
-/* Full screen, and INSIDE the app: closing it puts them back mid-onboarding
-   rather than leaving a second browser tab behind. */
-.tn-player { position: fixed; inset: 0; z-index: 2000; background: #0D2B1F; display: flex;
-  flex-direction: column; }
-.tn-player-top { display: flex; align-items: center; justify-content: space-between;
-  padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px; color: #fff; }
-.tn-player-top b { font-size: 14.5px; font-weight: 700; }
-.tn-player-x { width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,.14);
-  color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; }
-.tn-player iframe { flex: 1; width: 100%; border: 0; background: #fff; }
 .tn-a2-route { margin-top: 14px; }
 .tn-a2-route .tn-a2-h { display: block; font-size: 11.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: #77837D; margin-bottom: 8px; }
 .tn-a2-step { display: flex; align-items: center; gap: 10px; font-size: 14.5px; color: #1C2420; padding: 4px 0; }
@@ -1524,9 +1495,7 @@ body {
 
   <!-- Main content -->
   <div id="main">
-    <!-- The id keeps its name so the CSS, the JS and beta-strip-sim keep
-         theirs; what it SAYS is dan's call, and on 23 Sep it became MVP. -->
-    <div id="beta-strip"><span id="beta-strip-tag">MVP</span><span id="beta-strip-ver"></span></div>
+    <div id="beta-strip"><span id="beta-strip-tag">BETA</span><span id="beta-strip-ver"></span></div>
     <div class="topbar">
       <div class="topbar-title" id="topbar-title">Home</div>
       <div id="topbar-actions"></div>
@@ -1557,7 +1526,6 @@ body {
 
 <!-- Modal container -->
 <div id="modal-root"></div>
-<div id="film-root"></div>
 
 <!-- The menu (v0.95.0) -->
 <div id="tn-menu" hidden></div>
@@ -2438,7 +2406,7 @@ const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
 // The Trustnet business number, in one place: the invite join and the
 // sign-in both open WhatsApp with it.
 const TN_WA_NUMBER = '972587786049';
-const APP_VERSION = 'v0.99.0 · live';
+const APP_VERSION = 'v0.98.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -2694,37 +2662,6 @@ function onboardingSteps() {
            firstCircle: AppState.userCircles[0] || null };
 }
 
-// A STILL, NOT A LINK. The frame is the library with travel, books and a
-// restaurant in it - the beat that says what Trustnet is for - so someone
-// knows what they are about to watch before they spend 30 seconds on it.
-// It is only here while there is onboarding left to do: once the steps are
-// done the card goes, and the film lives on at /film for anyone who wants to
-// send it to somebody else.
-function filmCardHtml() {
-  return '<button type="button" class="tn-film" data-action="open-film">'
-    + '<span class="tn-film-th"><img src="film-thumb.png" alt="" loading="lazy">'
-    + '<span class="tn-film-play"><i>\u25B6</i></span></span>'
-    + '<span class="tn-film-t"><b>See what Trustnet does</b>'
-    + '<small>30 seconds, no sound needed</small></span>'
-    + tnIcon('chev', 2) + '</button>';
-}
-
-// The film is a page of its own (/film), so this is an iframe rather than a
-// copy of it: one film, one place to change it.
-function openFilm() {
-  const host = document.getElementById('film-root');
-  if (!host) return;
-  host.innerHTML = '<div class="tn-player">'
-    + '<div class="tn-player-top"><b>What Trustnet does</b>'
-    + '<button type="button" class="tn-player-x" data-action="close-film" aria-label="Close">\u2715</button></div>'
-    + '<iframe src="film.html" title="What Trustnet does"></iframe></div>';
-}
-
-function closeFilm() {
-  const host = document.getElementById('film-root');
-  if (host) host.innerHTML = '';
-}
-
 function renderOnboarding(withIntro) {
   if (AppState.isDemoMode || !AppState.userProfile) return '';
   const st = onboardingSteps();
@@ -2801,7 +2738,6 @@ function renderOnboarding(withIntro) {
       ? '<div class="tn-intro"><div class="tn-intro-big">Ask &amp; share</div>'
         + '<p class="tn-intro-sub">recommendations with the people you trust.</p></div>'
       : '')
-    + filmCardHtml()
     + '<div class="tn-sl tn-steps-h" id="onboarding-card">Let\u2019s get started <span>Step ' + stepNo + ' of ' + stepTotal + '</span></div>'
     + '<div class="tn-steps">' + s0 + s1 + s2 + s3 + '</div>';
 }
@@ -10316,8 +10252,6 @@ document.addEventListener('click', function(e) {
   else if (action === 'open-fab') {
     openModal('fab-menu');
   }
-  else if (action === 'open-film') { openFilm(); }
-  else if (action === 'close-film') { closeFilm(); }
   else if (action === 'a2hs-skip') {
     // THE ONE WAY PAST IT. An old iPhone has no such menu item at all, and a
     // gate nobody can pass is worse than no gate: it would end the product for
@@ -11043,7 +10977,7 @@ document.addEventListener('input', function(e) {
 
 // Keyboard: Escape closes modal
 document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') { closeFilm(); closeModal(); }
+  if (e.key === 'Escape') closeModal();
 });
 
 document.addEventListener('visibilitychange', function() {

@@ -43,8 +43,13 @@ const src = blocks.reduce((a, b) => (b.length > a.length ? b : a), '');
 console.log('\n-- the strip is part of the shell, not part of a view --\n');
 
 ck('there is a beta strip at all', /id="beta-strip"/.test(html));
-ck('it says BETA in the markup, where nothing can fail to render it',
-   /<span id="beta-strip-tag">BETA<\/span>/.test(html));
+// WHAT IT SAYS IS DAN'S CALL, and on 23 Sep it became MVP. What this file is
+// for is unchanged: the word is in the MARKUP, where no render function can
+// fail to draw it, and it cannot scroll away. The id keeps its name so the
+// CSS, the JS and this sim keep theirs.
+ck('it names the stage of the product in the markup, where nothing can fail to render it',
+   /<span id="beta-strip-tag">(MVP|BETA)<\/span>/.test(html));
+ck('...and that word is MVP', /<span id="beta-strip-tag">MVP<\/span>/.test(html));
 
 // POSITION IS THE WHOLE POINT. #main is a flex column: everything before
 // #view-body is fixed furniture, #view-body is the only scroller. If the strip
