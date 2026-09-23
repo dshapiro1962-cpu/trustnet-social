@@ -195,13 +195,29 @@ if (fs.existsSync(CHROME) && !useOld) {
   const filmPath = path.join(WEB, 'film.html').split(path.sep).join('/');
   const watch = (query) => {
     const outer = path.join(TMP2, 'tn-loop-' + query.replace(/[^a-z0-9]/gi, '') + '.html');
+    // DISPLAYED IS NOT REACHABLE. The first version of this asked only whether
+    // the replay button was displayed, and it was - sitting inside a beat whose
+    // pointer-events were none, so it could not be pressed at all. dan found
+    // that on his phone. It now presses the button and checks the film
+    // restarted, which is the only claim worth making about a button.
     const probe = 'setTimeout(function(){'
       + 'var w=document.getElementById("f").contentWindow, d=w.document;'
       + 'var on=d.querySelector(".beat.on");'
       + 'var r=d.getElementById("replay");'
-      + 'document.title="R"+JSON.stringify({beat:on?on.id:null,'
-      + 'ended:d.body.classList.contains("ended"),'
-      + 'replay:!!r && w.getComputedStyle(r).display!=="none"});'
+      + 'var vis=!!r && w.getComputedStyle(r).display!=="none";'
+      + 'var hit=false;'
+      // MEASURE BEFORE PRESSING. The first version built this object after the
+      // click, so `ended` read false because pressing the button had already
+      // cleared it - the test accusing the product of a fault it had caused.
+      + 'var before={beat:on?on.id:null,ended:d.body.classList.contains("ended"),replay:vis,reachable:false};'
+      + 'if(vis){var b=r.getBoundingClientRect();'
+      + 'var top=d.elementFromPoint(b.left+b.width/2,b.top+b.height/2);'
+      + 'before.reachable=!!top && (top===r || r.contains(top));'
+      + 'r.dispatchEvent(new w.MouseEvent("click",{bubbles:true}));}'
+      + 'setTimeout(function(){var on2=d.querySelector(".beat.on");'
+      + 'before.afterBeat=on2?on2.id:null;'
+      + 'before.afterEnded=d.body.classList.contains("ended");'
+      + 'document.title="R"+JSON.stringify(before);},900);'
       + '},5200);';
     fs.writeFileSync(outer, '<!doctype html><html><head><title>WAIT</title></head><body style="margin:0">'
       + '<iframe id="f" src="file:///' + filmPath + '?' + query + '" style="width:390px;height:760px;border:0"></iframe>'
@@ -223,6 +239,12 @@ if (fs.existsSync(CHROME) && !useOld) {
   ck('played once, it stops on the end card', onceRun.beat === 'b6', onceRun);
   ck('...and says it has ended, rather than just freezing', onceRun.ended === true, onceRun);
   ck('...offering to play it again', onceRun.replay === true, onceRun);
+  ck('...and that offer can actually be pressed, not just seen',
+     onceRun.reachable === true, onceRun);
+  // Not "back to beat 1": at twelve times speed, 900ms later the film is
+  // already several beats in. What matters is that it is RUNNING again.
+  ck('...pressing it starts the film over',
+     onceRun.afterEnded === false && onceRun.afterBeat && onceRun.afterBeat !== 'b6', onceRun);
 
   const loopRun = watch('speed=12');
   ck('/film itself is still looping, for recording a take', loopRun.beat !== 'b6', loopRun);
