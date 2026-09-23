@@ -2438,7 +2438,7 @@ const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
 // The Trustnet business number, in one place: the invite join and the
 // sign-in both open WhatsApp with it.
 const TN_WA_NUMBER = '972587786049';
-const APP_VERSION = 'v0.99.0 · live';
+const APP_VERSION = 'v0.99.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -2717,7 +2717,10 @@ function openFilm() {
   host.innerHTML = '<div class="tn-player">'
     + '<div class="tn-player-top"><b>What Trustnet does</b>'
     + '<button type="button" class="tn-player-x" data-action="close-film" aria-label="Close">\u2715</button></div>'
-    + '<iframe src="film.html" title="What Trustnet does"></iframe></div>';
+    // ONCE, NOT A LOOP, in here: they are watching, not recording. It holds on
+    // the end card with a Watch again, rather than restarting the bad half of
+    // the story a beat after the payoff. /film itself still loops.
+    + '<iframe src="film.html?once=1" title="What Trustnet does"></iframe></div>';
 }
 
 function closeFilm() {

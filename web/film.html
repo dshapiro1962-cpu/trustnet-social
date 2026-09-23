@@ -127,6 +127,13 @@ html, body { height: 100%; background: #fff; font-family: var(--sans); overflow:
         font-family: var(--serif); font-size: 38px; display: flex; align-items: center; justify-content: center;
         margin: 0 auto 16px; }
 #b6, [dir="rtl"] #b6 { text-align: center; }
+/* WHEN IT IS NOT LOOPING, IT HAS TO END SOMEWHERE (dan, 23 Sep: "should it
+   run in a loop"). Inside the app it plays once and holds here, because a
+   loop restarts the bad half of the story immediately after the good half.
+   This turns "it stopped" into a choice. */
+.tn-replay { display: none; margin: 18px auto 0; border-radius: 999px; padding: 9px 18px;
+  background: #E9F6EE; color: #133D2F; font-size: 14px; font-weight: 700; }
+body.ended .tn-replay { display: inline-block; }
 </style>
 </head>
 <body>
@@ -260,6 +267,8 @@ html, body { height: 100%; background: #fff; font-family: var(--sans); overflow:
       <div class="wordmark">trustnet</div>
       <div class="sub" style="margin-top:9px;" data-en="Recommendations from the people you trust."
            data-he="המלצות מהאנשים שאתם סומכים עליהם.">Recommendations from the people you trust.</div>
+      <button type="button" class="tn-replay" id="replay"
+              data-en="Watch again" data-he="לצפייה שוב">Watch again</button>
     </div>
   </section>
 
@@ -409,13 +418,40 @@ function apply(cue, frozen) {
     return;
   }
 
-  var start = Date.now(), next = 0;
-  reset();
-  setInterval(function () {
-    var t = (Date.now() - start) / 1000;
-    if (t >= TOTAL) { start = Date.now(); next = 0; reset(); return; }
-    while (next < CUES.length && CUES[next][0] <= t) { apply(CUES[next]); next++; }
-  }, 60);
+  // ?once=1  play through and hold on the end card. That is how the app's own
+  //          player loads it: someone watching inside Trustnet has finished,
+  //          and a loop would drop them back into "No more of this" a beat
+  //          after the payoff. On /film itself it keeps looping, because that
+  //          page exists to be screen-recorded and a loop makes a take easy.
+  // ?speed=N run the clock N times faster. Only so a test can watch the whole
+  //          film in a couple of seconds and see what it does at the end.
+  var ONCE = p.get('once') === '1';
+  var SPEED = parseFloat(p.get('speed')) || 1;
+  if (!(SPEED > 0)) SPEED = 1;
+
+  var start = Date.now(), next = 0, timer = null;
+  function run() {
+    document.body.classList.remove('ended');
+    start = Date.now(); next = 0;
+    reset();
+    if (timer) clearInterval(timer);
+    timer = setInterval(function () {
+      var t = (Date.now() - start) / 1000 * SPEED;
+      if (t >= TOTAL) {
+        if (ONCE) {
+          clearInterval(timer);
+          timer = null;
+          document.body.classList.add('ended');
+          return;
+        }
+        start = Date.now(); next = 0; reset(); return;
+      }
+      while (next < CUES.length && CUES[next][0] <= t) { apply(CUES[next]); next++; }
+    }, 60);
+  }
+  var again = document.getElementById('replay');
+  if (again) again.addEventListener('click', run);
+  run();
 })();
 </script>
 </body>

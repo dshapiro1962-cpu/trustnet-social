@@ -174,9 +174,62 @@ window.addEventListener('load', function () {
   ck('tapping it opens the film', r.opened === true);
   ck('...full screen, over the app', r.fullScreen === true);
   ck('...from the one film that is deployed', /film\.html/.test(r.frame || ''), r.frame);
+  ck('...and it is asked to play ONCE, not loop', /once=1/.test(r.frame || ''), r.frame);
   ck('...with a way out', r.hasClose === true);
   ck('closing it goes back to onboarding', r.closed === true && r.backToOnboarding === true, r);
   ck('and once there is nothing left to set up, the card goes', r.goneWhenDone === true);
+}
+
+// ── 4 · what the film does when it reaches the end ─────────────────────────
+// dan, 23 Sep: "the question is should it run in a loop". Inside the app it
+// must not: it holds on the end card, because a loop drops the viewer back
+// into "No more of this" a beat after the payoff. On /film it must keep
+// looping, because that page exists to be screen-recorded.
+//
+// Watching a 29.5-second film twice would make this sim a minute long, so the
+// page takes ?speed=N and the clock is hurried. Nothing else about it changes:
+// same cues, same order, same ending.
+console.log('\n== the end of the film ==\n');
+if (fs.existsSync(CHROME) && !useOld) {
+  const TMP2 = process.env.TEMP || process.env.TMP || '.';
+  const filmPath = path.join(WEB, 'film.html').split(path.sep).join('/');
+  const watch = (query) => {
+    const outer = path.join(TMP2, 'tn-loop-' + query.replace(/[^a-z0-9]/gi, '') + '.html');
+    const probe = 'setTimeout(function(){'
+      + 'var w=document.getElementById("f").contentWindow, d=w.document;'
+      + 'var on=d.querySelector(".beat.on");'
+      + 'var r=d.getElementById("replay");'
+      + 'document.title="R"+JSON.stringify({beat:on?on.id:null,'
+      + 'ended:d.body.classList.contains("ended"),'
+      + 'replay:!!r && w.getComputedStyle(r).display!=="none"});'
+      + '},5200);';
+    fs.writeFileSync(outer, '<!doctype html><html><head><title>WAIT</title></head><body style="margin:0">'
+      + '<iframe id="f" src="file:///' + filmPath + '?' + query + '" style="width:390px;height:760px;border:0"></iframe>'
+      + '<script>' + probe + '</' + 'script></body></html>', 'utf8');
+    let dom = '';
+    try {
+      dom = cp.execFileSync(CHROME, ['--headless=new', '--disable-gpu', '--no-sandbox',
+        '--allow-file-access-from-files', '--window-size=430,800', '--virtual-time-budget=20000',
+        '--dump-dom', 'file:///' + outer.split(path.sep).join('/')],
+        { encoding: 'utf8', maxBuffer: 1e8, stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch (e) { dom = String(e.stdout || ''); }
+    const mm = dom.match(/<title>R([\s\S]*?)<\/title>/);
+    return mm ? JSON.parse(mm[1].replace(/&amp;/g, '&').replace(/&quot;/g, '"')) : { threw: 'no report' };
+  };
+
+  // 29.5s at twelve times speed is under three seconds, so five seconds of
+  // wall clock is comfortably past the end.
+  const onceRun = watch('once=1&speed=12');
+  ck('played once, it stops on the end card', onceRun.beat === 'b6', onceRun);
+  ck('...and says it has ended, rather than just freezing', onceRun.ended === true, onceRun);
+  ck('...offering to play it again', onceRun.replay === true, onceRun);
+
+  const loopRun = watch('speed=12');
+  ck('/film itself is still looping, for recording a take', loopRun.beat !== 'b6', loopRun);
+  ck('...and never offers a replay button', loopRun.replay === false, loopRun);
+} else if (!useOld) {
+  console.log('  (no Chrome here — the ending cannot be watched, and this does not pass without it)');
+  fail++;
 }
 
 console.log('\n  ' + (useOld ? 'CONTROL (must FAIL)' : 'PATCHED') + ': ' + pass + ' passed, ' + fail + ' failed\n');
