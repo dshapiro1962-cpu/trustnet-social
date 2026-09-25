@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#217A4B">
+<title>Trustnet — Help</title>
+<meta name="description" content="Help for Trustnet: signing in, invite links, putting it on your home screen, and how to reach a person.">
+<meta property="og:title" content="Trustnet — Help">
+<meta property="og:description" content="Signing in, invite links, home screen, and how to reach a person.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://trustnetsocial.netlify.app/support">
+<meta property="og:image" content="https://trustnetsocial.netlify.app/icons/icon-512.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   SUPPORT / HELP.
+
+   Built 25 Sep 2026 for the Muse connector submission, which asks for a
+   "Support email or URL" — and a support URL on your own site reads as a
+   real product where a free-mail address does not. It has to be worth
+   reading on its own terms too: these are the questions the beta
+   testers have actually asked.
+
+   HOUSE RULES, same as index.html: no external CSS, no font imports,
+   hardcoded fallback colours, no template literals.
+
+   THE EMAIL ADDRESS IS ASSEMBLED IN JAVASCRIPT and appears nowhere in
+   the source as plain text. It is a personal address on a public page;
+   this keeps the simplest harvesters off it. Swap it for a real domain
+   address when there is one — one line, at the bottom.
+   ═══════════════════════════════════════════════════════════════════ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  background: #F4F8F5;
+  color: #1C2420;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 15.5px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 640px; margin: 0 auto; padding: 0 16px 56px; }
+
+header { background: #0D2B1F; color: #fff; padding: calc(26px + env(safe-area-inset-top, 0px)) 0 26px; }
+header .wrap { padding-bottom: 0; }
+.brand { display: flex; align-items: center; gap: 11px; }
+.brand img { width: 38px; height: 38px; border-radius: 10px; display: block; }
+.brand b { font-size: 21px; font-weight: 700; letter-spacing: -0.3px; }
+header p { color: #CFE0D8; font-size: 14.5px; margin-top: 12px; }
+
+h2 { font-size: 12px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase;
+     color: #7A9086; margin: 34px 0 12px; }
+h3 { font-size: 16px; font-weight: 700; color: #1C2420; margin: 0 0 4px; }
+
+.card { background: #fff; border: 1px solid #E5EDE8; border-radius: 14px; padding: 15px 16px;
+        margin-bottom: 10px; }
+.card p { color: #46564E; font-size: 14.5px; }
+.card p + p { margin-top: 9px; }
+
+.lead { background: #fff; border: 1px solid #E5EDE8; border-radius: 14px; padding: 16px;
+        margin-top: 26px; font-size: 15.5px; color: #1C2420; }
+
+ol, ul { margin: 9px 0 0 20px; color: #46564E; font-size: 14.5px; }
+li { margin-bottom: 5px; }
+li:last-child { margin-bottom: 0; }
+
+.key { display: inline-block; min-width: 21px; text-align: center; padding: 0 5px;
+       border: 1px solid #C2CFC8; border-radius: 5px; background: #F4F8F5;
+       font-size: 13px; line-height: 19px; color: #1C2420; }
+
+a { color: #1D5A45; }
+.btn { display: inline-block; background: #1D5A45; color: #fff; text-decoration: none;
+       font-size: 15px; font-weight: 600; padding: 11px 20px; border-radius: 11px;
+       border: 0; cursor: pointer; font-family: inherit; }
+.btn.sec { background: #fff; color: #1D5A45; border: 1px solid #C7DACF; }
+.btns { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 13px; }
+
+.note { font-size: 13px; color: #7A9086; margin-top: 10px; }
+footer { border-top: 1px solid #E5EDE8; margin-top: 34px; padding-top: 18px;
+         font-size: 13px; color: #7A9086; }
+footer a { color: #7A9086; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="brand">
+      <img src="/icons/icon-512.png" alt="">
+      <b>Trustnet</b>
+    </div>
+    <p>Help &mdash; and how to reach a person.</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="lead">
+    Trustnet is where you ask people you trust for a doctor, a restaurant, a plumber
+    &mdash; and recommend back. No public reviews, no algorithmic feeds.
+    <div class="btns">
+      <a class="btn" href="/">Open Trustnet</a>
+      <a class="btn sec" href="/film.html">See what it does &middot; 30s</a>
+    </div>
+  </div>
+
+  <h2>Reach a person</h2>
+  <div class="card">
+    <h3>Email</h3>
+    <p>Trustnet is made by one person, so you are writing to someone who can
+       actually fix it. Expect a reply within a day or two.</p>
+    <p>It helps enormously if you include <b>the version number shown at the top
+       of the Home screen</b> (something like <i>MVP &middot; v0.99.2</i>), what you
+       tapped, and what happened instead.</p>
+    <div class="btns"><a class="btn" id="mail" href="#">Email support</a></div>
+    <p class="note" id="mailtxt"></p>
+  </div>
+
+  <h2>Signing in</h2>
+
+  <div class="card">
+    <h3>There is no password and no code</h3>
+    <p>Tap <b>Continue with WhatsApp</b>. Your own WhatsApp opens with a message
+       already written to the Trustnet number. Press send, come back to the page,
+       and you are in.</p>
+    <p>Signing in and signing up are the same act &mdash; if you have never used
+       Trustnet before, that message creates your account.</p>
+    <p class="note">The Trustnet number is +972 58 778 6049. It only ever receives
+       these messages; nothing is sent to you from it unless you ask for it.</p>
+  </div>
+
+  <div class="card">
+    <h3>WhatsApp did not open, or you use a different phone</h3>
+    <p>On the sign-in screen choose <b>Use email instead</b>. You get a sign-in
+       link by email and nothing else is needed.</p>
+  </div>
+
+  <h2>Invites and circles</h2>
+
+  <div class="card">
+    <h3>You were sent a link and it did not let you in</h3>
+    <p>Open the link again. Until 22 September an invite sent to someone who was
+       already listed in that circle would create the account and then refuse the
+       membership, and the message never arrived. That is fixed &mdash; but an
+       invite sent before then may have been left half-finished, so ask for a
+       fresh one.</p>
+  </div>
+
+  <div class="card">
+    <h3>Trustnet will not accept a phone number</h3>
+    <p>Pick the country in the box beside the number, then type the number the way
+       you would write it at home &mdash; no country code needed.</p>
+    <p>Before 25 September the invite form assumed every number was Israeli and
+       silently refused the rest. If you hit that, update the page and try again.</p>
+  </div>
+
+  <div class="card">
+    <h3>What the people in your circles can see</h3>
+    <p>Your library is yours. Other people see a recommendation when you send it
+       to them &mdash; answering their question, or sending them a list you made.</p>
+    <p>There is no public profile, no feed and no rating from strangers. A circle
+       is a list of people you chose, and it is not shown to anyone else.</p>
+  </div>
+
+  <h2>On your phone</h2>
+
+  <div class="card">
+    <h3>Put it on your home screen</h3>
+    <p>It then opens like an app, with no address bar, and you stay signed in.</p>
+    <ul>
+      <li><b>iPhone, Chrome</b> &mdash; tap <span class="key">&#8593;</span> beside
+          the address, then <b>Add to Home Screen</b></li>
+      <li><b>iPhone, Safari</b> &mdash; tap <span class="key">&#8593;</span> at the
+          bottom, then <b>Add to Home Screen</b></li>
+      <li><b>Android, Chrome</b> &mdash; tap <span class="key">&#8942;</span> at the
+          top right, then <b>Add to home screen</b></li>
+    </ul>
+    <p class="note">If you opened the link inside WhatsApp, nothing can be added to
+       a home screen from there. Tap <span class="key">&#8943;</span> at the top
+       right and choose <b>Open in Chrome</b> first.</p>
+  </div>
+
+  <h2>The plain facts</h2>
+
+  <div class="card">
+    <h3>What it costs</h3>
+    <p>Nothing. Trustnet is an MVP in private testing and takes no payment of any
+       kind.</p>
+  </div>
+
+  <div class="card">
+    <h3>Leaving, and taking your things with you</h3>
+    <p>Ask by email and your account and everything in it will be deleted. If you
+       would like a copy of your library first, ask for that in the same message.</p>
+  </div>
+
+  <footer>
+    <p>Trustnet &middot; a private recommendation network &middot;
+       <a href="/">trustnetsocial.netlify.app</a></p>
+    <p>This page is for people testing Trustnet. If something here is wrong or out
+       of date, say so &mdash; that is worth reporting too.</p>
+  </footer>
+
+</div>
+
+<script>
+// Assembled rather than written out, so the address is not sitting in the page
+// source for a harvester to read. ONE PLACE TO CHANGE IT when there is a
+// support address on a domain of its own.
+(function () {
+  var user = 'dshapiro1962';
+  var host = 'gmail' + '.' + 'com';
+  var addr = user + String.fromCharCode(64) + host;
+  var subject = 'Trustnet — ';
+  var a = document.getElementById('mail');
+  if (a) {
+    a.href = 'mailto:' + addr + '?subject=' + encodeURIComponent(subject);
+  }
+  var t = document.getElementById('mailtxt');
+  if (t) t.textContent = 'or write to ' + addr;
+})();
+</script>
+
+</body>
+</html>
