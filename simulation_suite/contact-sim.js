@@ -78,8 +78,13 @@ ck('...but an existing number is never overwritten', /\.is\("phone", null\)/.tes
 ck('the client loads the phone', /phone:c\.phone\|\|''/.test(web));
 ck('rec detail offers a tel: link', /href="tel:'/.test(web));
 ck('rec detail offers a WhatsApp link for the provider', /wa\.me\/' \+ esc\(e164/.test(web));
+// v0.99.2: "the same rule as everywhere else" became literally true — there is
+// now one normaliser, phoneE164, and the button only appears when the result is
+// a number WhatsApp can actually open.
 ck('the number is normalised with the SAME rule as everywhere else',
-   /normalizeIlPhone\(can\.phone\)/.test(web));
+   /phoneE164\(can\.phone\)/.test(web));
+ck('...and the button is not offered for a number that cannot be dialled',
+   /if \(phoneDialable\(e164\)\) \{/.test(web));
 ck('the call button comes before the search links (pressing beats searching)',
    web.indexOf('href="tel:') < web.indexOf("extLink(can.googleUrl"));
 

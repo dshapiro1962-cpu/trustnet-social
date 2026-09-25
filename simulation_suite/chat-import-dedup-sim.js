@@ -58,16 +58,23 @@ while (back > 0 && /^\s*(const|let)\s+\w+\s*=\s*(\{\}|\[\])\s*;\s*$/.test(lines[
 const start = lines.slice(0, back).join('\n').length + 1;
 const block = src.slice(start, end);
 
-const npStart = src.indexOf('function normalizeIlPhone(');
+// THE FOLD, whatever it is called today. v0.99.2 replaced normalizeIlPhone
+// with phoneTail here — the dedup wants the DATABASE's key (last nine digits),
+// not a stored value — and this sim must keep running against both, because
+// its own control is a file from before the rename.
+const npStart = src.indexOf('function phoneTail(') > -1
+  ? src.indexOf('function phoneTail(')
+  : src.indexOf('function normalizeIlPhone(');
 let d = 0, npEnd = -1;
 for (let i = src.indexOf('{', npStart); i < src.length; i++) {
   if (src[i] === '{') d++;
   else if (src[i] === '}') { d--; if (d === 0) { npEnd = i; break; } }
 }
-const normalizeIlPhone = new Function('return ' + src.slice(npStart, npEnd + 1))();
+const phoneFold = new Function('return ' + src.slice(npStart, npEnd + 1))();
 
-const dedup = new Function('found', 'normalizeIlPhone', block + '\n; return items;');
-const run = (found) => dedup(found, normalizeIlPhone);
+// Injected under both names, so the block decides which one it uses.
+const dedup = new Function('found', 'phoneTail', 'normalizeIlPhone', block + '\n; return items;');
+const run = (found) => dedup(found, phoneFold, phoneFold);
 
 const item = (name, phone, note, location) => ({
   name: name, phone: phone || '', note: note || '',

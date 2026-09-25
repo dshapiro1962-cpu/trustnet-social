@@ -182,7 +182,21 @@ Added 21 Sep, same rule:
 - `invite-words-sim.js` — lifts the REAL invite-message builders out of the page
   and executes them, then reads the message a person actually receives
 
-**26 sims, all green with all controls failing** (21 Sep). Eight were added
+Added 25 Sep, same rule:
+
+- `one-normaliser-sim.js` — lifts **the real phone layer** into a vm twice, once
+  with libphonenumber and once without, and checks that the country is ASKED
+  for rather than guessed. Baseline `index.pre-v0.99.2.html`; its control fails
+  36 of 37, and the one that survives is the line proving the library is absent
+
+**43 of the 95 sims in this directory run on this machine, and all 43 are
+green** (measured 25 Sep by running every one of them: `for f in *-sim.js; do
+node $f; done`). The other 52 open `/home/claude/...` — a container path that
+does not exist here — so they exit 1 on ENOENT without asserting anything.
+**Count them before quoting a number.** This line said "26" for four days after
+the true figure had passed thirty.
+
+Eight were added
 10–19 Sep, and three of them run against the REAL database as role
 `authenticated` with RLS in force, in a transaction that is always rolled back:
 `inbox-save-live-sim.js`, `sheet-recall-live-sim.js`, `people-search-live-sim.js`.
@@ -305,3 +319,10 @@ fixed on 24 Aug, guarded by `unchecked-writes-sim.js`. What remains:
 5. **`saveCircles` still writes the whole array.** Left deliberately: `circles`
    has no foreign key except `owner_id`, so no poison vector. Same shape, no
    known risk.
+6. **"That's your own number" never fires.** `web/index.html:9598` guards
+   against adding yourself as a member by comparing the typed number against
+   `AppState._authPhone` and `AppState.userProfile.phone`. Neither is ever
+   written: `loadUserData` does not select a phone, and `_authPhone` is read in
+   that one line and assigned nowhere in the file. The guard has always been
+   dead. Found 25 Sep while looking for the user's own country for
+   `PHONE_DEFAULT_COUNTRY` — which is why that constant guesses nothing.

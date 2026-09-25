@@ -2438,7 +2438,7 @@ const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
 // The Trustnet business number, in one place: the invite join and the
 // sign-in both open WhatsApp with it.
 const TN_WA_NUMBER = '972587786049';
-const APP_VERSION = 'v0.99.2 · live';
+const APP_VERSION = 'v0.99.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -5634,68 +5634,16 @@ function countryOptions(selectedIso) {
   }).join('');
 }
 
-// ═══ ONE NORMALISER (v0.99.2) ═══════════════════════════════════════════════
-//
-// There were two, with different rules, and the app picked between them by
-// which door you came in.
-//
-// Add member (v0.70.0, above) uses toE164 with a country picker: libphonenumber,
-// 245 countries, and it exists BECAUSE a hand-written rule corrupts numbers -
-// Israel, France, Germany and the UK drop the trunk zero, Italy keeps it.
-//
-// Invite used normalizeIlPhone, whose rule was "a leading zero means Israel".
-// It REFUSED a US number written the way an American writes it: (646) 384-6833
-// reduces to 6463846833, which is ten digits, does not begin with 0, and fell
-// off the end of the rules into ''. The answer was "Enter a valid phone number,
-// e.g. 050 123 4567." - advice that cannot be followed if you are not Israeli.
-// A +1 member has been in this database since 20 August.
-//
-// So: one rule, the good one, and the two callers that had no country picker
-// now have one.
-//
-// NO GUESSING AT THE COUNTRY. The obvious idea is to default to the signed-in
-// user's own country, and the client does not know it: AppState.userProfile
-// carries no phone (loadUserData does not select one) and AppState._authPhone
-// is read in one place and written in none. Deriving it from navigator.language
-// would say US for the many Israeli phones set to English. Guessing is what
-// broke this in the first place, so the default stays Israel and the PICKER is
-// the thing that fixes it - visible, and the user's own answer.
-const PHONE_DEFAULT_COUNTRY = 'IL';
-
-// Returns E.164, or '' when the number cannot be used.
-//
-// FAIL OPEN SURVIVES: with the library absent toE164 hands back what was typed
-// and ok = true, so this returns the typed value rather than ''. That is
-// deliberate and is the rule the member form already follows - a contact never
-// added cannot be recovered, while a value we could not canonicalise can be
-// cleaned later. Callers that need to DIAL the result check phoneDialable.
-function phoneE164(raw, iso) {
-  // 00 IS THE INTERNATIONAL PREFIX in most of the world — North America dials
-  // 011 — and the library only strips it when the country selected is one that
-  // uses it. So 00972... typed with the US picker came back empty. Converting
-  // it here is not a national-number rule: it touches no trunk zero, and the
-  // old normaliser did it for every country, so leaving it out would quietly
-  // break numbers that work today.
-  const typed = String(raw || '').trim();
-  const r = toE164(typed.indexOf('00') === 0 ? '+' + typed.slice(2) : typed,
-                   iso || PHONE_DEFAULT_COUNTRY);
-  return r && r.ok ? r.e164 : '';
+function normalizeIlPhone(raw) {
+  let d = String(raw || '').replace(/[^0-9+]/g, '');
+  if (!d) return '';
+  if (d.indexOf('00') === 0) d = '+' + d.slice(2);
+  if (d.charAt(0) === '+') { return d.length >= 11 ? d : ''; }
+  if (d.indexOf('972') === 0) return '+' + d;
+  if (d.charAt(0) === '0' && (d.length === 9 || d.length === 10)) return '+972' + d.slice(1);
+  if (d.length >= 11) return '+' + d;
+  return '';
 }
-
-// Can this be dialled from anywhere on earth? Only a real international number
-// can. This is the check that belongs in front of a wa.me or tel: link, and it
-// is what stops the fail-open value above from becoming a broken link: with no
-// library, "050 123 4567" is fine to STORE and useless to send someone to.
-function phoneDialable(value) {
-  const v = String(value || '').trim();
-  return v.charAt(0) === '+' && v.replace(/\D/g, '').length >= 8;
-}
-
-// The last nine digits - the same fold the database uses (phone_key) and
-// wa-signin uses (phoneKey). It is the only phone comparison that needs no
-// library at all, which is why anything COMPARING numbers should use it and
-// anything STORING or DIALLING one should not.
-function phoneTail(v) { return String(v || '').replace(/\D/g, '').slice(-9); }
 
 async function handlePickContacts() {
   const box = document.getElementById('pc-review');
@@ -5712,7 +5660,7 @@ async function handlePickContacts() {
   const rows = [];
   picked.forEach(function(c) {
     const nm = (c.name && c.name[0]) ? String(c.name[0]).trim() : '';
-    const tel = phoneE164(c.tel && c.tel[0] ? c.tel[0] : '');
+    const tel = normalizeIlPhone(c.tel && c.tel[0] ? c.tel[0] : '');
     if (!nm || !tel) { skipped++; return; }
     rows.push('<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid #F0F5F1;cursor:pointer;font-size:13px;" dir="auto">'
       + '<input type="checkbox" class="pc-cb" checked data-name="' + esc(nm) + '" data-tel="' + esc(tel) + '">'
@@ -5870,7 +5818,7 @@ async function handleChatImportRun(btn) {
   found.forEach(function(it) {
     const nm = String(it.name || '').toLowerCase().trim();
     if (!nm) return;
-    const ph = phoneTail(it.phone || '');
+    const ph = normalizeIlPhone(it.phone || '');
     let g = (ph && byPhone[ph]) || byName[nm] || null;
     if (!g) {
       g = { name: String(it.name || '').trim(), category: it.category || 'other',
@@ -7080,11 +7028,9 @@ function renderRecDetail() {
   // the number lived inside the note as prose: read it, select it, copy it,
   // switch apps, paste. These go FIRST — pressing beats searching.
   if (can.phone) {
-    const e164 = phoneE164(can.phone);
+    const e164 = normalizeIlPhone(can.phone);
     linksHtml += '<a href="tel:' + esc(can.phone) + '" class="btn btn-primary btn-sm" style="text-decoration:none;">\u260E\uFE0F ' + esc(can.phone) + '</a>';
-    // Only when it is a number WhatsApp can open. A half-normalised value makes
-    // a button that goes nowhere, which is worse than no button.
-    if (phoneDialable(e164)) {
+    if (e164) {
       linksHtml += '<a href="https://wa.me/' + esc(e164.replace(/\D/g, '')) + '" target="tn_ext" rel="noopener" class="btn btn-secondary btn-sm" style="text-decoration:none;">WhatsApp</a>';
     }
   }
@@ -8202,10 +8148,8 @@ function modalInvite(params) {
     + '<input class="field-input" id="inv-name" placeholder="Their name" '
     + 'style="width:100%;margin-bottom:6px;">'
     + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
-    + '<select class="field-input" id="inv-country" style="flex:0 0 38%;min-width:0;">'
-    + countryOptions(PHONE_DEFAULT_COUNTRY) + '</select>'
-    + '<input class="field-input" id="inv-contact" dir="ltr" placeholder="50 123 4567" '
-    + 'style="flex:1 1 150px;min-width:0;">'
+    + '<input class="field-input" id="inv-contact" dir="ltr" placeholder="+972 50 123 4567" '
+    + 'style="flex:1 1 200px;min-width:0;">'
     + '<button class="btn btn-primary btn-sm" data-action="invite-new" data-circle-id="' + esc(circleId) + '" '
     + 'data-circle-name="' + esc(circleName) + '" style="white-space:nowrap;">Send invite</button>'
     + '</div>'
@@ -8491,24 +8435,13 @@ async function handleInviteNew(btn) {
   // then adopts that placeholder — which is why naama appeared in dany's circle
   // as "+972545543467".
   if (!invName) { fail('Add their name, so they do not appear as a phone number.'); return; }
-  // ONE reading of the number, used for the link, the duplicate check and the
-  // member row - they disagreed before, so a US number could open the right
-  // WhatsApp chat and then be stored in a form nothing else would match.
-  const invIso = (document.getElementById('inv-country') || {}).value || PHONE_DEFAULT_COUNTRY;
-  const invPhone = method === 'whatsapp' ? phoneE164(contact, invIso) : '';
-  if (method === 'whatsapp' && !phoneDialable(invPhone)) {
-    fail(invPhone
-      ? 'Add the country code, e.g. +972 50 123 4567.'
-      : 'That does not look like a phone number for the country beside it.');
-    return;
-  }
-  const invValue = invPhone || contact;
+  if (method === 'whatsapp' && !normalizeIlPhone(contact)) { fail('Enter a valid phone number, e.g. 050 123 4567.'); return; }
   if (method === 'email' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contact)) { fail('Enter a valid email address.'); return; }
 
   // Ask the database about THIS contact, right now. (Deciding from the local
   // member cache is exactly how "already a member and on Trustnet" was missed.)
   btn.disabled = true; btn.textContent = 'Checking\u2026';
-  const resolved = await resolveContacts(circleId, [{ method: method, value: invValue }]);
+  const resolved = await resolveContacts(circleId, [{ method: method, value: contact }]);
   btn.disabled = false; btn.textContent = 'Send invite';
   const info = resolved && resolved.length ? resolved[0] : null;
   if (info) {
@@ -8523,7 +8456,7 @@ async function handleInviteNew(btn) {
       say('They are already on Trustnet \u2014 no invite needed. '
         + '<button class="btn btn-primary btn-sm" data-action="add-known-person" '
         + 'data-name="' + esc(invName) + '" data-method="' + esc(method) + '" '
-        + 'data-contact="' + esc(invValue) + '" data-circles="' + esc(targetCircles.join(',')) + '" '
+        + 'data-contact="' + esc(contact) + '" data-circles="' + esc(targetCircles.join(',')) + '" '
         + 'style="margin-top:8px;">Add to ' + (targetCircles.length > 1
             ? targetCircles.length + ' circles' : 'this circle') + '</button>', 'info', true);
       return;
@@ -8540,7 +8473,7 @@ async function handleInviteNew(btn) {
   const text = inviteMessageFor(circleName, url, true);
 
   if (method === 'whatsapp') {
-    const ph = invPhone.replace(/[^0-9]/g, '');
+    const ph = normalizeIlPhone(contact).replace(/[^0-9]/g, '');
     window.open('https://wa.me/' + ph + '?text=' + encodeURIComponent(text), 'tn_ext');
     toast('WhatsApp opened \u2014 press send there.');
   } else {
@@ -8562,11 +8495,11 @@ async function handleInviteNew(btn) {
     const circle = AppState.circleById(cid);
     const cname = circle ? circle.name : cid;
     const already = (AppState.userMembers || []).some(function(m) {
-      return m.circleId === cid && normContact(m.contactValue) === normContact(invValue); });
+      return m.circleId === cid && normContact(m.contactValue) === normContact(contact); });
     if (already) continue;
     const built = buildMember({
       name: invName, circleId: cid,
-      contactMethod: method, contactValue: invValue, iso: invIso,
+      contactMethod: method, contactValue: contact,
       trustBasis: 'Invited to Trustnet',
     });
     if (!built.ok) { couldNot.push(cname + ' \u2014 ' + built.detail); continue; }
@@ -8584,7 +8517,7 @@ async function handleInviteNew(btn) {
     // An invited person may ALREADY be on Trustnet — the dialog says so — and
     // then they should get the in-app doorway, not just an email.
     for (const m of AppState.userMembers.filter(function(x) {
-      return normContact(x.contactValue) === normContact(invValue); })) {
+      return normContact(x.contactValue) === normContact(contact); })) {
       await linkMemberOnServer(m.id);
     }
     await loadUserData(); renderApp();
@@ -9514,7 +9447,7 @@ function buildMember(input) {
       return { ok: false, error: 'bad_email', detail: 'That does not look like an email address.' };
     }
     if (method === 'whatsapp') {
-      const e164 = phoneE164(value, input.iso);
+      const e164 = normalizeIlPhone(value);
       if (!e164) return { ok: false, error: 'bad_phone', detail: 'That does not look like a phone number.' };
       value = e164;
     }
@@ -9655,7 +9588,7 @@ async function handleSaveMember() {
 
     // The full matrix: already here / elsewhere / is you / already linked.
     const norm = function(v) { return String(v || '').replace(/[\s()+-]/g, '').toLowerCase(); };
-    const tail = phoneTail;   // one fold, defined with the other phone helpers
+    const tail = function(v) { const d = String(v || '').replace(/\D/g, ''); return d.slice(-9); };
     let reuseLinked = null;
     let isOnTrustnet = false;
     let existingPersonId = null;
