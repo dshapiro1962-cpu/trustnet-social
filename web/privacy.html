@@ -1,70 +1,229 @@
 <!DOCTYPE html>
-<html lang="en" dir="auto">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Trustnet — Privacy Policy</title>
-<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#217A4B">
+<title>Trustnet — Privacy Policy</title>
+<meta name="description" content="What Trustnet stores, who else sees it, and how to have it deleted. Written in plain English.">
+<meta property="og:title" content="Trustnet — Privacy Policy">
+<meta property="og:description" content="What Trustnet stores, who else sees it, and how to have it deleted.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://trustnetsocial.netlify.app/privacy">
+<meta property="og:image" content="https://trustnetsocial.netlify.app/icons/icon-512.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <style>
-body { font-family:'Heebo',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#F7FAF8; color:#1C2420; margin:0; }
-.hero { background:linear-gradient(160deg,#0D2B1F,#1A5235); color:#fff; padding:30px 20px; }
-.hero-inner, .wrap { max-width:680px; margin:0 auto; }
-.logo { display:inline-flex; align-items:center; gap:9px; margin-bottom:14px; }
-.logo-tile { width:32px; height:32px; border-radius:8px; background:#217A4B; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:16px; color:#fff; }
-h1 { font-size:24px; margin:0; letter-spacing:-0.4px; }
-.sub { color:#BFD8C8; font-size:13px; margin-top:6px; }
-.wrap { padding:26px 18px 60px; }
-h2 { color:#217A4B; font-size:16px; margin:26px 0 8px; }
-p, li { font-size:14px; line-height:1.7; color:#3D4F46; }
-a { color:#217A4B; }
+/* ═══════════════════════════════════════════════════════════════════
+   PRIVACY POLICY.
+
+   Written 26 Sep 2026 against WHAT THE CODE ACTUALLY DOES, not from a
+   template. Every third party named below was found by reading
+   supabase/functions/*/index.ts and web/index.html:
+
+     graph.facebook.com     WhatsApp Cloud API
+     api.openai.com         gpt-4o-mini, text-embedding-3-large
+     maps.googleapis.com    Places text search, in build-sheet
+     cdn.jsdelivr.net       supabase-js and libphonenumber-js
+     Supabase               ap-southeast-1 (Singapore), verified by CLI
+     Netlify                static hosting
+
+   If a function is added that calls somewhere new, THIS PAGE IS WRONG
+   until it is updated. That is the whole maintenance burden of it.
+
+   House rules as index.html: no external CSS, no font imports,
+   hardcoded colours, no template literals.
+   ═══════════════════════════════════════════════════════════════════ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { background: #F4F8F5; color: #1C2420;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 15.5px; line-height: 1.68; -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 660px; margin: 0 auto; padding: 0 16px 56px; }
+header { background: #0D2B1F; color: #fff; padding: calc(26px + env(safe-area-inset-top, 0px)) 0 26px; }
+header .wrap { padding-bottom: 0; }
+.brand { display: flex; align-items: center; gap: 11px; }
+.brand img { width: 38px; height: 38px; border-radius: 10px; display: block; }
+.brand b { font-size: 21px; font-weight: 700; letter-spacing: -0.3px; color: #fff; }
+header p { color: #CFE0D8; font-size: 14.5px; margin-top: 12px; }
+header .date { color: #8FB0A2; font-size: 13px; margin-top: 5px; }
+h2 { font-size: 17.5px; font-weight: 700; color: #1C2420; margin: 30px 0 9px; }
+h3 { font-size: 15.5px; font-weight: 700; color: #1C2420; margin: 17px 0 4px; }
+p { color: #46564E; margin-bottom: 10px; }
+.intro { color: #1C2420; }
+ul { margin: 4px 0 12px 20px; color: #46564E; }
+li { margin-bottom: 6px; }
+b, strong { color: #1C2420; }
+a { color: #1D5A45; }
+.box { background: #fff; border: 1px solid #E5EDE8; border-radius: 14px; padding: 15px 16px; margin: 14px 0; }
+.box p:last-child, .box ul:last-child { margin-bottom: 0; }
+.flag { background: #FFF8EC; border: 1px solid #F0DFC0; border-radius: 14px; padding: 15px 16px; margin: 14px 0; }
+.flag p:last-child { margin-bottom: 0; }
+table { width: 100%; border-collapse: collapse; margin: 12px 0 14px; font-size: 14px; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid #E5EDE8; vertical-align: top; }
+th { color: #7A9086; font-size: 11.5px; letter-spacing: 0.6px; text-transform: uppercase; font-weight: 700; }
+td:first-child { white-space: nowrap; color: #1C2420; font-weight: 600; }
+footer { border-top: 1px solid #E5EDE8; margin-top: 34px; padding-top: 18px; font-size: 13px; color: #7A9086; }
+footer a { color: #7A9086; }
+@media (max-width: 460px) {
+  table, tbody, tr, td, th { display: block; }
+  thead { display: none; }
+  tr { border-bottom: 1px solid #E5EDE8; padding: 9px 0; }
+  td { border: 0; padding: 1px 0; }
+  td:first-child { white-space: normal; }
+}
 </style>
 </head>
 <body>
-<div class="hero"><div class="hero-inner">
-  <div class="logo"><div class="logo-tile">T</div><b>Trustnet</b></div>
-  <h1>Privacy Policy</h1>
-  <div class="sub">Last updated: 20 July 2026</div>
-</div></div>
+
+<header>
+  <div class="wrap">
+    <div class="brand"><img src="/icons/icon-512.png" alt=""><b>Trustnet</b></div>
+    <p>Privacy Policy</p>
+    <p class="date">In force from 26 September 2026</p>
+  </div>
+</header>
+
 <div class="wrap">
-  <p>Trustnet ("we", "us") is a personal recommendation network: it lets you ask people you trust for recommendations and keep what they answer. This page explains what we store and how we use it. The short version: <b>your data is yours, we don't sell it, and we don't show ads.</b></p>
 
-  <h2>What we collect</h2>
-  <ul>
-    <li><b>Account details</b> — your email address, name, and general location, provided by you at sign-up.</li>
-    <li><b>Your network</b> — the circles you create and the contact details (name, phone number or email) of members you add. You are responsible for having their permission to add them.</li>
-    <li><b>Content</b> — questions you ask, answers you and others give, items you save to your library, notes, ratings, and collections you create.</li>
-    <li><b>Messages you send to our WhatsApp number</b> — used solely to save the content into your library and reply to you.</li>
-    <li><b>Technical basics</b> — standard logs needed to run and secure the service.</li>
-  </ul>
+<p class="intro">Trustnet is a private recommendation network. It is made and run by one
+person, <b>Dan Shapiro</b>, in Israel. This policy says what is stored, who
+else it passes through, and how to have it deleted. It is written in plain
+English because a policy nobody reads protects nobody.</p>
 
-  <h2>How we use it</h2>
-  <ul>
-    <li>To run Trustnet: deliver your questions, collect answers, organize your library, and show your network's shared recommendations.</li>
-    <li>AI processing (e.g., OpenAI) is used to classify and organize the content you save. Content is processed for that purpose only.</li>
-    <li>Messages are delivered through WhatsApp (Meta), email (Resend), and in-app notifications. Delivery providers process the minimum needed to deliver.</li>
-  </ul>
+<h2>1 · What is stored</h2>
 
-  <h2>What we never do</h2>
-  <ul>
-    <li>We never sell your data.</li>
-    <li>We never show ads or sponsored recommendations.</li>
-    <li>We never share your library or circles with anyone you didn't share them with yourself.</li>
-  </ul>
+<h3>Your account</h3>
+<p>Your name, and the email address or phone number you signed in with. A
+colour for your avatar. Anything you choose to add to your profile, such as a
+location or a short description.</p>
 
-  <h2>Sharing controls</h2>
-  <p>Recommendations you save can be shared to your network feed — this is controlled per item and in your profile settings. Collections you create are visible to anyone who has their link. Everything else is private to you.</p>
+<h3>Your circles and the people in them</h3>
+<p>The circles you create, and for each person you add: the name you give them,
+and the way you chose to reach them &mdash; a phone number, an email address or
+a LinkedIn address. You may also record why you trust them.</p>
 
-  <h2>Storage &amp; security</h2>
-  <p>Data is stored with Supabase (managed Postgres) using industry-standard encryption in transit and at rest, with row-level access controls.</p>
+<div class="flag">
+<p><b>Most of this is other people's information, and you are the one entering
+it.</b> Those people did not fill in a form here. Add someone only if you would
+be comfortable messaging them yourself, because that is exactly what Trustnet
+does with what you enter &mdash; it opens your own WhatsApp or mail app with a
+message ready for you to send.</p>
+<p>If someone asks you to remove them, remove them. If they write to us instead,
+we will delete what we hold about them and tell you that we did.</p>
+</div>
 
-  <h2>Your rights</h2>
-  <p>You can ask us to export or permanently delete your account and data at any time — contact us at the address below and we'll do it promptly.</p>
+<h3>Your library and your questions</h3>
+<p>The recommendations you save &mdash; the place, person or thing, your note,
+your rating, your tags and your categories. The questions you ask your circles,
+and the answers that come back. Lists you build and send.</p>
 
-  <h2>Contact</h2>
-  <p>Dan Shapiro · <a href="mailto:dshapiro1962@gmail.com">dshapiro1962@gmail.com</a></p>
+<h3>Things you choose to hand over</h3>
+<ul>
+  <li><b>Chat text you paste into the importer.</b> Trustnet reads it to find
+      recommendations in it. See section 3 &mdash; this one leaves our systems.</li>
+  <li><b>Links you paste to be fetched.</b> The page is read so its details can
+      be filled in for you.</li>
+  <li><b>Messages you send to the Trustnet WhatsApp number.</b> Signing in is
+      sending one of these.</li>
+</ul>
 
-  <p style="color:#7A9086;font-size:12px;margin-top:30px;">This policy will evolve as Trustnet grows; material changes will be announced in the app.</p>
+<h3>What is <i>not</i> stored</h3>
+<p>There is no advertising, no ad network, no tracking pixel and no analytics
+product in Trustnet &mdash; not Google Analytics, not Facebook, not anything
+else. No cookies are set for tracking. Your browser keeps a few small values so
+you stay signed in and so the app remembers what you have already seen; those
+live on your device.</p>
+
+<h2>2 · Where it is kept</h2>
+<p>In a Postgres database run by <b>Supabase</b>, in their
+<b>ap&#8209;southeast&#8209;1 region, which is Singapore</b>. The Trustnet web
+page itself is served by <b>Netlify</b>.</p>
+<p>Access to your rows is enforced by the database itself, per account, not only
+by the app in front of it.</p>
+
+<h2>3 · Who else your information passes through</h2>
+<p>These are the only third parties involved, and this is everything each one
+receives.</p>
+
+<table>
+  <thead><tr><th>Who</th><th>What they receive, and why</th></tr></thead>
+  <tbody>
+  <tr><td>Meta &mdash; WhatsApp</td>
+      <td>The messages Trustnet helps you send: sign-in, invitations, questions
+          to your circles and answers back. Meta receives the phone numbers
+          involved and the text of those messages, and handles them under their
+          own terms.</td></tr>
+  <tr><td>OpenAI</td>
+      <td>Text, so a machine can read it: chat text you paste into the importer,
+          pages you ask Trustnet to fetch, your search wording and entries from
+          your library when you search or build a list, and the text of messages
+          sent to the Trustnet WhatsApp number. Sent through the OpenAI API,
+          which does not train models on it.</td></tr>
+  <tr><td>Google &mdash; Places</td>
+      <td>The name of a place and a location hint, when Trustnet fills in
+          details of somewhere you saved. No information about you is sent.</td></tr>
+  <tr><td>jsDelivr</td>
+      <td>Two open-source libraries are loaded from this network when the page
+          opens, so it sees your IP address and browser, as any website you
+          visit does. It receives nothing from inside Trustnet.</td></tr>
+  <tr><td>Netlify &amp; Supabase</td>
+      <td>They run the hosting and the database, so they hold what is described
+          above as their infrastructure normally does.</td></tr>
+  </tbody>
+</table>
+
+<div class="box">
+<p><b>Nothing is sold, and nothing is shared for advertising.</b> No one
+receives your information for their own purposes. There is no arrangement of any
+kind under which Trustnet data is passed to anyone not named in this table.</p>
+</div>
+
+<h2>4 · Who can see what, inside Trustnet</h2>
+<p>Your library is yours. Another member sees one of your recommendations when
+<b>you send it to them</b> &mdash; answering a question they asked, or sending
+them a list you made.</p>
+<p>A circle is a list of people you chose. It is not shown to the people in it
+and not shown to anyone else. There is no public profile, no feed, and no way
+for a stranger to browse what you have saved.</p>
+
+<h2>5 · How long it is kept, and how to have it deleted</h2>
+<p>What you save is kept until you ask for it to be removed. Write to the
+address on the <a href="/support">help page</a> and say what you want deleted
+&mdash; a single entry, a circle, or your whole account. A whole account,
+including everything in it, will be deleted within 30 days, usually the same
+week.</p>
+<p>Ask in the same message and you will be sent a copy of your library first.</p>
+<p>You may also ask what is held about you and ask for anything wrong to be
+corrected. There is no form to fill in; write and ask.</p>
+
+<h2>6 · Children</h2>
+<p>Trustnet is not intended for anyone under 16, and accounts are not knowingly
+created for them.</p>
+
+<h2>7 · Security, honestly stated</h2>
+<p>Connections are encrypted, the database enforces per-account access rules,
+and there are no passwords to steal because Trustnet does not use any. But this
+is a small product in early testing, run by one person. It is not the place for
+anything you would be seriously harmed by losing or revealing.</p>
+
+<h2>8 · Changes</h2>
+<p>If this policy changes in a way that matters, the date at the top changes and
+active members are told. Older versions are in the project's public version
+history.</p>
+
+<h2>9 · Contact</h2>
+<p>Everything above is handled by one person, and you can reach him from the
+<a href="/support">help page</a>. Questions about your information, deletion
+requests, and complaints all go to the same place and get a real answer.</p>
+
+<footer>
+  <p>Trustnet &middot; <a href="/">the app</a> &middot;
+     <a href="/terms">terms of service</a> &middot;
+     <a href="/support">help</a></p>
+</footer>
+
 </div>
 </body>
 </html>
