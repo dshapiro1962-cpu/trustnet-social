@@ -155,8 +155,13 @@ ck('no service-role client reads a member-owned table',
    !/adminClient\(\)[\s\S]{0,240}?\.from\("(circles|queries|recommendations|members|canonicals)"/.test(mcpCode));
 ck('the circle behind a draft is resolved under the member session too',
    /const sb = asMember\(sess\.accessToken\);[\s\S]{0,400}?\.from\("circles"\)\.select\("id, name"\)\.eq\("id", circleId\)/.test(mcpCode));
+// The schema qualifier is optional here on purpose. pgcrypto lives in
+// `extensions` on Supabase, and pinning this guard to the unqualified spelling
+// made it fail the moment that was fixed - a false alarm about a correct
+// change. What must never change is that what gets stored is a DIGEST of the
+// token, which is what this now says.
 ck('a token is stored only as a hash',
-   /encode\(digest\(v_token, 'sha256'\), 'hex'\)/.test(migCode));
+   /encode\((extensions\.)?digest\(v_token, 'sha256'\), 'hex'\)/.test(migCode));
 ck('...and the plaintext is never written to a column',
    !/insert into public\.connector_tokens[\s\S]{0,200}?values \(v_uid, v_token/.test(migCode));
 ck('a revoked token resolves to nobody',
