@@ -75,6 +75,12 @@ h1 { font-size: 20px; font-weight: 700; margin: 22px 0 3px; }
 .hidden { display: none !important; }
 .note { background: #FFF8EC; border: 1px solid #F0DFC0; border-radius: 13px;
   padding: 12px 14px; font-size: 13.5px; color: #6B5836; margin-bottom: 12px; }
+/* Anyone who did NOT get the question is the part worth acting on, so it gets
+   its own line and its own colour rather than trailing a sentence that opens
+   with a green tick. */
+.miss { margin: 14px auto 0; max-width: 420px; background: #FFF8EC;
+  border: 1px solid #F0DFC0; border-radius: 13px; padding: 11px 14px;
+  font-size: 13.5px; color: #6B5836; text-align: left; }
 </style>
 </head>
 <body>
@@ -116,6 +122,7 @@ h1 { font-size: 20px; font-weight: 700; margin: 22px 0 3px; }
     <div class="big">&#10003;</div>
     <h2 id="done-h">Sent</h2>
     <p id="done-p"></p>
+    <p id="done-miss" class="miss hidden"></p>
   </div>
 
   <div id="signedout" class="state hidden">
@@ -217,8 +224,33 @@ h1 { font-size: 20px; font-weight: 700; margin: 22px 0 3px; }
       .then(function (d) {
         if (d && d.reason === 'sign_in_required') { show('signedout'); return; }
         if (d && d.sent) {
-          $('done-h').textContent = 'Sent';
-          $('done-p').textContent = 'Answers land in Trustnet. You will be told when they do.';
+          // SAY WHERE IT WENT. This screen used to say only "Sent", and the
+          // first person to use it asked "sent where?" — the screen before it
+          // names the recipients and this one dropped them.
+          //
+          // It reports what the server says was DELIVERED, not the list shown
+          // a moment ago, so a partial failure reads as a partial failure.
+          var reached = d.reached || [];
+          var missed = d.missed || [];
+          var where = d.circle ? ' in ' + d.circle : '';
+          if (reached.length) {
+            $('done-h').textContent = 'Sent to ' + reached.length
+              + (reached.length === 1 ? ' person' : ' people');
+            $('done-p').textContent = reached.join(', ') + where
+              + '. Answers land in Trustnet, and you will be told when they do.';
+          } else {
+            $('done-h').textContent = 'Sent';
+            $('done-p').textContent = 'Answers land in Trustnet. You will be told when they do.';
+          }
+          if (missed.length) {
+            var names = missed.map(function (m) { return m.name; });
+            var list = names.length > 1
+              ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]
+              : names[0];
+            $('done-miss').textContent = list + ' did not receive it. Their contact '
+              + 'details may be wrong, or their WhatsApp did not accept the message.';
+            $('done-miss').classList.remove('hidden');
+          }
           show('done');
         } else if (d && d.reason === 'already_handled') {
           bad('Already sent', 'This draft had already gone out. Nothing was sent twice.');

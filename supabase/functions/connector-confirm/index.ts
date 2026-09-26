@@ -183,5 +183,29 @@ Deno.serve(async (req: Request) => {
     if (uErr) console.error("draft_query_link_failed", uErr.message);
   }
 
-  return json({ engine: ENGINE, sent: true, result: sent });
+  // WHO IT ACTUALLY REACHED. The screen before this one lists the recipients
+  // by name; the screen after it said only "Sent", so a member had no way to
+  // know where their question went. dan asked exactly that — "sent where?" —
+  // and a beta tester would have had nobody to ask.
+  //
+  // It reports the DELIVERIES send-query came back with, not the list shown a
+  // moment earlier, because those two differ when a channel fails. A screen
+  // saying "Sent to 6 people" while two of them bounced is the same family of
+  // lie as the sign-in screen that said "we sent you a code" for a month
+  // without one ever arriving.
+  const deliveries = Array.isArray(sent?.deliveries)
+    ? (sent.deliveries as { member: string; status: string; error: string | null }[])
+    : [];
+  const { data: circleRow } = await admin
+    .from("circles").select("name").eq("id", String(c.circle_id)).maybeSingle();
+
+  return json({
+    engine: ENGINE,
+    sent: true,
+    circle: circleRow?.name ?? null,
+    reached: deliveries.filter((d) => d.status === "sent").map((d) => d.member),
+    missed: deliveries.filter((d) => d.status !== "sent")
+      .map((d) => ({ name: d.member, why: d.error ?? "unknown" })),
+    result: sent,
+  });
 });

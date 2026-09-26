@@ -89,8 +89,15 @@ export async function sendEmail(
   html: string,
 ): Promise<SendResult> {
   const apiKey = Deno.env.get("RESEND_API_KEY");
-  const from = Deno.env.get("RESEND_FROM_EMAIL") ?? "Trustnet <queries@mail.trustnet.com>";
+  // NO DEFAULT SENDER. mail.trustnet.com was the fallback and is not a domain
+  // this project owns. Resend rejects an unverified sender, so that fallback
+  // bought nothing but a confusing error from someone else's domain name.
+  //
+  // Unlike the response link, there is no correct address to fall back TO —
+  // so a missing secret says so plainly instead of inventing one.
+  const from = Deno.env.get("RESEND_FROM_EMAIL");
   if (!apiKey) return { ok: false, error: "email_not_configured" };
+  if (!from) return { ok: false, error: "email_sender_not_configured" };
 
   try {
     const res = await fetch("https://api.resend.com/emails", {

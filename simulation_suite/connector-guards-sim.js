@@ -47,6 +47,9 @@ const lf = (p) => fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
 let mcp = lf(path.join(FN, 'mcp', 'index.ts'));
 let confirm = lf(path.join(FN, 'connector-confirm', 'index.ts'));
 let mig = MIGS.map(lf).join('\n');
+let sendQuery = lf(path.join(FN, 'send-query', 'index.ts'));
+let resendMember = lf(path.join(FN, 'resend-member', 'index.ts'));
+let channels = lf(path.join(FN, '_shared', 'channels.ts'));
 const connectPage = lf(path.join(WEB, 'connect.html'));
 const confirmPage = lf(path.join(WEB, 'confirm.html'));
 
@@ -81,6 +84,11 @@ const SABOTAGES = [
   ['connector-confirm stops checking who is pressing',
    () => { confirm = confirm.replace('const presser = await callerId(req);',
      'const presser = "anyone";'); }],
+  ['the Sent screen goes back to saying nothing',
+   () => { confirm = confirm.replace('reached: deliveries.filter', 'nothing: deliveries.filter'); }],
+  ['a fallback URL points at a domain we do not own',
+   () => { sendQuery = sendQuery.replace('https://trustnetsocial.netlify.app/respond.html',
+     'https://app.trustnet.com/respond'); }],
   ['the confirm view starts handing out phone numbers',
    () => { mig = mig.replace('select coalesce(array_agg(m.name order by m.name), \'{}\')',
      'select coalesce(array_agg(m.contact_value order by m.name), \'{}\')'); }],
@@ -102,6 +110,8 @@ const codeOnly = (src) => src.split('\n')
   .filter((l) => !/^\s*(\/\/|--|\*)/.test(l))
   .join('\n');
 const mcpCode = codeOnly(mcp), confirmCode = codeOnly(confirm), migCode = codeOnly(mig);
+const sendQueryCode = codeOnly(sendQuery), resendCode = codeOnly(resendMember),
+      channelsCode = codeOnly(channels);
 
 console.log('\n── connector guards ── '
   + (sabotage ? 'SABOTAGED (' + SABOTAGES.length + ' mechanisms disabled)' : 'live')
@@ -248,6 +258,43 @@ ck('connect offers revocation, and the table supports it',
 ck('the confirm page never sends on load — only from the button',
    /\$\('send'\)\.addEventListener/.test(confirmPage)
    && !/action: 'send'[\s\S]{0,200}?\}\)\;\s*\n\s*\}\)\(\)/.test(confirmPage));
+
+// ── 6 · THE SCREEN SAYS WHERE IT WENT ──────────────────────────────────────
+// "Sent", and nothing else, was the first thing the first person to use this
+// screen asked about: "sent where?". The screen BEFORE it names the
+// recipients and this one dropped them.
+console.log('\n  the Sent screen:');
+
+ck('the server reports who was actually reached',
+   /reached: deliveries\.filter\(\(d\) => d\.status === "sent"\)/.test(confirmCode));
+ck('...and who was not',
+   /missed: deliveries\.filter/.test(confirmCode));
+ck('...taken from send-query\u2019s own deliveries, not the list shown earlier',
+   /sent\?\.deliveries/.test(confirmCode));
+ck('the circle is named too', /circle: circleRow\?\.name/.test(confirmCode));
+ck('the page renders the names it is given',
+   /reached\.join\(', '\)/.test(confirmPage));
+ck('...and says plainly when somebody did not get it',
+   /did not receive it/.test(confirmPage));
+
+// ── 7 · NO FALLBACK TO A DOMAIN WE DO NOT OWN ──────────────────────────────
+// app.trustnet.com was the default response-form host in two senders, and
+// mail.trustnet.com the default email sender. Neither is ours. Both secrets
+// have been set since July, so neither fallback ever fired — which is what
+// made them easy to miss and free to fix.
+console.log('\n  no borrowed domains:');
+
+ck('send-query does not fall back to app.trustnet.com',
+   !/app\.trustnet\.com/.test(sendQueryCode));
+ck('resend-member does not either',
+   !/app\.trustnet\.com/.test(resendCode));
+ck('the response link falls back to our own site',
+   /trustnetsocial\.netlify\.app\/respond\.html/.test(sendQueryCode)
+   && /trustnetsocial\.netlify\.app\/respond\.html/.test(resendCode));
+ck('the email sender has NO invented default',
+   !/mail\.trustnet\.com/.test(channelsCode));
+ck('...and a missing sender is reported rather than guessed',
+   /email_sender_not_configured/.test(channelsCode));
 
 console.log('\n  ' + pass + ' passed, ' + fail + ' failed\n');
 if (sabotage) {

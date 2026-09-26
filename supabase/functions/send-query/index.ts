@@ -44,7 +44,19 @@ Deno.serve(async (req: Request) => {
   if (!body.circle_id || !body.text?.trim()) return err("circle_id and text required");
 
   const degree = body.degree === 2 ? 2 : 1;
-  const appUrl = Deno.env.get("RESPONSE_FORM_BASE_URL") ?? "https://app.trustnet.com/respond";
+  // NOT app.trustnet.com. That is a domain this project does not own, and it
+  // was the default here: if RESPONSE_FORM_BASE_URL were ever unset, rotated
+  // away or missed on a new environment, every question sent would carry a
+  // link to somebody else's website — silently, because a fallback makes it
+  // look like it worked.
+  //
+  // The secret IS set in production, since 4 July 2026 (verified 26 Sep), so
+  // this has never fired. That is exactly why it was worth changing: the cost
+  // is nothing. Failing loudly instead would block every question over a
+  // variable that has never once been missing, and here a correct default
+  // exists — unlike the sender address below, where one does not.
+  const appUrl = Deno.env.get("RESPONSE_FORM_BASE_URL")
+    ?? "https://trustnetsocial.netlify.app/respond.html";
   const supa = userClient(req);   // RLS-scoped reads for caller-owned data
   const admin = adminClient();    // cross-user writes
 
