@@ -182,6 +182,23 @@ Added 21 Sep, same rule:
 - `invite-words-sim.js` — lifts the REAL invite-message builders out of the page
   and executes them, then reads the message a person actually receives
 
+Added 26 Sep, for the Muse connector:
+
+- `connector-guards-sim.js` — the promise is "a connector can DRAFT a question
+  and cannot SEND one", and this is what makes it true. Its control is a
+  SABOTAGE, not an old file: the code is new, so "before" does not exist and a
+  baseline control would FATAL rather than fail. Six mechanisms are disabled in
+  turn (`neuter-tests.sh` is the pattern) and ten guards must break. TWO OF
+  THEM DID NOT, on the first run — one matched an `asMember()` elsewhere in the
+  file, one matched `connector_draft_discard`'s identical `where`. Both now
+  scope to the thing they are about. Run the sabotage before believing a new
+  assertion
+- `connector-live-sim.js` — 0053 against the REAL database as role
+  `authenticated`, always rolled back. Proves RLS is on by requiring a
+  foreign-owner insert to be REFUSED before it claims anything, then checks
+  single-use claiming, revocation, and that NO member's phone number appears in
+  what the confirm page is given. Exits 2 cleanly until 0053 is applied
+
 Added 25–26 Sep, same rule:
 
 - `server-phone-sim.js` — lifts **the real `toE164`** out of
@@ -197,9 +214,10 @@ Added 25–26 Sep, same rule:
   for rather than guessed. Baseline `index.pre-v0.99.2.html`; its control fails
   36 of 37, and the one that survives is the line proving the library is absent
 
-**44 of the 96 sims in this directory run on this machine, and all 44 are
+**45 of the 98 sims in this directory run on this machine, and all 45 are
 green** (measured 26 Sep by running every one of them: `for f in *-sim.js; do
-node $f; done`). The other 52 open `/home/claude/...` — a container path that
+node $f; done`). `connector-live-sim.js` is the 46th and exits 2 until
+migration 0053 is applied. The other 52 open `/home/claude/...` — a container path that
 does not exist here — so they exit 1 on ENOENT without asserting anything.
 **Count them before quoting a number.** This line said "26" for four days after
 the true figure had passed thirty.
