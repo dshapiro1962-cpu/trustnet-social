@@ -108,11 +108,7 @@ Deno.serve(async (req: Request) => {
     });
     if (insErr) { console.error("wa_otp_insert_failed", insErr.message); return err("otp_store_failed", 500); }
 
-    // An empty recipient is a send to nobody that reports success. Refuse it
-    // in the one place it could arise, rather than letting Meta answer.
-    const to = toE164(rawPhone);
-    if (!to) { console.error("wa_signin_unusable_phone", rawPhone); return err("unusable_phone"); }
-    const ok = await sendWhatsAppText(to,
+    const ok = await sendWhatsAppText(toE164(rawPhone),
       `Your Trustnet code is ${code}\n\nIt expires in ${CODE_TTL_MIN} minutes. If you didn't ask to sign in, ignore this message.`);
     // Deliberately identical response either way: never reveal who is reachable.
     return json({ engine: ENGINE, sent: true, delivered: ok });
@@ -165,10 +161,7 @@ Deno.serve(async (req: Request) => {
     } else {
       const { data: created, error: cErr } = await admin.auth.admin.createUser({
         email: syntheticEmail,
-        // "+" alone is not a phone number. If the country cannot be known,
-        // create the account without one rather than storing a broken value
-        // that phone_key would then fold onto something else.
-        phone: toE164(rawPhone) ? "+" + toE164(rawPhone) : undefined,
+        phone: "+" + toE164(rawPhone),
         email_confirm: true,
         phone_confirm: true,
         user_metadata: { signup_channel: "whatsapp", phone: rawPhone },

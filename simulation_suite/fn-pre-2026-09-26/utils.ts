@@ -118,31 +118,11 @@ export function phoneKey(raw: string | null | undefined): string {
 // E.164 for delivery. Distinct from phoneKey: this is how we SEND to a number,
 // phoneKey is how we RECOGNISE it. Conflating them is what produced the bug
 // above — a delivery format used as an identity.
-//
-// IT DOES NOT INFER A COUNTRY (26 Sep 2026). Until today it ended:
-//     if (d.startsWith("972")) return d;
-//     if (d.startsWith("0")) return "972" + d.slice(1);
-// — the same hand-written "a leading zero means Israel" rule that came out of
-// the client in v0.99.2, sitting one layer down. It would have turned a
-// British 07911 123456 into 972 7911123456 and an Italian 06 into 9726,
-// silently, the moment a national-format number reached it.
-//
-// IT NEVER FIRED. Every caller takes its number from WhatsApp, which reports
-// full international digits, and a census of production on 26 Sep found no
-// national-format value anywhere: 13 of 13 claimed_phone rows start with "+"
-// (+972 ×12, +1 ×1), 25 of 25 member WhatsApp contacts, and 10 of 11 user
-// phones, the eleventh already international. So the rule was dead code that
-// could only ever be wrong.
-//
-// The honest contract is: normalise NOTATION, never guess a country. A
-// national-format number comes back as "" — the country belongs to whoever
-// typed it, and the client has a picker for exactly that. Callers must treat
-// "" as "no dialable form", which is what phoneDialable does on the client.
 export function toE164(raw: string | null | undefined): string {
   let d = String(raw ?? "").replace(/[^\d+]/g, "");
-  if (!d) return "";
-  if (d.startsWith("00")) d = "+" + d.slice(2);   // ITU international prefix
+  if (d.startsWith("00")) d = "+" + d.slice(2);
   if (d.startsWith("+")) return d.replace(/\D/g, "");
-  if (d.startsWith("0")) return "";               // national format, country unknowable
-  return d;                                       // already international
+  if (d.startsWith("972")) return d;
+  if (d.startsWith("0")) return "972" + d.slice(1);
+  return d;
 }

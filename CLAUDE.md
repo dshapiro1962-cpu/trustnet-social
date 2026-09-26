@@ -182,15 +182,23 @@ Added 21 Sep, same rule:
 - `invite-words-sim.js` — lifts the REAL invite-message builders out of the page
   and executes them, then reads the message a person actually receives
 
-Added 25 Sep, same rule:
+Added 25–26 Sep, same rule:
 
+- `server-phone-sim.js` — lifts **the real `toE164`** out of
+  `_shared/utils.ts` into a vm (there is no Deno here, so the one type
+  annotation is stripped and the REAL BODY runs) and proves the server stops
+  inferring a country too. Baseline `fn-pre-2026-09-26/`; its control fails 12
+  of 23 and PRINTS THE BUG — the old rule turns a British `07911 123456` into
+  `9727911123456`. Its structural checks read the source with comment lines
+  removed: the first run reported FAIL on correct code because the new comment
+  QUOTES the two deleted lines, which is the 25 Aug trap exactly
 - `one-normaliser-sim.js` — lifts **the real phone layer** into a vm twice, once
   with libphonenumber and once without, and checks that the country is ASKED
   for rather than guessed. Baseline `index.pre-v0.99.2.html`; its control fails
   36 of 37, and the one that survives is the line proving the library is absent
 
-**43 of the 95 sims in this directory run on this machine, and all 43 are
-green** (measured 25 Sep by running every one of them: `for f in *-sim.js; do
+**44 of the 96 sims in this directory run on this machine, and all 44 are
+green** (measured 26 Sep by running every one of them: `for f in *-sim.js; do
 node $f; done`). The other 52 open `/home/claude/...` — a container path that
 does not exist here — so they exit 1 on ENOENT without asserting anything.
 **Count them before quoting a number.** This line said "26" for four days after

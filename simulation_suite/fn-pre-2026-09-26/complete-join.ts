@@ -93,13 +93,7 @@ Deno.serve(async (req) => {
   // available is the one the person who invited her already wrote down.
   const key = phoneKey(phone);
   const e164 = toE164(phone);
-  // toE164 returns "" for a national-format number rather than guessing its
-  // country. That cannot happen here - the number comes from WhatsApp, which
-  // reports it international - but if it ever did, "+" + "" would look up the
-  // contact_value "+" and quietly match nothing. Skip the lookup instead, so
-  // the fallback to the WhatsApp profile name is a decision and not an
-  // accident.
-  const { data: knownAs } = (link && e164)
+  const { data: knownAs } = link
     ? await admin
         .from("members").select("name")
         .eq("owner_id", link.owner_id)
