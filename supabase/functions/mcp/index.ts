@@ -165,18 +165,27 @@ async function sessionFor(req: Request): Promise<
   if (!owner) return { ok: false, why: "bad_token" };
 
   const { data: u, error: uErr } = await admin.auth.admin.getUserById(String(owner));
-  if (uErr || !u?.user?.email) return { ok: false, why: "no_account" };
+  if (uErr || !u?.user?.email) {
+    console.error("mcp_no_account", uErr?.message ?? "no email on user");
+    return { ok: false, why: "no_account" };
+  }
 
   const { data: link, error: lErr } = await admin.auth.admin.generateLink({
     type: "magiclink", email: u.user.email,
   });
   const hashed = (link?.properties as Record<string, string> | undefined)?.hashed_token;
-  if (lErr || !hashed) return { ok: false, why: "session_failed" };
+  if (lErr || !hashed) {
+    console.error("mcp_generate_link_failed", lErr?.message ?? "no hashed_token");
+    return { ok: false, why: "link_failed:" + (lErr?.message ?? "no_hashed_token").slice(0, 60) };
+  }
 
   const { data: verified, error: vErr } = await admin.auth.verifyOtp({
     type: "magiclink", token_hash: hashed,
   });
-  if (vErr || !verified?.session) return { ok: false, why: "session_failed" };
+  if (vErr || !verified?.session) {
+    console.error("mcp_verify_otp_failed", vErr?.message ?? "no session");
+    return { ok: false, why: "verify_failed:" + (vErr?.message ?? "no_session").slice(0, 60) };
+  }
 
   return { ok: true, userId: String(owner), accessToken: verified.session.access_token };
 }
@@ -292,9 +301,15 @@ async function runTool(
     const sb = asMember(sess.accessToken);
 
     if (!qid) {
+      // THE RELATIONSHIP HAS TO BE NAMED. There are two foreign keys between
+      // these tables — query_responses.query_id points at queries, and
+      // queries.chosen_response_id points back at query_responses — so an
+      // unqualified embed is ambiguous and PostgREST refuses it outright:
+      // "more than one relationship was found". The one meant here is the
+      // answers belonging to a question, not the question's chosen answer.
       const { data, error } = await sb
         .from("queries")
-        .select("id, text, created_at, query_responses(count)")
+        .select("id, text, created_at, query_responses!query_responses_query_id_fkey(count)")
         .order("created_at", { ascending: false })
         .limit(10);
       if (error) return toolResult({ error: "questions_failed", detail: error.message }, true);
@@ -363,14 +378,20 @@ Deno.serve(async (req: Request) => {
   if (method === "tools/call") {
     const sess = await sessionFor(req);
     if (!sess.ok) {
-      // 401 with the reason, because the commonest cause is a member who
-      // revoked the token and a connector that has not noticed.
-      return rpcError(id, -32001,
-        sess.why === "bad_token"
-          ? "This Trustnet connection is not valid any more. Reconnect at "
-            + BASE_URL() + "/connect"
-          : "Not connected to Trustnet. Connect at " + BASE_URL() + "/connect",
-        401);
+      // EVERY FAILURE USED TO SAY "Not connected", including the ones that had
+      // nothing to do with the token. A perfectly good token whose session
+      // mint failed reported itself as unconnected, and with no logs
+      // subcommand in the CLI there was no way to tell the two apart from
+      // outside. Each reason now says what it is: an assistant can act on the
+      // first two, and the rest tell whoever is looking which step broke.
+      const msg = sess.why === "no_token"
+        ? "Not connected to Trustnet. Connect at " + BASE_URL() + "/connect"
+        : sess.why === "bad_token"
+        ? "This Trustnet connection is not valid any more. Reconnect at "
+          + BASE_URL() + "/connect"
+        : "Trustnet recognised the connection but could not open the member's "
+          + "session (" + sess.why + "). This is a fault at our end, not a bad token.";
+      return rpcError(id, -32001, msg, 401);
     }
     const name = String(params.name ?? "");
     const args = (params.arguments ?? {}) as Record<string, unknown>;

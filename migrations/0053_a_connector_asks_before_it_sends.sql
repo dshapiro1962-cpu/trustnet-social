@@ -124,9 +124,22 @@ begin
   if v_uid is null then
     raise exception 'not_signed_in';
   end if;
-  v_token := encode(gen_random_bytes(32), 'hex');
+  -- SCHEMA-QUALIFIED ON PURPOSE. pgcrypto lives in `extensions` on Supabase,
+  -- not in `public`, and this function pins `search_path = public` because a
+  -- SECURITY DEFINER function with a loose search_path is how privilege
+  -- escalation gets in. Qualifying is tighter than widening the path, and it
+  -- says out loud where these come from.
+  --
+  -- This was wrong when first applied, on 26 Sep: the calls were unqualified
+  -- and the function raised `gen_random_bytes(integer) does not exist` the
+  -- first time anything called it. THE DRY RUN DID NOT CATCH IT, because
+  -- `create or replace function` parses a body without resolving the names in
+  -- it. Only executing the function finds this class of fault, which is what
+  -- connector-live-sim.js did within a minute of the tables existing.
+  v_token := encode(extensions.gen_random_bytes(32), 'hex');
   insert into public.connector_tokens (owner_id, token_hash, label)
-  values (v_uid, encode(digest(v_token, 'sha256'), 'hex'), coalesce(nullif(btrim(p_label), ''), 'Muse'));
+  values (v_uid, encode(extensions.digest(v_token, 'sha256'), 'hex'),
+          coalesce(nullif(btrim(p_label), ''), 'Muse'));
   return v_token;
 end;
 $$;
@@ -274,6 +287,6 @@ $$;
 revoke all on function public.connector_draft_discard(text) from public;
 grant execute on function public.connector_draft_discard(text) to service_role;
 
--- ── 10 · digest() lives in pgcrypto, which 0001 already creates. This is
---         here so a fresh database applying 0053 alone does not fail on 5.
-create extension if not exists "pgcrypto";
+-- ── 10 · pgcrypto, in the schema Supabase keeps it in. `if not exists` makes
+--         this a no-op on a database that already has it, wherever it sits.
+create extension if not exists "pgcrypto" with schema extensions;
