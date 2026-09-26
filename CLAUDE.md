@@ -322,7 +322,11 @@ fixed on 24 Aug, guarded by `unchecked-writes-sim.js`. What remains:
 6. **"That's your own number" never fires.** `web/index.html:9598` guards
    against adding yourself as a member by comparing the typed number against
    `AppState._authPhone` and `AppState.userProfile.phone`. Neither is ever
-   written: `loadUserData` does not select a phone, and `_authPhone` is read in
-   that one line and assigned nowhere in the file. The guard has always been
-   dead. Found 25 Sep while looking for the user's own country for
-   `PHONE_DEFAULT_COUNTRY` — which is why that constant guesses nothing.
+   written. `_authPhone` is read in that one line and assigned nowhere in the
+   file. And `users.phone` **does exist in the schema** (0001) — `loadUserData`
+   selects `*` but the profile object it builds omits the column, so
+   `userProfile.phone` is always undefined. The guard has always been dead.
+   Corrected 26 Sep: an earlier version of this line said the column was not
+   selected, which understates how cheap the fix is — it is one more field in
+   the map at `web/index.html:1828`. Doing it would also give
+   `PHONE_DEFAULT_COUNTRY` a real signal to use instead of assuming Israel.
