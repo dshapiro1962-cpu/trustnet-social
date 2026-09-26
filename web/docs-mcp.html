@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#217A4B">
+<title>Trustnet — MCP connector documentation</title>
+<meta name="description" content="The Trustnet MCP server: transport, authentication, the four tools, and why a connector can draft a question but never send one.">
+<meta property="og:title" content="Trustnet — MCP connector documentation">
+<meta property="og:description" content="Transport, authentication, the four tools, and why a connector can draft but never send.">
+<meta property="og:url" content="https://trustnetsocial.netlify.app/docs/mcp">
+<meta property="og:image" content="https://trustnetsocial.netlify.app/icons/icon-512.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   MCP CONNECTOR DOCUMENTATION.
+
+   This is the URL given to Meta in the Muse connector submission, so a
+   reviewer reads it cold. It has to answer their questions in the order
+   they will ask them: what is it, how does it authenticate, what can it
+   do, and what stops it doing harm.
+
+   House rules as index.html: no external CSS, no font imports,
+   hardcoded colours, no template literals.
+   ═══════════════════════════════════════════════════════════════════ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { background: #F4F8F5; color: #1C2420;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 15.5px; line-height: 1.68; -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 720px; margin: 0 auto; padding: 0 16px 56px; }
+header { background: #0D2B1F; color: #fff; padding: calc(26px + env(safe-area-inset-top, 0px)) 0 26px; }
+header .wrap { padding-bottom: 0; }
+.brand { display: flex; align-items: center; gap: 11px; }
+.brand img { width: 38px; height: 38px; border-radius: 10px; display: block; }
+.brand b { font-size: 21px; font-weight: 700; letter-spacing: -0.3px; color: #fff; }
+header p { color: #CFE0D8; font-size: 14.5px; margin-top: 12px; }
+h2 { font-size: 17.5px; font-weight: 700; color: #1C2420; margin: 30px 0 9px; }
+h3 { font-size: 15.5px; font-weight: 700; color: #1C2420; margin: 18px 0 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+p { color: #46564E; margin-bottom: 10px; }
+.intro { color: #1C2420; }
+ul { margin: 4px 0 12px 20px; color: #46564E; }
+li { margin-bottom: 6px; }
+b, strong { color: #1C2420; }
+a { color: #1D5A45; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13.5px; background: #EAF1EC; border-radius: 5px; padding: 1px 5px; }
+pre { background: #0D2B1F; color: #CFE0D8; border-radius: 13px; padding: 14px 15px;
+  overflow-x: auto; margin: 10px 0 14px; font-size: 13px; line-height: 1.6; }
+pre code { background: none; color: inherit; padding: 0; font-size: 13px; }
+.box { background: #fff; border: 1px solid #E5EDE8; border-radius: 14px; padding: 15px 16px; margin: 14px 0; }
+.box p:last-child, .box ul:last-child { margin-bottom: 0; }
+.flag { background: #FFF8EC; border: 1px solid #F0DFC0; border-radius: 14px; padding: 15px 16px; margin: 14px 0; }
+.flag p:last-child { margin-bottom: 0; }
+table { width: 100%; border-collapse: collapse; margin: 10px 0 14px; font-size: 14px; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid #E5EDE8; vertical-align: top; }
+th { color: #7A9086; font-size: 11.5px; letter-spacing: 0.6px; text-transform: uppercase; font-weight: 700; }
+td:first-child { white-space: nowrap; font-weight: 600; }
+footer { border-top: 1px solid #E5EDE8; margin-top: 34px; padding-top: 18px; font-size: 13px; color: #7A9086; }
+footer a { color: #7A9086; }
+@media (max-width: 460px) {
+  table, tbody, tr, td, th { display: block; }
+  thead { display: none; }
+  tr { border-bottom: 1px solid #E5EDE8; padding: 9px 0; }
+  td { border: 0; padding: 1px 0; }
+  td:first-child { white-space: normal; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="brand"><img src="/icons/icon-512.png" alt=""><b>Trustnet</b></div>
+    <p>MCP connector documentation</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+<p class="intro">Trustnet is a private recommendation network. A member asks people they
+trust for a doctor, a restaurant, a plumber, keeps what those people answer, and recommends
+back. There are no public reviews and no algorithmic feed &mdash; every recommendation in a
+member's library came from someone they chose.</p>
+
+<p>This connector lets an assistant read a member's own library and, when the library does
+not already answer, <b>draft</b> a question to one of their circles.</p>
+
+<div class="flag">
+<p><b>A connector cannot message anyone.</b> <code>draft_question</code> writes a draft and
+returns a link. The member opens it, sees exactly who would receive exactly what, and presses
+send themselves. There is no code path from this server to a circle member.</p>
+<p>The people in a circle are real, and they are in it because the member trusts them. That is
+the asset the product is made of, and an assistant that could message them unprompted would
+spend it.</p>
+</div>
+
+<h2>Endpoint</h2>
+
+<table>
+  <tbody>
+  <tr><td>URL</td><td><code>https://trustnetsocial.netlify.app/mcp</code></td></tr>
+  <tr><td>Transport</td><td>MCP streamable HTTP. <code>POST</code> JSON-RPC 2.0.</td></tr>
+  <tr><td>Protocol</td><td><code>2025-06-18</code>, and <code>2025-03-26</code> accepted</td></tr>
+  <tr><td>Auth</td><td><code>Authorization: Bearer &lt;connector token&gt;</code></td></tr>
+  <tr><td>Capabilities</td><td><code>tools</code>. No resources, no prompts, no sampling.</td></tr>
+  </tbody>
+</table>
+
+<h2>Authentication</h2>
+
+<p>A member connects once at <a href="/connect">trustnetsocial.netlify.app/connect</a>. That
+page states what the connector may and may not do, and issues a token. The member pastes it
+into the assistant.</p>
+
+<ul>
+  <li>Tokens are <b>256 bits</b> of random, and only a <b>sha256 of the token</b> is stored
+      &mdash; the plaintext exists once, on screen.</li>
+  <li>A member can <b>revoke</b> any token from the same page, and revocation is immediate.</li>
+  <li>The token resolves to a member and then a <b>real member session</b> is minted; every
+      read runs through it, so <b>row-level security in the database</b> decides what is
+      visible, not application filtering.</li>
+</ul>
+
+<p>An unknown or revoked token gets JSON-RPC error <code>-32001</code> with HTTP 401 and a
+message naming the reconnect URL.</p>
+
+<h2>Tools</h2>
+
+<h3>search_library</h3>
+<p>Searches the member's own saved recommendations &mdash; hybrid retrieval with a rerank, so
+"somewhere to eat in Puglia with children" matches on meaning and on proper nouns. Returns the
+member's own note and rating. <code>{ query, limit? }</code>, limit defaults to 10, maximum 40.</p>
+
+<h3>list_circles</h3>
+<p>The member's circles, by name and domain, with a count of people in each.
+<b>Names and counts only</b> &mdash; the people in a circle, and their phone numbers and email
+addresses, are never exposed to a connector. No arguments.</p>
+
+<h3>draft_question</h3>
+<p><code>{ circle_id, text }</code>. Writes a draft and returns a
+<code>confirm_url</code> valid for thirty minutes. <b>Sends nothing.</b> The response carries
+<code>sent: false</code> and a line for the assistant to relay, so the member is told plainly
+that nothing has gone out. A circle id that does not belong to the member returns
+<code>no_such_circle</code>, because the lookup runs under the member's own session.</p>
+
+<h3>get_answers</h3>
+<p>With no argument, the member's ten most recent questions and how many answers each has.
+With <code>{ question_id }</code>, the answers themselves &mdash; grouped, so one place
+recommended by three people reads as one entry with three voices.</p>
+
+<h2>Example</h2>
+
+<pre><code>curl -s https://trustnetsocial.netlify.app/mcp \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TRUSTNET_TOKEN" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call",
+       "params":{"name":"search_library",
+                 "arguments":{"query":"where to eat in Puglia"}}}'</code></pre>
+
+<h2>Rate and cost</h2>
+<p>No published rate limit beyond ordinary abuse protection. <code>search_library</code> and
+<code>get_answers</code> each perform a model call, so an assistant should search once and
+reason over the result rather than polling.</p>
+
+<h2>Errors</h2>
+<table>
+  <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+  <tbody>
+  <tr><td><code>-32001</code></td><td>Not connected, or the token was revoked. HTTP 401.</td></tr>
+  <tr><td><code>-32601</code></td><td>Unknown JSON-RPC method.</td></tr>
+  <tr><td><code>-32700</code></td><td>Malformed JSON.</td></tr>
+  </tbody>
+</table>
+<p>A tool that fails returns a normal result with <code>isError: true</code> and a reason,
+rather than a protocol error &mdash; so an assistant can tell the member what went wrong
+instead of dropping the conversation.</p>
+
+<h2>Data handling</h2>
+<p>What Trustnet stores, where it is kept and who else it passes through is set out in the
+<a href="/privacy">privacy policy</a>, which names every third party by name. A connector adds
+no new storage: it reads what the member already has, and writes only drafts the member either
+sends or discards.</p>
+
+<h2>Status</h2>
+<p>Trustnet is an MVP in private testing. The terms of service say plainly that it can break
+and that data can be lost; this connector is held to the same honesty.</p>
+
+<footer>
+  <p>Trustnet &middot; <a href="/">the app</a> &middot; <a href="/connect">connect</a> &middot;
+     <a href="/privacy">privacy policy</a> &middot; <a href="/terms">terms</a> &middot;
+     <a href="/support">help</a></p>
+</footer>
+
+</div>
+</body>
+</html>

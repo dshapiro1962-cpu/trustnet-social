@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#217A4B">
+<meta name="robots" content="noindex, nofollow">
+<title>Trustnet — connect an assistant</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   CONNECT. Seen once, ever — and again only to disconnect.
+
+   This is the page that says, in words a person can check, exactly what
+   an assistant may and may not do with their Trustnet account. It is
+   written as a promise the code keeps rather than a summary of it:
+   every "cannot" below is enforced somewhere real, and the comments
+   here say where, so the two cannot drift apart silently.
+
+     cannot message anyone      functions/mcp has no path to a member;
+                                only connector-confirm sends, and only
+                                after the press on /confirm
+     cannot see another library the MCP server reads through a REAL
+                                member session, so RLS decides
+     cannot see phone numbers   connector_draft_view returns names only
+                                (0053 §7); list_circles returns counts
+
+   If Meta later requires OAuth rather than a pasted token, this page
+   becomes the consent screen and its shape barely changes.
+
+   House rules as index.html: no external CSS, no font imports,
+   hardcoded colours, no template literals.
+   ═══════════════════════════════════════════════════════════════════ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { background: #F4F8F5; color: #1C2420; min-height: 100vh; min-height: 100dvh;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 15.5px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 560px; margin: 0 auto; padding: 0 16px 56px; }
+header { background: #0D2B1F; color: #fff; padding: calc(22px + env(safe-area-inset-top, 0px)) 0 20px; }
+header .wrap { padding-bottom: 0; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand img { width: 32px; height: 32px; border-radius: 9px; display: block; }
+.brand b { font-size: 17px; font-weight: 700; color: #fff; }
+h1 { font-size: 21px; font-weight: 700; margin: 22px 0 4px; }
+.sub { color: #7A9086; font-size: 14px; margin-bottom: 18px; }
+.card { background: #fff; border: 1px solid #E5EDE8; border-radius: 15px; padding: 15px 16px; margin-bottom: 12px; }
+.lbl { font-size: 11.5px; font-weight: 700; letter-spacing: 0.7px; text-transform: uppercase;
+  color: #7A9086; margin-bottom: 9px; }
+ul { list-style: none; }
+li { display: flex; gap: 9px; align-items: flex-start; padding: 5px 0; font-size: 14.5px; color: #46564E; }
+li b { color: #1C2420; font-weight: 600; }
+.tick { color: #1D5A45; font-weight: 700; flex: none; width: 16px; }
+.cross { color: #B0643E; font-weight: 700; flex: none; width: 16px; }
+.btn { display: block; width: 100%; border: 0; border-radius: 12px; padding: 15px 16px;
+  font: inherit; font-size: 16px; font-weight: 700; cursor: pointer;
+  background: #1D5A45; color: #fff; margin-top: 4px; }
+.btn:disabled { background: #9BB6AB; cursor: default; }
+.btn-sec { background: #fff; color: #1D5A45; border: 1px solid #C7DACF; font-weight: 600; font-size: 15px; }
+.code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px; word-break: break-all; background: #0D2B1F; color: #CFE0D8;
+  border-radius: 12px; padding: 14px; line-height: 1.55; }
+.warn { background: #FFF8EC; border: 1px solid #F0DFC0; border-radius: 13px;
+  padding: 12px 14px; font-size: 13.5px; color: #6B5836; margin: 12px 0; }
+.state { text-align: center; padding: 40px 20px; }
+.state .big { font-size: 38px; }
+.state h2 { font-size: 19px; font-weight: 700; margin: 12px 0 6px; }
+.state p { color: #7A9086; font-size: 14.5px; }
+.state a { color: #1D5A45; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 11px 0; border-bottom: 1px solid #F0F5F1; font-size: 14.5px; }
+.row:last-child { border-bottom: 0; }
+.row small { display: block; color: #7A9086; font-size: 12.5px; }
+.rev { border: 0; background: none; color: #B0643E; font: inherit; font-size: 13.5px;
+  font-weight: 600; cursor: pointer; padding: 4px; }
+.hidden { display: none !important; }
+.foot { font-size: 12.5px; color: #7A9086; margin-top: 18px; text-align: center; }
+.foot a { color: #7A9086; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="brand"><img src="/icons/icon-512.png" alt=""><b>Trustnet</b></div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div id="loading" class="state">
+    <div class="big">&#8987;</div>
+    <h2>One moment&hellip;</h2>
+  </div>
+
+  <div id="signedout" class="state hidden">
+    <div class="big">&#128274;</div>
+    <h2>Sign in first</h2>
+    <p>Open <a href="/">Trustnet</a>, sign in, then come back to this page.</p>
+  </div>
+
+  <div id="offer" class="hidden">
+    <h1>Connect an assistant</h1>
+    <div class="sub" id="who">Signed in as you.</div>
+
+    <div class="card">
+      <div class="lbl">It will be able to</div>
+      <ul>
+        <li><span class="tick">&#10003;</span><span><b>Search your library</b> &mdash; the
+          recommendations you have saved</span></li>
+        <li><span class="tick">&#10003;</span><span><b>See your circle names</b> and how many
+          people are in each</span></li>
+        <li><span class="tick">&#10003;</span><span><b>Draft a question</b> to a circle, which
+          <b>you</b> approve before anyone is messaged</span></li>
+        <li><span class="tick">&#10003;</span><span><b>Read answers</b> that have come back to
+          questions you asked</span></li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="lbl">It will not be able to</div>
+      <ul>
+        <li><span class="cross">&times;</span><span><b>Message anyone.</b> It writes a draft and
+          hands you a link. Nothing goes out until you press send.</span></li>
+        <li><span class="cross">&times;</span><span><b>See who is in your circles</b> &mdash; their
+          names, numbers or email addresses</span></li>
+        <li><span class="cross">&times;</span><span><b>See anyone else's library.</b> The database
+          enforces this, not just the app.</span></li>
+        <li><span class="cross">&times;</span><span><b>Delete anything</b>, or change what you
+          have saved</span></li>
+      </ul>
+    </div>
+
+    <button class="btn" id="go" type="button">Connect</button>
+    <div class="foot">You can disconnect from this page at any time.</div>
+  </div>
+
+  <div id="minted" class="hidden">
+    <h1>Paste this into your assistant</h1>
+    <div class="sub">It is shown once. If you lose it, come back and connect again.</div>
+    <div class="code" id="token"></div>
+    <button class="btn" id="copy" type="button" style="margin-top:12px;">Copy</button>
+    <div class="warn">Treat it like a password. Anyone holding it can read your library
+      &mdash; though they still cannot message anyone in your circles.</div>
+    <button class="btn btn-sec" id="done" type="button">Done</button>
+  </div>
+
+  <div id="existing" class="hidden">
+    <div class="card" style="margin-top:18px;">
+      <div class="lbl">Connected assistants</div>
+      <div id="list"></div>
+    </div>
+  </div>
+
+  <div class="foot" style="margin-top:22px;">
+    <a href="/privacy">Privacy policy</a> &middot; <a href="/support">Help</a>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+(function () {
+  var URL_ = 'https://kgsdtfrcyjrxeyqqxoic.supabase.co';
+  var KEY = 'sb_publishable_8MAMd56FzHTyNZtnO2XK4A_cp2lFGEm';
+  var sb = window.supabase.createClient(URL_, KEY);
+
+  var $ = function (id) { return document.getElementById(id); };
+  function show(which) {
+    ['loading', 'signedout', 'offer', 'minted'].forEach(function (v) { $(v).classList.add('hidden'); });
+    $(which).classList.remove('hidden');
+  }
+
+  function renderTokens(rows) {
+    if (!rows || !rows.length) { $('existing').classList.add('hidden'); return; }
+    var host = $('list');
+    host.innerHTML = '';
+    rows.forEach(function (t) {
+      var row = document.createElement('div');
+      row.className = 'row';
+      var left = document.createElement('div');
+      var strong = document.createElement('b');
+      strong.textContent = t.label || 'Assistant';
+      var small = document.createElement('small');
+      small.textContent = t.last_used_at
+        ? 'last used ' + new Date(t.last_used_at).toLocaleDateString()
+        : 'never used';
+      left.appendChild(strong); left.appendChild(small);
+      var btn = document.createElement('button');
+      btn.className = 'rev'; btn.type = 'button'; btn.textContent = 'Disconnect';
+      btn.addEventListener('click', function () {
+        btn.disabled = true; btn.textContent = 'Disconnecting…';
+        sb.from('connector_tokens').update({ revoked_at: new Date().toISOString() })
+          .eq('id', t.id).then(function () { load(); });
+      });
+      row.appendChild(left); row.appendChild(btn);
+      host.appendChild(row);
+    });
+    $('existing').classList.remove('hidden');
+  }
+
+  function load() {
+    sb.auth.getSession().then(function (r) {
+      var s = r && r.data && r.data.session;
+      if (!s) { show('signedout'); return; }
+      $('who').textContent = 'Signed in as ' + (s.user.email || 'you') + '.';
+      show('offer');
+      // RLS returns only this member's own tokens; there is no owner filter
+      // written here to get wrong.
+      sb.from('connector_tokens').select('id, label, last_used_at, created_at')
+        .is('revoked_at', null).order('created_at', { ascending: false })
+        .then(function (res) { renderTokens(res.data); });
+    });
+  }
+
+  $('go').addEventListener('click', function () {
+    var b = $('go');
+    b.disabled = true; b.textContent = 'Connecting…';
+    sb.rpc('mint_connector_token', { p_label: 'Muse' }).then(function (res) {
+      b.disabled = false; b.textContent = 'Connect';
+      if (res.error || !res.data) {
+        alert('Could not connect: ' + ((res.error && res.error.message) || 'unknown'));
+        return;
+      }
+      $('token').textContent = res.data;
+      show('minted');
+      $('existing').classList.add('hidden');
+    });
+  });
+
+  $('copy').addEventListener('click', function () {
+    var t = $('token').textContent;
+    var done = function () { $('copy').textContent = 'Copied'; };
+    if (navigator.clipboard) navigator.clipboard.writeText(t).then(done, done);
+    else done();
+  });
+
+  $('done').addEventListener('click', function () { load(); });
+
+  load();
+})();
+</script>
+
+</body>
+</html>

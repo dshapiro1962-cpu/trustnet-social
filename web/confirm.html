@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#217A4B">
+<meta name="robots" content="noindex, nofollow">
+<title>Trustnet — before this goes out</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   THE HUMAN PRESS.
+
+   A connector — Muse — can WRITE a question to one of your circles. It
+   cannot send one. This page is where a person reads who would receive
+   exactly what, and presses send.
+
+   The people in a circle are real, and they are in it because you trust
+   them. An agent that can message them because you mumbled something at
+   it is a different product and a worse one. This screen is the line
+   between "Muse can ask my circle" and "Muse can message my friends",
+   and it is the same shape the invite flow already has: Trustnet opens
+   YOUR WhatsApp with a message ready, and YOU press send.
+
+   NO SIGN-IN. The token in the URL is the credential, exactly as
+   respond.html works. It authorises ONE described action on ONE draft:
+   you can edit the wording and nothing else — not the recipients, not
+   the circle, not whose account. Thirty minutes, single use, and the
+   single use is enforced in SQL (0053 §8) so two taps send once.
+
+   dan's rule, Sep 2026: the actions at the bottom must be visible
+   without scrolling. They are in a fixed bar.
+
+   House rules as index.html: no external CSS, no font imports,
+   hardcoded colours, no template literals.
+   ═══════════════════════════════════════════════════════════════════ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { background: #F4F8F5; color: #1C2420; min-height: 100vh; min-height: 100dvh;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 15.5px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 560px; margin: 0 auto; padding: 0 16px 140px; }
+header { background: #0D2B1F; color: #fff; padding: calc(22px + env(safe-area-inset-top, 0px)) 0 20px; }
+header .wrap { padding-bottom: 0; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand img { width: 32px; height: 32px; border-radius: 9px; display: block; }
+.brand b { font-size: 17px; font-weight: 700; color: #fff; }
+h1 { font-size: 20px; font-weight: 700; margin: 22px 0 3px; }
+.sub { color: #7A9086; font-size: 13.5px; margin-bottom: 16px; }
+.card { background: #fff; border: 1px solid #E5EDE8; border-radius: 15px; padding: 15px 16px; margin-bottom: 12px; }
+.lbl { font-size: 11.5px; font-weight: 700; letter-spacing: 0.7px; text-transform: uppercase;
+  color: #7A9086; margin-bottom: 7px; }
+.to { font-size: 17px; font-weight: 700; }
+.who { color: #46564E; font-size: 14px; margin-top: 5px; }
+.q { width: 100%; border: 0; background: #F4F8F5; border-radius: 11px; padding: 12px 13px;
+  font: inherit; font-size: 15.5px; color: #1C2420; line-height: 1.55; resize: vertical;
+  min-height: 92px; border: 1px solid #E5EDE8; }
+.q:focus { outline: 2px solid #1D5A45; outline-offset: -1px; }
+.hint { font-size: 12.5px; color: #7A9086; margin-top: 8px; }
+/* dan, Sep 2026: bottom actions must be visible without scrolling. */
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: #fff;
+  border-top: 1px solid #E5EDE8; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  display: flex; gap: 9px; justify-content: center; }
+.bar .inner { width: 100%; max-width: 560px; display: flex; gap: 9px; }
+.btn { flex: 1; border: 0; border-radius: 12px; padding: 14px 16px; font: inherit;
+  font-size: 15.5px; font-weight: 700; cursor: pointer; }
+.btn-go { background: #1D5A45; color: #fff; }
+.btn-go:disabled { background: #9BB6AB; cursor: default; }
+.btn-no { background: #fff; color: #7A9086; border: 1px solid #E5EDE8; flex: 0 0 auto; padding: 14px 18px; font-weight: 600; }
+.state { text-align: center; padding: 46px 20px; }
+.state .big { font-size: 40px; }
+.state h2 { font-size: 19px; font-weight: 700; margin: 12px 0 6px; }
+.state p { color: #7A9086; font-size: 14.5px; }
+.hidden { display: none !important; }
+.note { background: #FFF8EC; border: 1px solid #F0DFC0; border-radius: 13px;
+  padding: 12px 14px; font-size: 13.5px; color: #6B5836; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="brand"><img src="/icons/icon-512.png" alt=""><b>Trustnet</b></div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div id="loading" class="state">
+    <div class="big">&#8987;</div>
+    <h2>Opening the draft&hellip;</h2>
+  </div>
+
+  <div id="ready" class="hidden">
+    <h1>Before this goes out</h1>
+    <div class="sub">Nothing has been sent yet.</div>
+
+    <div class="note">Muse wrote this. Read it, change anything you like, and
+      press send &mdash; or discard it and nobody hears a thing.</div>
+
+    <div class="card">
+      <div class="lbl">To</div>
+      <div class="to" id="circle"></div>
+      <div class="who" id="who"></div>
+    </div>
+
+    <div class="card">
+      <div class="lbl">The question</div>
+      <textarea class="q" id="text" maxlength="500"></textarea>
+      <div class="hint" id="hint"></div>
+    </div>
+  </div>
+
+  <div id="done" class="state hidden">
+    <div class="big">&#10003;</div>
+    <h2 id="done-h">Sent</h2>
+    <p id="done-p"></p>
+  </div>
+
+  <div id="bad" class="state hidden">
+    <div class="big">&#9888;&#65039;</div>
+    <h2 id="bad-h">This draft is no longer live</h2>
+    <p id="bad-p">Ask Muse to draft it again.</p>
+  </div>
+
+</div>
+
+<div class="bar hidden" id="bar">
+  <div class="inner">
+    <button class="btn btn-no" id="discard" type="button">Discard</button>
+    <button class="btn btn-go" id="send" type="button">Send</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  var FN = 'https://kgsdtfrcyjrxeyqqxoic.supabase.co/functions/v1/connector-confirm';
+  var KEY = 'sb_publishable_8MAMd56FzHTyNZtnO2XK4A_cp2lFGEm';
+  var token = new URLSearchParams(location.search).get('d') || '';
+
+  var $ = function (id) { return document.getElementById(id); };
+  function show(which) {
+    ['loading', 'ready', 'done', 'bad'].forEach(function (v) { $(v).classList.add('hidden'); });
+    $(which).classList.remove('hidden');
+    $('bar').classList.toggle('hidden', which !== 'ready');
+  }
+  function bad(h, p) {
+    if (h) $('bad-h').textContent = h;
+    if (p) $('bad-p').textContent = p;
+    show('bad');
+  }
+
+  function post(body) {
+    return fetch(FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: KEY, Authorization: 'Bearer ' + KEY },
+      body: JSON.stringify(body)
+    }).then(function (r) { return r.json(); });
+  }
+
+  if (!token) { bad('No draft in this link', 'The link is incomplete.'); return; }
+
+  // ── what the page shows ──────────────────────────────────────────────────
+  post({ action: 'view', token: token }).then(function (d) {
+    if (!d || d.state !== 'ready') {
+      var m = {
+        already_sent: ['Already sent', 'This question went out. Answers arrive in Trustnet.'],
+        discarded: ['Discarded', 'Nobody was messaged.'],
+        expired: ['This draft expired', 'Drafts last thirty minutes. Ask Muse for a new one.'],
+        not_found: ['This draft does not exist', 'Check the link, or ask Muse to draft it again.']
+      }[(d && d.state) || 'not_found'] || ['This draft is no longer live', 'Ask Muse to draft it again.'];
+      bad(m[0], m[1]);
+      return;
+    }
+    $('circle').textContent = d.circle || 'your circle';
+    var names = d.recipients || [];
+    $('who').textContent = d.count === 0
+      ? 'Nobody is in this circle yet — there is no one to ask.'
+      : d.count + (d.count === 1 ? ' person: ' : ' people: ') + names.join(', ');
+    $('text').value = d.text || '';
+    $('hint').textContent = 'They receive this on WhatsApp, from Trustnet, as a question from you.';
+    if (d.count === 0) $('send').disabled = true;
+    show('ready');
+  }).catch(function () {
+    bad('Could not open the draft', 'Check your connection and open the link again.');
+  });
+
+  // ── the press ────────────────────────────────────────────────────────────
+  $('send').addEventListener('click', function () {
+    var btn = $('send');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    post({ action: 'send', token: token, text: $('text').value })
+      .then(function (d) {
+        if (d && d.sent) {
+          $('done-h').textContent = 'Sent';
+          $('done-p').textContent = 'Answers land in Trustnet. You will be told when they do.';
+          show('done');
+        } else if (d && d.reason === 'already_handled') {
+          bad('Already sent', 'This draft had already gone out. Nothing was sent twice.');
+        } else {
+          btn.disabled = false; btn.textContent = 'Send';
+          bad('It did not go out', 'Nothing was delivered. Ask Muse to draft it again.');
+        }
+      })
+      .catch(function () {
+        btn.disabled = false; btn.textContent = 'Send';
+        bad('It did not go out', 'Nothing was delivered. Check your connection and try again.');
+      });
+  });
+
+  $('discard').addEventListener('click', function () {
+    $('discard').disabled = true;
+    post({ action: 'discard', token: token }).then(function () {
+      $('bad-h').textContent = 'Discarded';
+      $('bad-p').textContent = 'Nobody was messaged.';
+      show('bad');
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

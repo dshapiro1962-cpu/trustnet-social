@@ -3,3 +3,32 @@
 [build]
   publish = "web"
   command = "echo 'static site - no build'"
+
+# ── THE CONNECTOR LIVES ON OUR OWN DOMAIN ──────────────────────────────────
+# The MCP server is a Supabase edge function. The URL handed to Meta is this
+# one, for three reasons: it matches the terms, privacy, support and docs URLs
+# in the same submission; it does not publish the Supabase project ref in a
+# form; and if the backend ever moves, the URL Meta has does not change.
+#
+# status 200 is a rewrite, not a redirect — the client never sees the hop, so
+# a POST stays a POST and the Authorization header is carried through rather
+# than being dropped by a 30x. force = true because /mcp is not a file in /web
+# and must never fall through to the 404.
+[[redirects]]
+  from = "/mcp"
+  to = "https://kgsdtfrcyjrxeyqqxoic.supabase.co/functions/v1/mcp"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mcp/*"
+  to = "https://kgsdtfrcyjrxeyqqxoic.supabase.co/functions/v1/mcp"
+  status = 200
+  force = true
+
+# The documentation URL in the submission reads /docs/mcp; the file is flat in
+# /web because this site has no build step to make directories.
+[[redirects]]
+  from = "/docs/mcp"
+  to = "/docs-mcp.html"
+  status = 200
