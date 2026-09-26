@@ -81,7 +81,7 @@ footer a { color: #7A9086; }
   <div class="wrap">
     <div class="brand"><img src="/icons/icon-512.png" alt=""><b>Trustnet</b></div>
     <p>Privacy Policy</p>
-    <p class="date">In force from 26 September 2026</p>
+    <p class="date">In force from 26 September 2026 &middot; updated the same day to cover connected assistants</p>
   </div>
 </header>
 
@@ -188,7 +188,46 @@ them a list you made.</p>
 and not shown to anyone else. There is no public profile, no feed, and no way
 for a stranger to browse what you have saved.</p>
 
-<h2>5 · How long it is kept, and how to have it deleted</h2>
+<h2>5 · Connecting an assistant</h2>
+
+<p>You can connect an AI assistant &mdash; Muse, to begin with &mdash; to your Trustnet
+account, from <a href="/connect">the connect page</a>. You do not have to, nothing is
+connected unless you do it, and you can disconnect from the same page at any time.</p>
+
+<h3>What a connected assistant can reach</h3>
+<ul>
+  <li>Your saved recommendations, when it searches your library for you.</li>
+  <li>The <b>names</b> of your circles and how many people are in each.</li>
+  <li>Answers that have come back to questions you asked.</li>
+</ul>
+
+<h3>What it cannot</h3>
+<ul>
+  <li><b>It cannot message anyone.</b> It can write a draft question to one of your circles
+      and hand you a link; the link cannot send by itself. Sending requires you to be signed
+      in as yourself, and the database checks the draft is yours at the moment it goes.</li>
+  <li><b>It cannot see who is in your circles</b> &mdash; not their names, and never their
+      phone numbers or email addresses. When you open a draft to approve it, <i>you</i> see
+      the first names of the people who would receive it; the assistant does not.</li>
+  <li><b>It cannot reach anyone else's library.</b> It reads through your own account, so the
+      database's per-account rules decide what it sees.</li>
+  <li><b>It cannot delete or change</b> anything you have saved.</li>
+</ul>
+
+<div class="flag">
+<p><b>What the assistant's own maker sees.</b> Whatever your assistant reads from Trustnet
+passes into that assistant &mdash; for Muse, that means Meta. Your library, the wording of
+your questions and the answers you were given are handled from that point under <b>their</b>
+privacy policy rather than this one, exactly as anything else you tell an assistant is.
+Connect one only if you are content with that.</p>
+<p>Nothing reaches any assistant unless you connect it yourself.</p>
+</div>
+
+<p>The connection is a token, held only as a sha256 in the same way a password would be. It
+records when it was last used, so <a href="/connect">the connect page</a> shows you whether
+something is still using it.</p>
+
+<h2>6 · How long it is kept, and how to have it deleted</h2>
 <p>What you save is kept until you ask for it to be removed. Write to the
 address on the <a href="/support">help page</a> and say what you want deleted
 &mdash; a single entry, a circle, or your whole account. A whole account,
@@ -198,22 +237,22 @@ week.</p>
 <p>You may also ask what is held about you and ask for anything wrong to be
 corrected. There is no form to fill in; write and ask.</p>
 
-<h2>6 · Children</h2>
+<h2>7 · Children</h2>
 <p>Trustnet is not intended for anyone under 16, and accounts are not knowingly
 created for them.</p>
 
-<h2>7 · Security, honestly stated</h2>
+<h2>8 · Security, honestly stated</h2>
 <p>Connections are encrypted, the database enforces per-account access rules,
 and there are no passwords to steal because Trustnet does not use any. But this
 is a small product in early testing, run by one person. It is not the place for
 anything you would be seriously harmed by losing or revealing.</p>
 
-<h2>8 · Changes</h2>
+<h2>9 · Changes</h2>
 <p>If this policy changes in a way that matters, the date at the top changes and
 active members are told. Older versions are in the project's public version
 history.</p>
 
-<h2>9 · Contact</h2>
+<h2>10 · Contact</h2>
 <p>Everything above is handled by one person, and you can reach him from the
 <a href="/support">help page</a>. Questions about your information, deletion
 requests, and complaints all go to the same place and get a real answer.</p>

@@ -100,6 +100,13 @@ const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
     const minted = useOld
       ? null
       : (await c.query("select public.mint_connector_token('sim') as t")).rows[0].t;
+    // The control also proves the pre-0054 door is shut: a two-argument claim
+    // was all the confirm token needed, and it must no longer exist.
+    const twoArg = (await c.query(
+      "select count(*)::int n from pg_proc p join pg_namespace n on n.oid = p.pronamespace " +
+      "where n.nspname = 'public' and p.proname = 'connector_draft_claim' " +
+      "and pg_get_function_identity_arguments(p.oid) = 'text, text'")).rows[0].n;
+    ck('the two-argument claim no longer exists in the database', twoArg === 0, 'found ' + twoArg);
 
     ck('a token is minted for the signed-in member', !!minted && minted.length >= 40,
        minted ? minted.length + ' chars' : 'none');
@@ -163,11 +170,29 @@ const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
     // ── 4 · one press, one send ───────────────────────────────────────────
     console.log('\n  the single-use gate:');
-    const first = (await c.query('select public.connector_draft_claim($1, null) as r', [ct])).rows[0].r;
-    ck('the first claim succeeds', first && first.claimed === true, JSON.stringify(first && first.claimed));
+    // ── 0054: THE PRESS MUST BE THE MEMBER ──────────────────────────────
+    // draft_question hands the confirm_url to the connector, so before 0054
+    // holding a connector token was enough to draft AND send. The wrong member
+    // must be refused, and refused BEFORE the single use is burned.
+    const stranger = (await c.query(
+      'select public.connector_draft_claim($1, null, $2) as r',
+      [ct, '00000000-0000-0000-0000-000000000009'])).rows[0].r;
+    ck('a DIFFERENT member cannot claim the draft',
+       stranger && stranger.claimed === false, JSON.stringify(stranger));
+
+    const nobody = (await c.query('select public.connector_draft_claim($1, null, null) as r', [ct])).rows[0].r;
+    ck('...and neither can nobody at all',
+       nobody && nobody.claimed === false, JSON.stringify(nobody));
+
+    const stillThere = (await c.query('select public.connector_draft_view($1) as v', [ct])).rows[0].v;
+    ck('...and the refusals did NOT burn the single use',
+       stillThere && stillThere.state === 'ready', JSON.stringify(stillThere && stillThere.state));
+
+    const first = (await c.query('select public.connector_draft_claim($1, null, $2) as r', [ct, UID])).rows[0].r;
+    ck('the owner’s claim succeeds', first && first.claimed === true, JSON.stringify(first && first.claimed));
     ck('...and carries what is needed to send', first && first.owner_id === UID && !!first.circle_id);
 
-    const second = (await c.query('select public.connector_draft_claim($1, null) as r', [ct])).rows[0].r;
+    const second = (await c.query('select public.connector_draft_claim($1, null, $2) as r', [ct, UID])).rows[0].r;
     ck('THE SECOND CLAIM FAILS — two presses send one message',
        second && second.claimed === false, JSON.stringify(second && second.claimed));
 
@@ -181,7 +206,7 @@ const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
       "insert into public.connector_drafts (owner_id, circle_id, text, confirm_token, expires_at) "
       + "values ($1,$2,$3,$4, now() - interval '1 minute')",
       [UID, circle.id, STRAY + ' expired', ct2]);
-    const expired = (await c.query('select public.connector_draft_claim($1, null) as r', [ct2])).rows[0].r;
+    const expired = (await c.query('select public.connector_draft_claim($1, null, $2) as r', [ct2, UID])).rows[0].r;
     ck('an EXPIRED draft cannot be claimed', expired && expired.claimed === false);
     const expView = (await c.query('select public.connector_draft_view($1) as v', [ct2])).rows[0].v;
     ck('...and the page says so', expView && expView.state === 'expired', JSON.stringify(expView && expView.state));
@@ -189,8 +214,8 @@ const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
     const ct3 = 'zzsim' + crypto.randomBytes(16).toString('hex');
     await c.query('insert into public.connector_drafts (owner_id, circle_id, text, confirm_token) values ($1,$2,$3,$4)',
       [UID, circle.id, STRAY + ' discarded', ct3]);
-    await c.query('select public.connector_draft_discard($1)', [ct3]);
-    const disc = (await c.query('select public.connector_draft_claim($1, null) as r', [ct3])).rows[0].r;
+    await c.query('select public.connector_draft_discard($1, $2)', [ct3, UID]);
+    const disc = (await c.query('select public.connector_draft_claim($1, null, $2) as r', [ct3, UID])).rows[0].r;
     ck('a DISCARDED draft cannot be claimed either', disc && disc.claimed === false);
 
     // ── 6 · one member cannot see another's tokens ────────────────────────

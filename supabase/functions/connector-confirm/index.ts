@@ -19,9 +19,41 @@
 // Deploy with --no-verify-jwt: the caller is a signed-out page.
 // Secrets: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
 // ============================================================================
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { adminClient, json, err, handleOptions } from "../_shared/utils.ts";
 
-const ENGINE = "connector-confirm-v1";
+const ENGINE = "connector-confirm-v2";
+
+// WHO IS PRESSING. Until v2 the confirm token was the whole credential, and
+// draft_question hands that token to the connector — so anything holding a
+// connector token could draft a question and then follow its own link and send
+// it. The human press was an affordance, not a boundary.
+//
+// Now the send and the discard require a real member session, and 0054 checks
+// inside the UPDATE that the session belongs to the draft's owner. The member
+// is already signed in on their own phone, so nothing changes for a person;
+// what changes is that the link is worth nothing on its own, which is what
+// makes it safe to hand to an assistant.
+//
+// The ANON KEY IS NOT A SESSION. It is a valid JWT and getUser() refuses it,
+// which is the behaviour relied on here — the page sends the anon key for
+// `view` and a real access token for `send`.
+async function callerId(req: Request): Promise<string | null> {
+  const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+  if (!jwt) return null;
+  try {
+    const sb = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: "Bearer " + jwt } } },
+    );
+    const { data, error } = await sb.auth.getUser();
+    if (error || !data?.user) return null;
+    return data.user.id;
+  } catch (_e) {
+    return null;
+  }
+}
 
 // Minting a session for the owner, to call send-query AS THEM. send-query then
 // runs exactly as it does for the app — same delivery, same per-member results,
@@ -74,7 +106,11 @@ Deno.serve(async (req: Request) => {
 
   // ── discard ─────────────────────────────────────────────────────────────
   if (action === "discard") {
-    const { data, error } = await admin.rpc("connector_draft_discard", { p_confirm_token: token });
+    const who = await callerId(req);
+    if (!who) return json({ engine: ENGINE, discarded: false, reason: "sign_in_required" }, 401);
+    const { data, error } = await admin.rpc("connector_draft_discard", {
+      p_confirm_token: token, p_user_id: who,
+    });
     if (error) {
       console.error("draft_discard_failed", error.message);
       return err("discard_failed", 500);
@@ -85,6 +121,13 @@ Deno.serve(async (req: Request) => {
   // ── send ────────────────────────────────────────────────────────────────
   if (action !== "send") return err("unknown_action");
 
+  // THE PRESS MUST BE THE MEMBER. Refused before anything is claimed, so a
+  // caller without a session cannot even burn the draft's single use.
+  const presser = await callerId(req);
+  if (!presser) {
+    return json({ engine: ENGINE, sent: false, reason: "sign_in_required" }, 401);
+  }
+
   // CLAIM FIRST, SEND SECOND. The claim is the single-use gate: if it comes
   // back false the draft was already sent, already discarded, or expired, and
   // nothing is delivered. Asserting on the ROW OUTCOME rather than on the
@@ -92,6 +135,7 @@ Deno.serve(async (req: Request) => {
   const { data: claim, error: cErr } = await admin.rpc("connector_draft_claim", {
     p_confirm_token: token,
     p_text: body.text ? String(body.text) : null,
+    p_user_id: presser,
   });
   if (cErr) {
     console.error("draft_claim_failed", cErr.message);

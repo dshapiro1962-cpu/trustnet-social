@@ -118,6 +118,14 @@ h1 { font-size: 20px; font-weight: 700; margin: 22px 0 3px; }
     <p id="done-p"></p>
   </div>
 
+  <div id="signedout" class="state hidden">
+    <div class="big">&#128274;</div>
+    <h2>Sign in to send this</h2>
+    <p>Sending needs to be you, not just this link &mdash; so the link is safe
+       to hand to an assistant. Open <a href="/">Trustnet</a>, sign in, then
+       open this link again.</p>
+  </div>
+
   <div id="bad" class="state hidden">
     <div class="big">&#9888;&#65039;</div>
     <h2 id="bad-h">This draft is no longer live</h2>
@@ -133,15 +141,17 @@ h1 { font-size: 20px; font-weight: 700; margin: 22px 0 3px; }
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 (function () {
-  var FN = 'https://kgsdtfrcyjrxeyqqxoic.supabase.co/functions/v1/connector-confirm';
+  var SB_URL = 'https://kgsdtfrcyjrxeyqqxoic.supabase.co';
+  var FN = SB_URL + '/functions/v1/connector-confirm';
   var KEY = 'sb_publishable_8MAMd56FzHTyNZtnO2XK4A_cp2lFGEm';
   var token = new URLSearchParams(location.search).get('d') || '';
 
   var $ = function (id) { return document.getElementById(id); };
   function show(which) {
-    ['loading', 'ready', 'done', 'bad'].forEach(function (v) { $(v).classList.add('hidden'); });
+    ['loading', 'ready', 'done', 'bad', 'signedout'].forEach(function (v) { $(v).classList.add('hidden'); });
     $(which).classList.remove('hidden');
     $('bar').classList.toggle('hidden', which !== 'ready');
   }
@@ -151,10 +161,20 @@ h1 { font-size: 20px; font-weight: 700; margin: 22px 0 3px; }
     show('bad');
   }
 
-  function post(body) {
+  // Served from the same origin as the app, so the member's Supabase session
+  // is already in localStorage. Nothing to sign into, nothing to type.
+  var sb = window.supabase ? window.supabase.createClient(SB_URL, KEY) : null;
+  var session = null;
+
+  // `view` goes out with the anon key: reading a draft needs only the token,
+  // deliberately, so a member whose session lapsed still SEES their own draft
+  // rather than an error. `send` and `discard` go out with the member's own
+  // access token, because those are the ones that must be them.
+  function post(body, asMember) {
+    var bearer = (asMember && session) ? session.access_token : KEY;
     return fetch(FN, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: KEY, Authorization: 'Bearer ' + KEY },
+      headers: { 'Content-Type': 'application/json', apikey: KEY, Authorization: 'Bearer ' + bearer },
       body: JSON.stringify(body)
     }).then(function (r) { return r.json(); });
   }
@@ -162,7 +182,10 @@ h1 { font-size: 20px; font-weight: 700; margin: 22px 0 3px; }
   if (!token) { bad('No draft in this link', 'The link is incomplete.'); return; }
 
   // ── what the page shows ──────────────────────────────────────────────────
-  post({ action: 'view', token: token }).then(function (d) {
+  (sb ? sb.auth.getSession() : Promise.resolve({ data: {} }))
+    .then(function (r) { session = (r && r.data && r.data.session) || null; })
+    .then(function () { return post({ action: 'view', token: token }); })
+    .then(function (d) {
     if (!d || d.state !== 'ready') {
       var m = {
         already_sent: ['Already sent', 'This question went out. Answers arrive in Trustnet.'],
@@ -190,8 +213,9 @@ h1 { font-size: 20px; font-weight: 700; margin: 22px 0 3px; }
   $('send').addEventListener('click', function () {
     var btn = $('send');
     btn.disabled = true; btn.textContent = 'Sending…';
-    post({ action: 'send', token: token, text: $('text').value })
+    post({ action: 'send', token: token, text: $('text').value }, true)
       .then(function (d) {
+        if (d && d.reason === 'sign_in_required') { show('signedout'); return; }
         if (d && d.sent) {
           $('done-h').textContent = 'Sent';
           $('done-p').textContent = 'Answers land in Trustnet. You will be told when they do.';
@@ -211,7 +235,7 @@ h1 { font-size: 20px; font-weight: 700; margin: 22px 0 3px; }
 
   $('discard').addEventListener('click', function () {
     $('discard').disabled = true;
-    post({ action: 'discard', token: token }).then(function () {
+    post({ action: 'discard', token: token }, true).then(function () {
       $('bad-h').textContent = 'Discarded';
       $('bad-p').textContent = 'Nobody was messaged.';
       show('bad');

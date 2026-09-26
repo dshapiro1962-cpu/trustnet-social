@@ -92,6 +92,11 @@ not already answer, <b>draft</b> a question to one of their circles.</p>
 <p><b>A connector cannot message anyone.</b> <code>draft_question</code> writes a draft and
 returns a link. The member opens it, sees exactly who would receive exactly what, and presses
 send themselves. There is no code path from this server to a circle member.</p>
+<p><b>And holding that link is not enough.</b> Sending requires a signed-in member session
+belonging to the draft's owner, checked inside the same statement that marks the draft used.
+The link is returned to the connector precisely because it is worth nothing on its own —
+without that, an assistant could follow its own link and the approval step would be an
+affordance rather than a boundary.</p>
 <p>The people in a circle are real, and they are in it because the member trusts them. That is
 the asset the product is made of, and an assistant that could message them unprompted would
 spend it.</p>
@@ -141,7 +146,8 @@ addresses, are never exposed to a connector. No arguments.</p>
 
 <h3>draft_question</h3>
 <p><code>{ circle_id, text }</code>. Writes a draft and returns a
-<code>confirm_url</code> valid for thirty minutes. <b>Sends nothing.</b> The response carries
+<code>confirm_url</code> valid for thirty minutes. <b>Sends nothing</b>, and the URL cannot
+send either: confirming requires the member's own signed-in session. The response carries
 <code>sent: false</code> and a line for the assistant to relay, so the member is told plainly
 that nothing has gone out. A circle id that does not belong to the member returns
 <code>no_such_circle</code>, because the lookup runs under the member's own session.</p>

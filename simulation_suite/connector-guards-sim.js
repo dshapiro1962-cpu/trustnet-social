@@ -26,11 +26,18 @@ const path = require('path');
 
 const sabotage = process.argv.indexOf('--old') > -1;
 const FN = path.join(__dirname, '..', 'supabase', 'functions');
-const MIG = path.join(__dirname, '..', 'migrations', '0053_a_connector_asks_before_it_sends.sql');
+// 0054 moved connector_draft_claim and connector_draft_discard, so the SQL
+// this sim reasons about is now spread over two files. Concatenated in order,
+// which is also the order they were applied.
+const MIGS = [
+  path.join(__dirname, '..', 'migrations', '0053_a_connector_asks_before_it_sends.sql'),
+  path.join(__dirname, '..', 'migrations', '0054_the_press_must_be_the_member.sql'),
+];
+const MIG = MIGS[0];
 const WEB = path.join(__dirname, '..', 'web');
 
 for (const p of [path.join(FN, 'mcp', 'index.ts'),
-                 path.join(FN, 'connector-confirm', 'index.ts'), MIG]) {
+                 path.join(FN, 'connector-confirm', 'index.ts')].concat(MIGS)) {
   if (!fs.existsSync(p)) { console.log('\n  FATAL: missing ' + p + '\n'); process.exit(2); }
 }
 
@@ -39,7 +46,7 @@ const lf = (p) => fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
 
 let mcp = lf(path.join(FN, 'mcp', 'index.ts'));
 let confirm = lf(path.join(FN, 'connector-confirm', 'index.ts'));
-let mig = lf(MIG);
+let mig = MIGS.map(lf).join('\n');
 const connectPage = lf(path.join(WEB, 'connect.html'));
 const confirmPage = lf(path.join(WEB, 'confirm.html'));
 
@@ -61,9 +68,19 @@ const SABOTAGES = [
      '  const { data: claim, error: cErr } = await admin.rpc("connector_draft_claim", {',
      '  const early = await fetch(Deno.env.get("SUPABASE_URL")! + "/functions/v1/send-query");\n'
      + '  const { data: claim, error: cErr } = await admin.rpc("connector_draft_claim", {'); }],
+  // A GLOBAL regex, not a literal string. The literal was written against
+  // 0053 and stopped matching the moment 0054 inserted the ownership line into
+  // the same WHERE — so the sabotage went on editing 0053's SUPERSEDED claim
+  // and broke nothing, while still reporting itself as a disabled mechanism.
+  // A control that silently stops controlling is worse than one that fails.
   ['the single-use gate comes out of the UPDATE',
-   () => { mig = mig.replace('   where confirm_token = p_confirm_token\n     and confirmed_at is null\n     and discarded_at is null\n     and expires_at > now()',
-     '   where confirm_token = p_confirm_token'); }],
+   () => { mig = mig.replace(
+     /\s+and confirmed_at is null\s+and discarded_at is null\s+and expires_at > now\(\)/g, ''); }],
+  ['the ownership check comes out of the claim',
+   () => { mig = mig.replace('     and owner_id = p_user_id', '     and true'); }],
+  ['connector-confirm stops checking who is pressing',
+   () => { confirm = confirm.replace('const presser = await callerId(req);',
+     'const presser = "anyone";'); }],
   ['the confirm view starts handing out phone numbers',
    () => { mig = mig.replace('select coalesce(array_agg(m.name order by m.name), \'{}\')',
      'select coalesce(array_agg(m.contact_value order by m.name), \'{}\')'); }],
@@ -121,7 +138,14 @@ console.log('\n  one press, one send:');
 // connector_draft_discard - which has an identical WHERE - so the gate could
 // be removed from the claim and the guard stayed green. Caught by running the
 // sabotage, which is the only reason to write one.
-const claimBody = (migCode.split('create or replace function public.connector_draft_claim')[1] || '')
+// THE LAST DEFINITION WINS, not the first. 0053 defines a two-argument claim
+// and 0054 drops it and defines the three-argument one, so the combined text
+// holds both and `split(...)[1]` handed back the SUPERSEDED body — which made
+// the ownership checks below fail against perfectly correct code. Migrations
+// accumulate; anything reading them as one document has to read the last
+// definition of a thing, the way the database does.
+const claimParts = migCode.split('create or replace function public.connector_draft_claim');
+const claimBody = (claimParts.length > 1 ? claimParts[claimParts.length - 1] : '')
   .split('create or replace function')[0];
 ck('the claim is an UPDATE guarded by confirmed_at is null',
    /update public\.connector_drafts[\s\S]{0,300}?and confirmed_at is null/.test(claimBody));
@@ -135,6 +159,32 @@ ck('a claim that returns false sends nothing',
    /c\.claimed !== true\) return json\([\s\S]{0,80}sent: false/.test(confirmCode));
 ck('the outcome is read from the ROW, not from the absence of an error',
    /claimed', false/.test(migCode) && /claimed', true/.test(migCode));
+
+// ── 2b · THE PRESS MUST BE THE MEMBER ──────────────────────────────────────
+// 0053 claimed the connector "cannot send" and did not keep it:
+// draft_question hands the confirm_url to the CALLER, and that token was the
+// whole credential the send required. Holding a connector token was therefore
+// enough to draft and then send. 0054 made sending require being the member.
+console.log('\n  the press is the member:');
+
+ck('the claim takes the member doing it',
+   /connector_draft_claim\([\s\S]{0,200}?p_user_id\s+uuid/.test(migCode));
+ck('...and the UPDATE checks the draft is theirs',
+   /and owner_id = p_user_id/.test(claimBody));
+ck('...in the SAME statement as the single-use gate, not a read before a write',
+   /and owner_id = p_user_id[\s\S]{0,120}?and confirmed_at is null/.test(claimBody));
+ck('the two-argument claim is GONE, not left beside it',
+   /drop function if exists public\.connector_draft_claim\(text, text\)/.test(migCode));
+ck('connector-confirm resolves who is pressing',
+   /const presser = await callerId\(req\);/.test(confirmCode));
+ck('...refuses before anything is claimed, so no session cannot burn the draft',
+   confirmCode.indexOf('const presser') < confirmCode.indexOf('connector_draft_claim'));
+ck('...and passes that member into the claim',
+   /p_user_id: presser/.test(confirmCode));
+ck('the anon key is not accepted as a session',
+   /getUser\(\)/.test(confirmCode));
+ck('discarding is the member’s too',
+   /connector_draft_discard[\s\S]{0,160}?p_user_id/.test(confirmCode));
 
 // ── 3 · ISOLATION IS THE DATABASE'S JOB ────────────────────────────────────
 console.log('\n  isolation:');
