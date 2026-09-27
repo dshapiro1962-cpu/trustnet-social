@@ -11,7 +11,10 @@ Live at trustnetsocial.netlify.app. Postgres on Supabase, project
 
 ## Start here
 
-Read `docs/HANDOVER-2026-09-21.md` first — v0.96.0, the sheet moved out of "my
+Read `docs/HANDOVER-2026-09-27.md` first — six days, four migrations
+(0051–0054), the sign-in rebuild, the film, one phone normaliser on each side,
+three legal pages, and the Meta connector that was submitted on 27 Sep. Then
+`docs/HANDOVER-2026-09-21.md` — v0.96.0, the sheet moved out of "my
 questions" and into the Library — then `docs/HANDOVER-2026-09-19.md`, the
 v0.95.0 redesign and what it did not finish, then
 `docs/HANDOVER-2026-09-14.md`, which records everything
@@ -182,7 +185,7 @@ Added 21 Sep, same rule:
 - `invite-words-sim.js` — lifts the REAL invite-message builders out of the page
   and executes them, then reads the message a person actually receives
 
-Added 26 Sep, for the Muse connector:
+Added 26–27 Sep, for the Muse connector:
 
 - `connector-guards-sim.js` — the promise is "a connector can DRAFT a question
   and cannot SEND one", and this is what makes it true. Its control is a
@@ -214,10 +217,9 @@ Added 25–26 Sep, same rule:
   for rather than guessed. Baseline `index.pre-v0.99.2.html`; its control fails
   36 of 37, and the one that survives is the line proving the library is absent
 
-**45 of the 98 sims in this directory run on this machine, and all 45 are
-green** (measured 26 Sep by running every one of them: `for f in *-sim.js; do
-node $f; done`). `connector-live-sim.js` is the 46th and exits 2 until
-migration 0053 is applied. The other 52 open `/home/claude/...` — a container path that
+**46 of the 98 sims in this directory run on this machine, and all 46 are
+green** (measured 27 Sep by running every one of them: `for f in *-sim.js; do
+node $f; done`). `connector-live-sim.js` joined them once 0053 was applied. The other 52 open `/home/claude/...` — a container path that
 does not exist here — so they exit 1 on ENOENT without asserting anything.
 **Count them before quoting a number.** This line said "26" for four days after
 the true figure had passed thirty.
@@ -268,6 +270,27 @@ phrase that first occurs in the comment written directly above the fix; one set
 up its own state too late and blamed the code; one asserted on a mocked value
 that is identical before and after. Check what a new assertion does against
 `--old` before believing it.
+
+**A SABOTAGE CONTROL DECAYS.** `connector-guards-sim.js` disables nine
+mechanisms and requires sixteen guards to break. Two of its sabotages silently
+stopped sabotaging: one was a literal string written against 0053 that stopped
+matching when 0054 inserted a line into the same `WHERE`, so it went on editing
+superseded text, broke nothing, and STILL REPORTED ITSELF as a disabled
+mechanism. Check what each sabotage actually breaks, not just that the control
+exits non-zero.
+
+**MIGRATIONS ACCUMULATE.** A sim reading them as one document must take the
+LAST definition of a function, the way the database does. Splitting on the
+first `create or replace function connector_draft_claim` found 0053's
+superseded body and failed against correct code (26 Sep).
+
+**A MIGRATION DRY RUN CANNOT FIND A MISSING FUNCTION.** Running every statement
+in one transaction and rolling back catches syntax and ordering. It does not
+catch name resolution, because `create or replace function` parses a body
+without resolving the names in it. 0053 passed a clean dry run and then raised
+`gen_random_bytes(integer) does not exist` the first time anything called it —
+pgcrypto is in `extensions` on Supabase, not `public`. Only executing the
+function finds this.
 
 **Each sim names the baseline its OWN fix was made against.** A single shared
 "original" snapshot already contains the sibling fix, and its control passes —
