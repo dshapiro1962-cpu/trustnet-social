@@ -185,6 +185,15 @@ Added 21 Sep, same rule:
 - `invite-words-sim.js` — lifts the REAL invite-message builders out of the page
   and executes them, then reads the message a person actually receives
 
+Added 27 Sep:
+
+- `answer-words-sim.js` — two screens that answered a person in the wrong words
+  or in the wrong place (v0.99.3). Baseline `index.pre-v0.99.3.html`; control
+  fails 16 of 18. It RENDERS what it asserts: opens the real modal in headless
+  Chrome, types a name, and reads the screen — including that the note sits
+  ABOVE Paste a number in the document and that the results list is left empty
+  so nothing is pushed off a phone
+
 Added 26–27 Sep, for the Muse connector:
 
 - `connector-guards-sim.js` — the promise is "a connector can DRAFT a question
@@ -262,6 +271,13 @@ from 36 green to a crash that way, with no line of the product changing. Read
 source through a `.replace(/
 /g, '
 ')` and the trap does not exist.
+
+**A STRUCTURAL ASSERTION MUST READ CODE, NOT THE COMMENTS ABOUT IT.** Three
+sims in one session (26–27 Sep) reported FAIL against correct code because the
+fix's own comment quotes the string it removed — which is what a good comment
+does. Read the source through a filter that drops whole `//` lines before
+asserting that something is absent. This is the 25 Aug trap below, and it
+recurs every time a change is explained properly.
 
 **A guard that passes for the wrong reason is worse than no guard.** Four did
 on 25 Aug, in a session about guards: one searched for an identifier that
