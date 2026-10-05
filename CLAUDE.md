@@ -226,9 +226,9 @@ Added 25–26 Sep, same rule:
   for rather than guessed. Baseline `index.pre-v0.99.2.html`; its control fails
   36 of 37, and the one that survives is the line proving the library is absent
 
-**46 of the 98 sims in this directory run on this machine, and all 46 are
-green** (measured 27 Sep by running every one of them: `for f in *-sim.js; do
-node $f; done`). `connector-live-sim.js` joined them once 0053 was applied. The other 52 open `/home/claude/...` — a container path that
+**47 of the 99 sims in this directory run on this machine, and all 47 are
+green** (measured 5 Oct by running every one of them: `for f in *-sim.js; do
+node $f; done`). The other 52 open `/home/claude/...` — a container path that
 does not exist here — so they exit 1 on ENOENT without asserting anything.
 **Count them before quoting a number.** This line said "26" for four days after
 the true figure had passed thirty.

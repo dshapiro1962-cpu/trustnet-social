@@ -32,3 +32,14 @@
   from = "/docs/mcp"
   to = "/docs-mcp.html"
   status = 200
+
+# ── THE SHORT JOIN LINK ────────────────────────────────────────────────────
+# /j/<token> is what goes in an invitation; everything downstream still expects
+# /?join=<token>. A 301 rather than a rewrite, deliberately: a rewrite would
+# serve the page with /j/<token> still in the address bar and location.search
+# empty, so the client would never see the token at all.
+[[redirects]]
+  from = "/j/*"
+  to = "/?join=:splat"
+  status = 301
+  force = true

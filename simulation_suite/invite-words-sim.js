@@ -71,13 +71,23 @@ const lift = (name) => {
   return typeof ctx[name] === 'function';
 };
 
-const URL = 'https://trustnetsocial.netlify.app/?join=abc123';
+// The short form, which is what an invitation carries since v0.99.5.
+const URL = 'https://trustnetsocial.com/j/Ab3kZ9qT';
+// inviteMessageFor CALLS this one, so it has to be in the context first.
+// Lifting the builder alone threw ReferenceError - which is the sim working:
+// it runs the real function rather than a copy, so a missing dependency is a
+// crash here instead of a broken invitation on somebody's phone.
+ck('the link formatter is lifted first', lift('inviteLinkText'));
 ck('the invitation is built by one function', lift('inviteMessageFor'));
 ck('and the email subject by another', lift('inviteSubjectFor'));
 
 if (typeof ctx.inviteMessageFor === 'function') {
-  const personal = ctx.inviteMessageFor('leros', URL, true);
-  const shared = ctx.inviteMessageFor('leros', URL, false);
+  // The fourth argument is `bare`: WhatsApp gets the link without https://,
+  // email keeps it. Both are built here, because the difference between them
+  // is the point of the change.
+  const personal = ctx.inviteMessageFor('leros', URL, true, true);
+  const byEmail = ctx.inviteMessageFor('leros', URL, true, false);
+  const shared = ctx.inviteMessageFor('leros', URL, false, true);
   console.log('\n  ── as Naama receives it ──\n');
   personal.split('\n').forEach((l) => console.log('     ' + l));
   console.log('');
@@ -93,9 +103,18 @@ if (typeof ctx.inviteMessageFor === 'function') {
   // THE TWO VERBS, which are also the app's own two words (Ask / Recommend on
   // Home). Three drafts were rejected before this: one described what the app
   // IS, one led with privacy, and one let the nouns attach to the wrong thing.
-  ck('it names what you DO here: ask', /where you ask people you trust/.test(personal), personal);
-  ck('...and recommend back', /and recommend back/.test(personal), personal);
-  ck('...with what you would actually ask for', /a doctor, a restaurant, a plumber/.test(personal));
+  // REVERSED ON 5 OCT. Until then this asserted "where you ask people you
+  // trust" and the three nouns - a doctor, a restaurant, a plumber - which dan
+  // chose on 21 Sep so a stranger could picture using it. Reading one on his
+  // own phone he replaced them: "trusnet the channel for reaching out to
+  // people you trust for reliable information and recommending bac."
+  //
+  // The nouns earned their place on a cold link. This message goes to someone
+  // a friend personally invited, who already has the context they were buying.
+  ck('it says what Trustnet is FOR, in his words',
+     /the channel for reaching out to people you trust/.test(personal), personal);
+  ck('...for reliable information', /for reliable information/.test(personal), personal);
+  ck('...and recommending back', /and recommending back/.test(personal), personal);
   ck('...as against public reviews and algorithmic feeds',
      /No public reviews, no algorithmic feeds/.test(personal), personal);
 
@@ -103,9 +122,10 @@ if (typeof ctx.inviteMessageFor === 'function') {
   // a plumber": "could be misunderstood as if you trust the doctor". The list
   // has to hang off the ASKING. "ask ... for a doctor" can only mean the thing
   // you want; a list sitting beside "people you trust" cannot.
-  ck('the doctor is what you ask FOR, never who you trust',
-     /trust for a doctor/.test(personal), personal);
-  ck('...so the nouns never sit beside "people you trust"',
+  // The 21 Sep hazard is still a hazard: a list of nouns sitting beside
+  // "people you trust" reads as though you trust the doctor. The nouns are
+  // gone, so the guard is now simply that they never come back in that shape.
+  ck('nothing can read as "trust the doctor"',
      !/people you trust\s*[—-]\s*a doctor/.test(personal), personal);
   ck('...in a sentence and a half, not a paragraph',
      (personal.split('\n\n')[1] || '').split(/(?<=\.)\s/).length <= 2,
@@ -117,15 +137,34 @@ if (typeof ctx.inviteMessageFor === 'function') {
      !/no app needed/i.test(personal), personal);
 
   // 4 · the link, and what pressing it costs
+  // ── THE LINK, AND WHY IT HAS NO SCHEME ────────────────────────────────
+  // Measured on dan's phone, 5 Oct: a BARE domain is still tappable in
+  // WhatsApp and renders NO preview card, while the same link with https://
+  // renders one. The card was the first thing a recipient saw, and shrinking
+  // its image did nothing - a 192x192 rendered identically to a 512x512. This
+  // is what finally puts his own words at the top of the message.
+  const BARE = URL.replace(/^https:\/\//, '');
   ck('the link is the last thing, on its own line',
-     personal.trim().endsWith(URL), personal.trim().slice(-60));
-  ck('it says what happens when they tap', /one button, no password/.test(personal));
+     personal.trim().endsWith(BARE), personal.trim().slice(-50));
+  ck('WhatsApp gets the link with NO https://, so no card is drawn',
+     !/https:\/\//.test(personal), personal.trim().slice(-50));
+  ck('...and it is still a tappable domain, not a fragment',
+     /(^|\n)trustnetsocial\.com\/j\/[A-Za-z0-9_-]+$/.test(personal.trim()),
+     personal.trim().slice(-50));
+  ck('EMAIL keeps the scheme — mail clients linkify far less reliably',
+     byEmail.trim().endsWith(URL) && /https:\/\//.test(byEmail),
+     byEmail.trim().slice(-50));
+  ck('the short path is used, not ?join=',
+     /\/j\//.test(personal) && !/\?join=/.test(personal));
+  ck('it says what to do, without promising a button that is not there',
+     /Tap to join:/.test(personal) && !/one button, no password/.test(personal));
 
   // 5 · the shared link cannot claim they are already in the circle
   ck('the shareable link says something that is TRUE of a stranger',
-     !/you are a member/.test(shared) && /would like you in my leros circle/.test(shared),
+     !/you are a member/.test(shared) && /I’d like you in my leros circle/.test(shared),
      shared.split('\n')[0]);
-  ck('...and still says what you do here', /ask people you trust for a doctor/.test(shared), shared);
+  ck('...and still says what Trustnet is for',
+     /the channel for reaching out to people you trust/.test(shared), shared);
 
   // 6 · it survives the trip through WhatsApp
   ck('every line break survives encodeURIComponent for wa.me',
@@ -133,7 +172,7 @@ if (typeof ctx.inviteMessageFor === 'function') {
   ck('[guard] it is short enough to read on a phone', personal.length < 480, String(personal.length));
   const circles = ['NYc Restaurants', 'יוון', "Dad's mates"];
   circles.forEach((c) => ck('a circle called "' + c + '" reads correctly',
-    ctx.inviteMessageFor(c, URL, true).indexOf('my ' + c + ' circle') > -1));
+    ctx.inviteMessageFor(c, URL, true, true).indexOf('my ' + c + ' circle') > -1));
 }
 
 if (typeof ctx.inviteSubjectFor === 'function') {
@@ -149,9 +188,21 @@ ck('the Invite button and the shareable link both call it', callers.length >= 4,
 ck('...so no door keeps a wording of its own',
    !/Join my ' \+ d\.circleName \+ ' circle on Trustnet/.test(script)
    && !/added you to their ' \+ circleName/.test(script));
-ck('the personal invite says they are already in the circle',
-   (script.match(/inviteMessageFor\(circleName, url, true\)/g) || []).length === 2);
-ck('the shareable link says they are not', /inviteMessageFor\(d\.circleName, d\.url, false\)/.test(script));
+// The INTENT, not the exact call. v0.99.5 gave the builder a fourth argument
+// and moved each call inside its channel's branch, so a signature-shaped
+// assertion broke against correct code. What must stay true is that inviting a
+// MEMBER says they are already in the circle and the shareable link does not.
+const personalCalls = (script.match(/inviteMessageFor\(circleName, url, true[,)]/g) || []).length;
+ck('every door that invites a member says they are already in the circle',
+   personalCalls >= 2, personalCalls + ' call(s)');
+ck('the shareable link says they are not',
+   /inviteMessageFor\(d\.circleName, d\.url, false[,)]/.test(script));
+// And the one that only v0.99.5 could get wrong: the two channels must differ
+// in the LAST argument, or either WhatsApp keeps its card or email loses its
+// clickable link.
+ck('WhatsApp asks for the bare link and email does not',
+   /inviteMessageFor\(circleName, url, true, true\)/.test(script)
+   && /inviteMessageFor\(circleName, url, true, false\)/.test(script));
 
 // ── the preview card ───────────────────────────────────────────────────────
 console.log('\n== the card WhatsApp draws ==\n');
