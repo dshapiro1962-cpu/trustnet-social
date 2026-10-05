@@ -46,7 +46,7 @@ lost to "nothing to commit" because a zip was never downloaded. Regenerate
 `sim/app_script.js` from index.html after EVERY edit or sims test stale code.
 
 ## LIVE INFRASTRUCTURE
-- Supabase **kgsdtfrcyjrxeyqqxoic** · https://trustnetsocial.netlify.app
+- Supabase **kgsdtfrcyjrxeyqqxoic** · https://trustnetsocial.com
 - **PRODUCTION WHATSAPP COMPLETE** — +972 58-778-6049 · WABA 2252335755587692 ·
   Phone ID 1156461904225155 · 2FA 462013 · verify token trustnet-verify-2026 ·
   template trustnet_query_v2 ACTIVE. Inbound + outbound both proven.

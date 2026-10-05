@@ -42,7 +42,7 @@ const PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26"];
 const LATEST = PROTOCOL_VERSIONS[0];
 
 const BASE_URL = () =>
-  (Deno.env.get("PUBLIC_BASE_URL") ?? "https://trustnetsocial.netlify.app").replace(/\/+$/, "");
+  (Deno.env.get("PUBLIC_BASE_URL") ?? "https://trustnetsocial.com").replace(/\/+$/, "");
 
 // MCP is JSON-RPC, and its transport wants a couple of headers of its own.
 const MCP_CORS = {

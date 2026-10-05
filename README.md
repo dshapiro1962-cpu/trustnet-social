@@ -11,4 +11,4 @@ Recommendations from people you actually trust.
 ## The rules
 - The app version marker (`APP_VERSION`) is bumped on every change; the sidebar footer reads it directly.
 - App file: zero backticks, zero inline handlers; verified by parse check + sims.
-- Live app: https://trustnetsocial.netlify.app  ·  Supabase project: kgsdtfrcyjrxeyqqxoic
+- Live app: https://trustnetsocial.com  ·  Supabase project: kgsdtfrcyjrxeyqqxoic

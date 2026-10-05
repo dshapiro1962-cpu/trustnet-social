@@ -288,9 +288,13 @@ ck('send-query does not fall back to app.trustnet.com',
    !/app\.trustnet\.com/.test(sendQueryCode));
 ck('resend-member does not either',
    !/app\.trustnet\.com/.test(resendCode));
+// A DOMAIN WE OWN, not one particular host. This pinned the netlify.app
+// address and failed the day the product moved to trustnetsocial.com - a true
+// change breaking a guard that was asserting the wrong thing. What must never
+// come back is a fallback pointing somewhere we do not control.
+const ourRespond = /trustnetsocial\.(com|netlify\.app)\/respond\.html/;
 ck('the response link falls back to our own site',
-   /trustnetsocial\.netlify\.app\/respond\.html/.test(sendQueryCode)
-   && /trustnetsocial\.netlify\.app\/respond\.html/.test(resendCode));
+   ourRespond.test(sendQueryCode) && ourRespond.test(resendCode));
 ck('the email sender has NO invented default',
    !/mail\.trustnet\.com/.test(channelsCode));
 ck('...and a missing sender is reported rather than guessed',

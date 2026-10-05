@@ -56,7 +56,7 @@ Deno.serve(async (req: Request) => {
   // variable that has never once been missing, and here a correct default
   // exists — unlike the sender address below, where one does not.
   const appUrl = Deno.env.get("RESPONSE_FORM_BASE_URL")
-    ?? "https://trustnetsocial.netlify.app/respond.html";
+    ?? "https://trustnetsocial.com/respond.html";
   const supa = userClient(req);   // RLS-scoped reads for caller-owned data
   const admin = adminClient();    // cross-user writes
 

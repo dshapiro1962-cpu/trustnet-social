@@ -97,7 +97,15 @@ ck('the results list is NOT moved above the fallback buttons',
    'moving it would push the bottom actions off a phone');
 ck('a failed search clears the note rather than leaving it stale',
    /const note = document\.getElementById\('nm-search-note'\);\s*\n\s*if \(note\) note\.style\.display = 'none';[\s\S]{0,200}?Could not search your people/.test(web));
-ck('the version was bumped', /APP_VERSION = 'v0\.99\.3/.test(web));
+// THE VERSION MOVED, not "the version is v0.99.3". Pinning the literal meant
+// the next unrelated bump - the move to trustnetsocial.com - broke this guard
+// against perfectly correct code. The invariant is that live differs from the
+// baseline this fix was made against, which stays true for ever.
+const ver = (src) => (src.match(/APP_VERSION = '([^']*)'/) || [])[1] || '';
+const baseVer = ver(fs.readFileSync(path.join(__dirname, 'index.pre-v0.99.3.html'), 'utf8'));
+ck('the version moved past the baseline',
+   useOld ? ver(web) === baseVer : (!!ver(web) && ver(web) !== baseVer),
+   ver(web) + ' vs baseline ' + baseVer);
 
 // ── 3 · AND IT IS RENDERED ─────────────────────────────────────────────────
 // A vm over a hand-built DOM cannot catch a render that throws, and neither

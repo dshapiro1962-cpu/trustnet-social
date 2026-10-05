@@ -131,7 +131,7 @@ Deno.serve(async (req) => {
     // to WhatsApp — which iOS in particular may do — polling died with it, and
     // this link is how she still gets in. When the tab DID survive she is
     // already inside and never taps it.
-    const appUrl = Deno.env.get("APP_URL") ?? "https://trustnetsocial.netlify.app";
+    const appUrl = Deno.env.get("APP_URL") ?? "https://trustnetsocial.com";
     await sendText(from,
       "Got it \u2014 switch back to your browser and you're in.\n\n" +
       "If that tab closed, open this instead:\n" + appUrl + "/?claimed=" + token);

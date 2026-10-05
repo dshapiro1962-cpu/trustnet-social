@@ -90,7 +90,7 @@ Deno.serve(async (req: Request) => {
   // change in send-query for the full reasoning; the short version is that a
   // missing secret should send people to our own site, not to a stranger's.
   const appUrl = Deno.env.get("RESPONSE_FORM_BASE_URL")
-    ?? "https://trustnetsocial.netlify.app/respond.html";
+    ?? "https://trustnetsocial.com/respond.html";
   const responseUrl = `${appUrl}?t=${qr.response_token}`;
 
   // 6. Re-attempt delivery on the (possibly new) channel

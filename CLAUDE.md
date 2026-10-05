@@ -4,7 +4,7 @@ A private trusted recommendation network. Members ask their circles for
 recommendations, keep what they answer, and see what people they trust have
 saved.
 
-Live at trustnetsocial.netlify.app. Postgres on Supabase, project
+Live at trustnetsocial.com. Postgres on Supabase, project
 `kgsdtfrcyjrxeyqqxoic`. The whole client is one file: `web/index.html`.
 
 ---
