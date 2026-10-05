@@ -73,21 +73,12 @@ const lift = (name) => {
 
 // The short form, which is what an invitation carries since v0.99.5.
 const URL = 'https://trustnetsocial.com/j/Ab3kZ9qT';
-// inviteMessageFor CALLS this one, so it has to be in the context first.
-// Lifting the builder alone threw ReferenceError - which is the sim working:
-// it runs the real function rather than a copy, so a missing dependency is a
-// crash here instead of a broken invitation on somebody's phone.
-ck('the link formatter is lifted first', lift('inviteLinkText'));
 ck('the invitation is built by one function', lift('inviteMessageFor'));
 ck('and the email subject by another', lift('inviteSubjectFor'));
 
 if (typeof ctx.inviteMessageFor === 'function') {
-  // The fourth argument is `bare`: WhatsApp gets the link without https://,
-  // email keeps it. Both are built here, because the difference between them
-  // is the point of the change.
-  const personal = ctx.inviteMessageFor('leros', URL, true, true);
-  const byEmail = ctx.inviteMessageFor('leros', URL, true, false);
-  const shared = ctx.inviteMessageFor('leros', URL, false, true);
+  const personal = ctx.inviteMessageFor('leros', URL, true);
+  const shared = ctx.inviteMessageFor('leros', URL, false);
   console.log('\n  ── as Naama receives it ──\n');
   personal.split('\n').forEach((l) => console.log('     ' + l));
   console.log('');
@@ -137,23 +128,33 @@ if (typeof ctx.inviteMessageFor === 'function') {
      !/no app needed/i.test(personal), personal);
 
   // 4 · the link, and what pressing it costs
-  // ── THE LINK, AND WHY IT HAS NO SCHEME ────────────────────────────────
-  // Measured on dan's phone, 5 Oct: a BARE domain is still tappable in
-  // WhatsApp and renders NO preview card, while the same link with https://
-  // renders one. The card was the first thing a recipient saw, and shrinking
-  // its image did nothing - a 192x192 rendered identically to a 512x512. This
-  // is what finally puts his own words at the top of the message.
-  const BARE = URL.replace(/^https:\/\//, '');
+  // ── THE LINK MUST BE TAPPABLE. THAT OUTRANKS THE CARD. ─────────────
+  //
+  // v0.99.5 sent WhatsApp a BARE domain, to suppress the preview card. It was
+  // wrong, and the evidence for it was a test that did not resemble an
+  // invitation - the message sent was ONLY the URL:
+  //
+  //   19:32  bare URL, message was only the URL   tappable
+  //   21:04  bare URL, inside the real message    NOT tappable
+  //   21:40  bare URL, inside the real message    NOT tappable
+  //
+  // WhatsApp on iOS linkifies a bare domain when the message IS the domain,
+  // and guesses wrong when it is the last line of a paragraph. With https://
+  // there is no guess: it is a URL by definition. Every message dan has shown
+  // carrying one linkified on both his phone and his laptop, and the first
+  // invitation screenshot drew a preview card from one - which only happens
+  // when WhatsApp has detected a URL inside a multi-line message.
+  //
+  // WHAT IT COSTS WHEN IT IS WRONG: a person reads "Tap to join", taps, and
+  // nothing happens. They do not know to select the text and paste it into a
+  // browser, so they do nothing - and the sender is never told. An invitation
+  // that cannot be tapped is not a tidier invitation, it is a broken one.
   ck('the link is the last thing, on its own line',
-     personal.trim().endsWith(BARE), personal.trim().slice(-50));
-  ck('WhatsApp gets the link with NO https://, so no card is drawn',
-     !/https:\/\//.test(personal), personal.trim().slice(-50));
-  ck('...and it is still a tappable domain, not a fragment',
-     /(^|\n)trustnetsocial\.com\/j\/[A-Za-z0-9_-]+$/.test(personal.trim()),
-     personal.trim().slice(-50));
-  ck('EMAIL keeps the scheme — mail clients linkify far less reliably',
-     byEmail.trim().endsWith(URL) && /https:\/\//.test(byEmail),
-     byEmail.trim().slice(-50));
+     personal.trim().endsWith(URL), personal.trim().slice(-50));
+  ck('IT CARRIES https://, so WhatsApp never has to guess',
+     /https:\/\/trustnetsocial\.com\/j\//.test(personal), personal.trim().slice(-50));
+  ck('...in the shareable message too',
+     /https:\/\//.test(shared), shared.trim().slice(-50));
   ck('the short path is used, not ?join=',
      /\/j\//.test(personal) && !/\?join=/.test(personal));
   ck('it says what to do, without promising a button that is not there',
@@ -172,7 +173,7 @@ if (typeof ctx.inviteMessageFor === 'function') {
   ck('[guard] it is short enough to read on a phone', personal.length < 480, String(personal.length));
   const circles = ['NYc Restaurants', 'יוון', "Dad's mates"];
   circles.forEach((c) => ck('a circle called "' + c + '" reads correctly',
-    ctx.inviteMessageFor(c, URL, true, true).indexOf('my ' + c + ' circle') > -1));
+    ctx.inviteMessageFor(c, URL, true).indexOf('my ' + c + ' circle') > -1));
 }
 
 if (typeof ctx.inviteSubjectFor === 'function') {
@@ -200,9 +201,17 @@ ck('the shareable link says they are not',
 // And the one that only v0.99.5 could get wrong: the two channels must differ
 // in the LAST argument, or either WhatsApp keeps its card or email loses its
 // clickable link.
-ck('WhatsApp asks for the bare link and email does not',
-   /inviteMessageFor\(circleName, url, true, true\)/.test(script)
-   && /inviteMessageFor\(circleName, url, true, false\)/.test(script));
+// Both channels send the same text now. The scheme is not optional on either:
+// mail clients linkify even less willingly than WhatsApp does.
+ck('both channels get the same, scheme-carrying message',
+   (script.match(/inviteMessageFor\(circleName, url, true\)/g) || []).length === 4,
+   (script.match(/inviteMessageFor\(circleName, url, true\)/g) || []).length + ' call(s)');
+// NAME THE THING THAT DID IT. Forbidding the shape file-wide caught an
+// unrelated display helper that shortens a canonical's website URL for the
+// UI - a guard failing against code it was never about. What must not come
+// back is the helper that stripped the scheme off an INVITE link.
+ck('the helper that stripped the scheme is gone',
+   !/function inviteLinkText/.test(script));
 
 // ── where the link POINTS ──────────────────────────────────
 // dan sent himself an invitation hours after the move to trustnetsocial.com
@@ -251,7 +260,14 @@ ck('...and the card says the same thing the message says',
    /No public reviews, no algorithmic feeds/.test(meta('og:description'))
    && !/people you trust\s*[—-]\s*a doctor/.test(meta('og:description')), meta('og:description'));
 ck('...a title', meta('og:title') === 'Trustnet', meta('og:title'));
-ck('...a picture', /icon-512\.png$/.test(meta('og:image')), meta('og:image'));
+// NO PICTURE, DELIBERATELY. With one, WhatsApp draws a half-screen block above
+// every invitation and the first words a person reads are below it. Shrinking
+// it does nothing - dan's own test had a 192x192 render IDENTICALLY to a
+// 512x512, because WhatsApp scales a small square up into the same box. The
+// card cannot be removed while the link is tappable, so it is made small
+// instead: without an image it is a title and the domain, two lines.
+ck('...and NO picture, so the card is two lines rather than a half screen',
+   meta('og:image') === '', JSON.stringify(meta('og:image')));
 ck('...and an address', /^https:\/\/trustnetsocial/.test(meta('og:url')), meta('og:url'));
 ck('search engines and other apps get the same sentence',
    meta('description') === meta('og:description'));

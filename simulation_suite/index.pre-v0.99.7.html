@@ -16,15 +16,7 @@
 <meta property="og:site_name" content="Trustnet">
 <meta property="og:title" content="Trustnet">
 <meta property="og:description" content="Trustnet is the channel for reaching out to people you trust for reliable information — and recommending back. No public reviews, no algorithmic feeds.">
-<!-- NO og:image, DELIBERATELY. With one, WhatsApp draws a half-screen block
-     above every invitation and the first words a person reads are below it -
-     dan: "they will think its just some kind of a commercial". Shrinking it
-     does nothing: his own test showed a 192x192 rendering IDENTICALLY to a
-     512x512, because WhatsApp scales a small square up into the same box.
-     Without one the card is two lines - a title and the full domain - which is
-     what variant `e` looked like on his phone.
-     The icons are still linked above for the browser tab and the home screen;
-     this only removes the social preview image. -->
+<meta property="og:image" content="https://trustnetsocial.com/icons/icon-512.png">
 <meta property="og:url" content="https://trustnetsocial.com/">
 <meta name="twitter:card" content="summary">
 <meta name="description" content="Trustnet is the channel for reaching out to people you trust for reliable information — and recommending back. No public reviews, no algorithmic feeds.">
@@ -2461,7 +2453,7 @@ const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
 // The Trustnet business number, in one place: the invite join and the
 // sign-in both open WhatsApp with it.
 const TN_WA_NUMBER = '972587786049';
-const APP_VERSION = 'v0.99.7 · live';
+const APP_VERSION = 'v0.99.6 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -8411,25 +8403,21 @@ const TN_WHAT_IT_IS = 'Trustnet is the channel for reaching out to people you '
 // `joined` true: they are already IN the circle - the Invite button puts them
 // there before it opens WhatsApp (v0.63.0) - so the message says so. The
 // shareable link goes to people who are not in it yet and cannot.
-// THE LINK ALWAYS CARRIES https://, AND THAT IS NOT NEGOTIABLE.
+// A BARE DOMAIN SUPPRESSES THE PREVIEW CARD, and that is the whole point.
+// Measured on dan's phone, 5 Oct: `trustnetsocial.com/j/test` is still
+// tappable and renders NO card, while the same link with https:// renders one.
+// The card was the first thing a recipient saw - dan: "they will think its
+// just some kind of a commercial" - and no amount of fiddling with og:image
+// shrank it. A 192x192 image rendered identically to a 512x512 one.
 //
-// v0.99.5 sent the bare domain to WhatsApp, to suppress the preview card. It
-// was wrong, and the evidence for it was one test that did not resemble a real
-// invitation:
-//
-//   19:32  bare URL, message was ONLY the URL     tappable
-//   21:04  bare URL, multi-line message           NOT tappable
-//   21:40  bare URL, multi-line message           NOT tappable
-//
-// iOS WhatsApp linkifies a bare domain when the message IS the domain, and
-// does not when it is the last line of a paragraph. Every message with
-// https:// in it has linkified, on every client, in every shape.
-//
-// An invitation nobody can tap is not a tidier invitation. The card comes
-// back; og:image is gone instead, which is what actually makes it small -
-// dan's own variant `e` showed a two-line card with the full domain on it.
+// So WhatsApp gets the bare form and his words come first. Email keeps the
+// scheme, because mail clients are far less reliable at linkifying without it
+// and an unclickable invitation is worse than a card.
+function inviteLinkText(url, bare) {
+  return bare ? String(url || '').replace(/^https?:\/\//, '') : url;
+}
 
-function inviteMessageFor(circleName, url, joined) {
+function inviteMessageFor(circleName, url, joined, bare) {
   const opener = joined
     ? 'Hi \u2014 you are a member of my ' + circleName + ' circle on Trustnet, '
       + 'as someone whose recommendation I trust.'
@@ -8439,7 +8427,7 @@ function inviteMessageFor(circleName, url, joined) {
     // The card used to repeat this sentence above the message. It cannot any
     // more - a bare link has no card - so it is said once, here.
     + 'Tap to join:\n'
-    + url + '\n';
+    + inviteLinkText(url, bare) + '\n';
 }
 
 function inviteSubjectFor(circleName) {
@@ -8480,12 +8468,12 @@ async function handleInviteMember(btn) {
   const url = await circleInviteLink(circleId);
   if (!url) { btn.disabled = false; btn.textContent = 'Invite'; fail('Could not create an invite link.'); return; }
   if (m.contactMethod === 'whatsapp') {
-    const text = inviteMessageFor(circleName, url, true);
+    const text = inviteMessageFor(circleName, url, true, true);
     const ph = String(m.contactValue).replace(/[^0-9]/g, '');
     window.open('https://wa.me/' + ph + '?text=' + encodeURIComponent(text), 'tn_ext');
     toast('WhatsApp opened for ' + m.name + ' \u2014 press send there.');
   } else if (m.contactMethod === 'email') {
-    const text = inviteMessageFor(circleName, url, true);
+    const text = inviteMessageFor(circleName, url, true, false);
     window.open('mailto:' + encodeURIComponent(m.contactValue)
       + '?subject=' + encodeURIComponent(inviteSubjectFor(circleName))
       + '&body=' + encodeURIComponent(text), 'tn_ext');
@@ -8604,12 +8592,12 @@ async function handleInviteNew(btn) {
   const url = await circleInviteLink(circleId);
   if (!url) { btn.disabled = false; btn.textContent = 'Send invite'; fail('Could not create an invite link.'); return; }
   if (method === 'whatsapp') {
-    const text = inviteMessageFor(circleName, url, true);
+    const text = inviteMessageFor(circleName, url, true, true);
     const ph = invPhone.replace(/[^0-9]/g, '');
     window.open('https://wa.me/' + ph + '?text=' + encodeURIComponent(text), 'tn_ext');
     toast('WhatsApp opened \u2014 press send there.');
   } else {
-    const text = inviteMessageFor(circleName, url, true);
+    const text = inviteMessageFor(circleName, url, true, false);
     window.open('mailto:' + encodeURIComponent(contact)
       + '?subject=' + encodeURIComponent(inviteSubjectFor(circleName))
       + '&body=' + encodeURIComponent(text), 'tn_ext');
@@ -8837,7 +8825,7 @@ function modalHomeScreen() {
 function modalCircleLink() {
   const d = AppState._circleLink;
   if (!d) return '<div class="modal"><div class="modal-body">Link not ready.</div></div>';
-  const waText = encodeURIComponent(inviteMessageFor(d.circleName, d.url, false));
+  const waText = encodeURIComponent(inviteMessageFor(d.circleName, d.url, false, true));
   return '<div class="modal" style="max-width:460px;">'
     + '<div class="modal-header">'
     + '<div><div class="modal-title">Invite link — ' + esc(d.circleName) + '</div>'
