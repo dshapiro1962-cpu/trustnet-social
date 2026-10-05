@@ -1574,21 +1574,6 @@ body {
 <script defer src="https://cdn.jsdelivr.net/npm/libphonenumber-js@1.13.11/bundle/libphonenumber-min.js"></script>
 <script>
 /* ═══ SUPABASE CONFIG (production) ═══ */
-// WHERE A LINK WE SEND SOMEBODY POINTS. Not location.origin, which is
-// wherever this copy of the app happens to be running.
-//
-// dan sent himself an invitation on 5 Oct and it came out
-// trustnetsocial.netlify.app/?join=... hours after the move to
-// trustnetsocial.com. His Trustnet is on his HOME SCREEN, added from the old
-// address, so location.origin is permanently netlify.app for him - and would
-// have been for every member who added it before today. Every invitation they
-// ever sent would have carried the long domain.
-//
-// The auth redirect at the bottom of the file deliberately still uses
-// location.origin: a magic link has to come back to where the person actually
-// is, not to where we would prefer them to be.
-const TN_ORIGIN = 'https://trustnetsocial.com';
-
 const SUPABASE_URL = 'https://kgsdtfrcyjrxeyqqxoic.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_8MAMd56FzHTyNZtnO2XK4A_cp2lFGEm';
 const FUNCTIONS_URL = SUPABASE_URL + '/functions/v1';
@@ -2453,7 +2438,7 @@ const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
 // The Trustnet business number, in one place: the invite join and the
 // sign-in both open WhatsApp with it.
 const TN_WA_NUMBER = '972587786049';
-const APP_VERSION = 'v0.99.6 · live';
+const APP_VERSION = 'v0.99.5 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -6270,7 +6255,7 @@ async function handleDeleteCollection(btn) {
 }
 
 function collectionUrl(token) {
-  return TN_ORIGIN + '/collection.html?t=' + encodeURIComponent(token);
+  return location.origin + '/collection.html?t=' + encodeURIComponent(token);
 }
 
 function renderCollectionsStrip() {
@@ -8351,7 +8336,7 @@ async function circleInviteLink(circleId) {
     // /j/<token> rather than /?join=<token>. netlify.toml redirects it back,
      // so nothing downstream changes - the browser lands on /?join= exactly as
      // before. Four characters of the thirty-three this saves.
-    if (r && r.data) return TN_ORIGIN + '/j/' + r.data;
+    if (r && r.data) return location.origin + '/j/' + r.data;
   } catch (e) { console.error('circle link failed:', e); }
   if (AppState._circleLink && AppState._circleLink.circleId === circleId) return AppState._circleLink.url;
   return '';
@@ -8852,7 +8837,7 @@ async function handleOpenCircleLink(circleId, circleName) {
   if (r.error || !r.data) { toast('Could not create the link.', 'warn'); return; }
   AppState._circleLink = {
     circleId: circleId, circleName: circleName,
-    url: TN_ORIGIN + '/j/' + r.data
+    url: location.origin + '/?join=' + r.data
   };
   openModal('circle-link');
 }
@@ -10452,7 +10437,7 @@ document.addEventListener('click', function(e) {
     toast('No problem \u2014 you can add it later from the menu.');
   }
   else if (action === 'copy-app-link') {
-    const link = TN_ORIGIN + '/';
+    const link = location.origin + '/';
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(link).then(function() {
         toast('Link copied \u2014 paste it into Chrome.');

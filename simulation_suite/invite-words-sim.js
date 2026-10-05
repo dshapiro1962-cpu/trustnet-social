@@ -204,6 +204,40 @@ ck('WhatsApp asks for the bare link and email does not',
    /inviteMessageFor\(circleName, url, true, true\)/.test(script)
    && /inviteMessageFor\(circleName, url, true, false\)/.test(script));
 
+// ── where the link POINTS ──────────────────────────────────
+// dan sent himself an invitation hours after the move to trustnetsocial.com
+// and it arrived carrying trustnetsocial.netlify.app. His Trustnet is on his
+// HOME SCREEN, added from the old address, so location.origin is permanently
+// the old domain for him - and for every member who added it before 5 Oct.
+//
+// And v0.99.5 shortened only ONE of the two builders. The Invite button used
+// /j/; the shareable link in the Invite-link modal was still on /?join=. The
+// previous section could not see that, because it tests the MESSAGE builder
+// and this is a URL builder. Both are checked here.
+console.log('\n== where the link points ==\n');
+
+ck('there is one canonical origin for links we hand to people',
+   /const TN_ORIGIN = 'https:\/\/trustnetsocial\.com';/.test(script));
+ck('the invite link uses it, not location.origin',
+   /return TN_ORIGIN \+ '\/j\/' \+ r\.data;/.test(script));
+ck('the SHAREABLE circle link uses it too — both doors, one shape',
+   /url: TN_ORIGIN \+ '\/j\/' \+ r\.data/.test(script));
+// Exactly ONE occurrence may remain, and it is the auth redirect two checks
+// down. Asserting zero caught that legitimate line and failed against correct
+// code - the guard has to name the exception it allows, not forbid the shape
+// outright.
+const joinOrigins = (script.match(/location\.origin \+ '\/\?join='/g) || []).length;
+ck('neither invite door still builds /?join=',
+   joinOrigins === 1 && /const redirectTo = pj \? \(location\.origin \+ '\/\?join='/.test(script),
+   joinOrigins + ' occurrence(s), and the one allowed is the auth redirect');
+ck('no link we send is built from location.origin any more',
+   !/location\.origin \+ '\/j\//.test(script)
+   && !/location\.origin \+ '\/collection\.html/.test(script));
+// The ONE that must keep it: a magic link has to return the person to where
+// they actually are, not to where we would prefer them to be.
+ck('...except the auth redirect, which still must',
+   /const redirectTo = pj \? \(location\.origin/.test(script));
+
 // ── the preview card ───────────────────────────────────────────────────────
 console.log('\n== the card WhatsApp draws ==\n');
 const head = html.slice(0, html.indexOf('</head>'));
