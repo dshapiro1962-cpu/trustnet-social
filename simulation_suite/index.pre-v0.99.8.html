@@ -2461,7 +2461,7 @@ const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
 // The Trustnet business number, in one place: the invite join and the
 // sign-in both open WhatsApp with it.
 const TN_WA_NUMBER = '972587786049';
-const APP_VERSION = 'v0.99.8 · live';
+const APP_VERSION = 'v0.99.7 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -11183,73 +11183,8 @@ document.addEventListener('keydown', function(e) {
 });
 
 document.addEventListener('visibilitychange', function() {
-  if (!document.hidden) { refreshLive(); tnCheckVersion(); }
+  if (!document.hidden) refreshLive();
 });
-
-/* ═══ IS THIS COPY OF THE APP STILL THE CURRENT ONE? (v0.99.8) ═══════════════
-   5 Oct cost an evening to this. dan tested the same fix four times from his
-   phone and reported it broken each time; the fix was live and his home-screen
-   app was running a build from before any of it. iOS keeps a snapshot of a
-   page added to the home screen and will happily serve it for days. He had no
-   way to know, and neither did I - every screenshot looked like a product that
-   did not work.
-
-   HIS TESTERS WILL HIT THE SAME THING and will not have a version line to
-   check or anyone to ask. They will conclude Trustnet is broken.
-
-   So the app asks. version.json carries the published version; if it differs
-   from the one running, this copy is stale and replaces itself.
-
-   THREE THINGS IT MUST NOT DO:
-
-   1. Reload in a loop. If the edge still serves the old page the reload
-      changes nothing, so the version it tried is remembered for the session
-      and never attempted twice. Worse than a stale app is one that reloads
-      for ever.
-   2. Reload over someone's work. A modal open, the film playing, or a cursor
-      in a field all mean something is in progress. It waits; the next check
-      catches it.
-   3. Say anything when it fails. Offline, or version.json missing, is not a
-      thing to trouble anyone with.                                        */
-let TN_VERSION_CHECKED = 0;
-
-function tnSafeToReload() {
-  const modal = document.getElementById('modal-root');
-  if (modal && modal.innerHTML.trim()) return false;
-  const film = document.getElementById('film-root');
-  if (film && film.innerHTML.trim()) return false;
-  const a = document.activeElement;
-  if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName || '')) return false;
-  return true;
-}
-
-async function tnCheckVersion() {
-  // At most once every two minutes: this runs on every return to the tab.
-  const now = Date.now();
-  if (now - TN_VERSION_CHECKED < 120000) return;
-  TN_VERSION_CHECKED = now;
-  try {
-    const r = await fetch('/version.json?t=' + now, { cache: 'no-store' });
-    if (!r.ok) return;
-    const d = await r.json();
-    const published = String((d && d.version) || '');
-    if (!published || published === APP_VERSION) return;
-
-    let tried = '';
-    try { tried = sessionStorage.getItem('tn_reloaded_for') || ''; } catch (e) {}
-    if (tried === published) return;   // already tried, still old: let it be
-    if (!tnSafeToReload()) return;     // something is in progress; try later
-
-    try { sessionStorage.setItem('tn_reloaded_for', published); } catch (e) {}
-    // Pull the page through the HTTP cache first, so the reload below is
-    // served the new copy rather than the one that is already stale.
-    try { await fetch(location.pathname + location.search, { cache: 'reload' }); }
-    catch (e) {}
-    location.reload();
-  } catch (e) {
-    // Offline, or no version.json. Nothing worth saying.
-  }
-}
 
 /* ═══════════════════════════════════════════════
    ONBOARDING
@@ -11607,9 +11542,6 @@ function showLoginScreen() {
 }
 
 async function boot() {
-  // The commonest stale copy is the one that just opened from a home-screen
-  // icon, so the first check happens here rather than only on a later return.
-  setTimeout(tnCheckVersion, 1500);
   // Capture a circle-join token from the URL; it must survive the magic-link
   // round trip (which opens a new tab), so stash it in localStorage.
   const joinParam = new URLSearchParams(location.search).get('join');

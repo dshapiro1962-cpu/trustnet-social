@@ -185,6 +185,19 @@ Added 21 Sep, same rule:
 - `invite-words-sim.js` — lifts the REAL invite-message builders out of the page
   and executes them, then reads the message a person actually receives
 
+Added 6 Oct:
+
+- `version-check-sim.js` — the app notices when it is out of date and replaces
+  itself. Mostly asserts what the checker must NOT do: reload in a loop, or
+  reload over a modal, the film, or a cursor in a field. Baseline
+  `index.pre-v0.99.8.html`. **IT WAS LYING TO ITSELF ON THE FIRST RUN**: it
+  shared one vm between scenarios and reset the throttle with
+  `ctx.TN_VERSION_CHECKED = 0`, which does nothing — that is a `let` inside the
+  lifted script, a lexical binding and not a property of the context. Five
+  checks were passing because the function never ran. Each scenario now builds
+  its own vm. **A SHARED CONTEXT BETWEEN SCENARIOS IS A TRAP**: state that
+  looks resettable from outside often is not
+
 Added 27 Sep:
 
 - `answer-words-sim.js` — two screens that answered a person in the wrong words
