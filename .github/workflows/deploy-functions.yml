@@ -39,7 +39,18 @@ jobs:
           #   build-sheet       the answer sheet
           #   ingest-link       the Fetch box in respond.html; it authenticates
           #                     a user JWT *or* an unused response token itself
-          NO_JWT="whatsapp-webhook get-collection response-meta receive-response build-sheet ingest-link"
+          # ALSO IN supabase/config.toml since 6 Oct, which is now the
+          # authoritative copy. This list is kept in step with it because
+          # the deploy below passes the flag explicitly; if the two ever
+          # disagree, config.toml is right.
+          #
+          # mcp and connector-confirm were MISSING until 6 Oct. Their
+          # callers hold a connector token or a confirm token, not a
+          # Supabase JWT, so the platform would reject the request before
+          # our code could read it. They survived earlier runs only
+          # because the CLI preserves an existing setting when no flag is
+          # given - undocumented behaviour, not a design.
+          NO_JWT="whatsapp-webhook get-collection response-meta receive-response build-sheet ingest-link mcp connector-confirm"
           for dir in supabase/functions/*/; do
             fn=$(basename "$dir")
             [ "$fn" = "_shared" ] && continue

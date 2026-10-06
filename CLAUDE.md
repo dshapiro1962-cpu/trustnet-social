@@ -381,10 +381,16 @@ fixed on 24 Aug, guarded by `unchecked-writes-sim.js`. What remains:
    `primary_category` does not work — `other` is the fallback, not a category.
    Normalised name **plus exact location** gets all five live collision groups
    right. Not needed for beta.
-5. **`saveCircles` still writes the whole array.** Left deliberately: `circles`
+5. **Three live edge functions have no source in this repo.** `accept-invite`,
+   `classify-rec` and `public-list` are deployed and ACTIVE on the project, and
+   nothing in the working tree or in git history builds them — their entrypoints
+   point at an old OneDrive directory. Found 6 Oct while generating
+   `supabase/config.toml` from production. Same family as item 2: live code with
+   no version control. Nobody knows what they do or whether anything calls them.
+6. **`saveCircles` still writes the whole array.** Left deliberately: `circles`
    has no foreign key except `owner_id`, so no poison vector. Same shape, no
    known risk.
-6. **"That's your own number" never fires.** `web/index.html:9598` guards
+7. **"That's your own number" never fires.** `web/index.html:9598` guards
    against adding yourself as a member by comparing the typed number against
    `AppState._authPhone` and `AppState.userProfile.phone`. Neither is ever
    written. `_authPhone` is read in that one line and assigned nowhere in the

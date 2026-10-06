@@ -1,0 +1,59 @@
+# Trustnet — Supabase project configuration.
+#
+# WHY THIS FILE EXISTS (6 Oct 2026). Until now, which edge functions skip JWT
+# verification lived in exactly two places: production's own memory, and a bash
+# string inside .github/workflows/deploy-functions.yml. Nothing in the repo
+# declared it.
+#
+# That string is incomplete — it does not list `mcp` or `connector-confirm`,
+# both of which must accept callers holding something other than a Supabase
+# JWT. The workflow has already redeployed both without the flag and they came
+# back unchanged, because the CLI preserves the existing setting when none is
+# given. That is luck, not design: it is undocumented behaviour, and the same
+# omission on 13 Sep would have redeployed receive-response WITH verification
+# and killed the answer loop outright.
+#
+# EVERY VALUE BELOW WAS READ FROM PRODUCTION, not written from memory:
+#   supabase functions list --project-ref kgsdtfrcyjrxeyqqxoic
+# so this file cannot disagree with what is running at the moment it was made.
+#
+# Anything NOT listed here verifies the JWT, which is the safe default.
+
+project_id = "trustnet"
+
+[functions]
+# ── callers that do not hold a Supabase JWT ────────────────────────────────
+
+# Meta calls it. There is no user and no session.
+[functions.whatsapp-webhook]
+verify_jwt = false
+
+# respond.html is account-free by design: the single-use response token IS the
+# credential. A person answering a question has never signed in and must not
+# have to.
+[functions.response-meta]
+verify_jwt = false
+[functions.receive-response]
+verify_jwt = false
+[functions.build-sheet]
+verify_jwt = false
+
+# The Fetch box in respond.html. It authenticates a user JWT *or* an unused
+# response token itself, so the platform must let both through.
+[functions.ingest-link]
+verify_jwt = false
+
+# A shared list opens for anyone holding the link.
+[functions.get-collection]
+verify_jwt = false
+
+# ── the Muse connector (0053/0054) ─────────────────────────────────────────
+# The MCP server's callers hold a CONNECTOR token, which is not a Supabase JWT;
+# the platform would reject the request before our code could read it. The
+# confirm page is opened signed-out and carries a confirm token in the URL —
+# though since 0054 the SEND action additionally requires the member's own
+# session, checked inside the same statement that marks the draft used.
+[functions.mcp]
+verify_jwt = false
+[functions.connector-confirm]
+verify_jwt = false
