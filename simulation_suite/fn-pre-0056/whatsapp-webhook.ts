@@ -127,16 +127,14 @@ Deno.serve(async (req) => {
       await sendText(from, "That invitation link is no longer valid. Ask for a new one.");
       return json({ ok: true });
     }
-    // ONE INSTRUCTION, AND A LINK THAT WORKS (0056). This used to say "Got it -
-    // switch back to your browser and you're in. If that tab closed, open this
-    // instead", on the belief that when the tab survived she "never taps it".
-    // She does: unsure which browser to switch back to, she taps the link. It
-    // shared the waiting page's single-use claim, the page had already spent
-    // it, and she landed on Sign in and went round again (phone ...4488, 6 Oct).
-    // The link now carries its own pass, so it works wherever it opens and the
-    // reply can simply say to tap it.
+    // THE FALLBACK, always sent. If the browser tab did not survive the switch
+    // to WhatsApp — which iOS in particular may do — polling died with it, and
+    // this link is how she still gets in. When the tab DID survive she is
+    // already inside and never taps it.
     const appUrl = Deno.env.get("APP_URL") ?? "https://trustnetsocial.com";
-    await sendText(from, "Tap to open Trustnet:\n" + appUrl + "/?finish=" + rec.finish);
+    await sendText(from,
+      "Got it \u2014 switch back to your browser and you're in.\n\n" +
+      "If that tab closed, open this instead:\n" + appUrl + "/?claimed=" + token);
     return json({ ok: true });
   }
 

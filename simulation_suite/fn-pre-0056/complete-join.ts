@@ -22,16 +22,7 @@
 // and WhatsApp refuses those outside a 24-hour window. dan: "no digit path
 // discard it", and sign-in and sign-up are one act.
 //
-// TWO DOORS ONTO ONE CLAIM (0056). The waiting page finishes with { token,
-// phone }; the link in Trustnet's WhatsApp reply finishes with { finish }, a
-// pass of its own minted with the claim. They used to be one single-use door:
-// the page got there first, the link opened in another browser, found the
-// claim spent and dropped the person on Sign in - phone ...4488, 6 Oct, signed
-// in twice in three minutes. Each door now works once, and neither can use up
-// the other.
-//
 // Body: { token, phone }   phone must match the recorded claim exactly.
-//    or { finish }         the reply's pass; the claim supplies token and phone.
 // Returns: { access_token, refresh_token, is_new, circle }   circle is null
 //          when the token was a sign-in rather than an invitation.
 // Auth: none — the caller is by definition signed out. The TOKEN is the
@@ -48,50 +39,28 @@ Deno.serve(async (req) => {
   if (pre) return pre;
   if (req.method !== "POST") return err("method_not_allowed", 405);
 
-  let body: { token?: string; phone?: string; finish?: string };
+  let body: { token?: string; phone?: string };
   try { body = await req.json(); } catch { return err("bad_body"); }
-  const finish = String(body.finish ?? "").trim();
-  let token = String(body.token ?? "").trim();
-  let phone = String(body.phone ?? "").trim();
-  if (!finish && (!token || !phone)) return err("token_and_phone_required");
+  const token = String(body.token ?? "").trim();
+  const phone = String(body.phone ?? "").trim();
+  if (!token || !phone) return err("token_and_phone_required");
 
   const admin = adminClient();
 
   // ── 1. the claim must be real, unexpired, unconsumed, and for THIS phone ──
   // Checked server-side against what the WEBHOOK recorded. A caller cannot
   // invent a phone: it must match the number that actually sent the message.
-  let claim: { id: string; token: string; claimed_phone: string; claimed_name: string | null } | null;
-  if (finish) {
-    // THE REPLY'S DOOR (0056). Spent in the same statement that finds it, so
-    // two browsers opening one link cannot both get through. It never touches
-    // consumed_at - that is the waiting page's half - so the page can still
-    // finish too, and no claim lives a second longer than it did before.
-    const { data: byFinish, error: finErr } = await admin
-      .from("invite_claims")
-      .update({ finish_used_at: new Date().toISOString() })
-      .eq("finish_secret", finish).is("finish_used_at", null)
-      .gt("expires_at", new Date().toISOString())
-      .select("id, token, claimed_phone, claimed_name")
-      .maybeSingle();
-    if (finErr) return err("finish_lookup_failed: " + finErr.message, 500);
-    if (!byFinish) return err("finish_used_or_expired", 410);
-    claim = byFinish;
-    token = byFinish.token;
-    phone = byFinish.claimed_phone;
-  } else {
-    const { data: byToken, error: claimErr } = await admin
-      .from("invite_claims")
-      .select("id, token, claimed_phone, claimed_name, consumed_at, expires_at")
-      .eq("token", token).is("consumed_at", null)
-      .gt("expires_at", new Date().toISOString())
-      .order("claimed_at", { ascending: false })
-      .limit(1).maybeSingle();
-    if (claimErr) return err("claim_lookup_failed: " + claimErr.message, 500);
-    if (!byToken) return err("no_live_claim", 404);
-    claim = byToken;
-    if (phoneKey(claim.claimed_phone) !== phoneKey(phone)) {
-      return err("phone_mismatch", 403);
-    }
+  const { data: claim, error: claimErr } = await admin
+    .from("invite_claims")
+    .select("id, token, claimed_phone, claimed_name, consumed_at, expires_at")
+    .eq("token", token).is("consumed_at", null)
+    .gt("expires_at", new Date().toISOString())
+    .order("claimed_at", { ascending: false })
+    .limit(1).maybeSingle();
+  if (claimErr) return err("claim_lookup_failed: " + claimErr.message, 500);
+  if (!claim) return err("no_live_claim", 404);
+  if (phoneKey(claim.claimed_phone) !== phoneKey(phone)) {
+    return err("phone_mismatch", 403);
   }
 
   // ── 2. the invite must still be valid ────────────────────────────────────
@@ -103,16 +72,7 @@ Deno.serve(async (req) => {
   // NO CIRCLE BEHIND IT? Then it is a sign-in token, or it is nothing. Asked
   // of the database rather than assumed: only a live, unspent one counts.
   let isSignin = false;
-  if (!link && finish) {
-    // Through the reply's door the waiting page may already have spent the
-    // sign-in token - that is the very case this door exists for. The claim's
-    // ten minutes, checked above, are the limit; the token need only be one.
-    const { data: st, error: stErr } = await admin
-      .from("signin_tokens").select("token").eq("token", token).maybeSingle();
-    if (stErr) return err("signin_token_lookup_failed: " + stErr.message, 500);
-    if (!st) return err("invite_no_longer_valid", 410);
-    isSignin = true;
-  } else if (!link) {
+  if (!link) {
     const { data: live, error: liveErr } = await admin
       .rpc("is_live_signin_token", { p_token: token });
     if (liveErr) return err("signin_token_lookup_failed: " + liveErr.message, 500);
@@ -255,21 +215,16 @@ Deno.serve(async (req) => {
   // stopping a forwarded invite from being claimed twice; a silent failure
   // defeats the stated purpose of the step. The join above has already
   // succeeded and must not be rolled back, so this is loud rather than fatal.
-  // Only the waiting page's door spends these. The reply's door spent its own
-  // pass in step 1, and spending the page's half here would show the page
-  // "Couldn't finish signing you in" while the person is already in.
-  if (!finish) {
-    const { error: claimErr2 } = await admin.from("invite_claims")
-      .update({ consumed_at: new Date().toISOString() }).eq("id", claim.id);
-    if (claimErr2) {
-      console.error("invite_claim_not_consumed", claim.id, claimErr2.message);
-    }
-    // And the sign-in token itself, for the same reason: one message, one
-    // session. Loud rather than fatal - the session below is already earned.
-    if (isSignin) {
-      const { error: stErr } = await admin.rpc("consume_signin_token", { p_token: token });
-      if (stErr) console.error("signin_token_not_consumed", stErr.message);
-    }
+  const { error: claimErr2 } = await admin.from("invite_claims")
+    .update({ consumed_at: new Date().toISOString() }).eq("id", claim.id);
+  if (claimErr2) {
+    console.error("invite_claim_not_consumed", claim.id, claimErr2.message);
+  }
+  // And the sign-in token itself, for the same reason: one message, one
+  // session. Loud rather than fatal - the session below is already earned.
+  if (isSignin) {
+    const { error: stErr } = await admin.rpc("consume_signin_token", { p_token: token });
+    if (stErr) console.error("signin_token_not_consumed", stErr.message);
   }
 
   // ── 6. mint a session — same mechanism wa-signin already uses ────────────
