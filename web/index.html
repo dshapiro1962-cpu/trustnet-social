@@ -2461,7 +2461,7 @@ const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
 // The Trustnet business number, in one place: the invite join and the
 // sign-in both open WhatsApp with it.
 const TN_WA_NUMBER = '972587786049';
-const APP_VERSION = 'v0.99.8 · live';
+const APP_VERSION = 'v0.99.9 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -11488,6 +11488,36 @@ async function handleClaimedLanding() {
     const d = (r && r.data) || {};
     if (d.claimed && d.phone) { await finishCodelessJoin(claimed, d.phone); return true; }
   } catch (e) { console.error('claimed landing failed:', e); }
+  if (!(await sb.auth.getSession()).data.session) TN_LINK_SPENT = true;
+  return false;
+}
+
+// THE REPLY'S LINK HAS ITS OWN PASS (v0.99.9 / 0056). dan, 7 Oct: people
+// tapped the link in Trustnet's WhatsApp reply instead of switching back, and
+// went round in a loop. The link shared the waiting page's single-use claim;
+// the page, asking every two seconds, nearly always spent it first, and the
+// link - opened in another browser - landed on Sign in without a word. Phone
+// ...4488, 6 Oct: signed in at 11:44:56, and again at 11:47:06.
+// ?finish= is a pass of its own, so it works wherever WhatsApp opens it.
+// Already signed in here? Then there is nothing to spend.
+let TN_LINK_SPENT = false;
+async function handleFinishLanding() {
+  const fin = new URLSearchParams(location.search).get('finish');
+  if (!fin) return false;
+  history.replaceState(null, '', location.pathname);
+  if ((await sb.auth.getSession()).data.session) return true;
+  try {
+    const r = await fnPost('complete-join', { finish: fin });
+    if (r && r.access_token) {
+      const { error } = await sb.auth.setSession({
+        access_token: r.access_token, refresh_token: r.refresh_token });
+      if (!error) return true;
+      console.error('finish landing setSession failed:', error.message);
+    }
+  } catch (e) { console.error('finish landing failed:', e); }
+  // Used, expired, or refused: say so on the sign-in screen rather than
+  // dropping them there as though nothing had happened.
+  TN_LINK_SPENT = true;
   return false;
 }
 
@@ -11552,6 +11582,13 @@ function showLoginScreen() {
   // returning ONLY the inviter's first name and the circle name.
   showInviteBannerIfPending();
   wireWhatsAppLogin();
+  if (TN_LINK_SPENT) {
+    const le = document.getElementById('login-err');
+    if (le) {
+      le.textContent = 'That link has already been used or has expired. Sign in again below.';
+      le.style.display = 'block';
+    }
+  }
   const btn = document.getElementById('login-send');
   if (btn && !btn._wired) {
     btn._wired = true;
@@ -11634,6 +11671,9 @@ async function boot() {
     // sat on the loading screen. The session is set by the time this resolves,
     // so the ordinary path below renders the app correctly.
     await handleClaimedLanding();
+  }
+  if (new URLSearchParams(location.search).get('finish')) {
+    await handleFinishLanding();
   }
   const sess = (await sb.auth.getSession()).data.session;
   if (!sess) { showLoginScreen(); return; }
