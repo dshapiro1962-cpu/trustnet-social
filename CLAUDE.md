@@ -14,7 +14,9 @@ Live at trustnetsocial.com. Postgres on Supabase, project
 Read `docs/HANDOVER-2026-10-07.md` first — the WhatsApp reply's link that sent
 people round in a loop (v0.99.9 / 0056), the webhook now checking Meta's
 signature, the answer-page rewrite (respond r2.6), WhatsApp sign-in opening the
-right account (0057), and what is still open. Then
+right account (0057), the sign-in moved into a cookie so the home-screen
+icon stays signed in (v0.99.11), personal invitation links (0059 / v0.99.12),
+and what is still open. Then
 `docs/HANDOVER-2026-09-27.md` — six days, four migrations
 (0051–0054), the sign-in rebuild, the film, one phone normaliser on each side,
 three legal pages, and the Meta connector that was submitted on 27 Sep. Then
@@ -242,6 +244,18 @@ Added 7–10 Oct:
   nothing; a plain sign-in still records), and the REAL app in Chrome pressing
   the invite button. Baseline `fn-pre-0058/` + `index.pre-v0.99.10.html`
   fails 7 and prints WhatsApp opening with the shared token
+- `session-cookie-sim.js` — the sign-in lives in a cookie (v0.99.11), so the
+  home-screen icon opens signed in. Models the icon EXACTLY as dan's iPhone
+  showed it: a second browser given the first one's cookies and none of its
+  saved data. Runs the real index, respond, connect and confirm, and checks
+  the five copies of the TN SESSION STORE are one text. Baseline
+  `pre-cookie-session/`; five sabotages, each caught
+- `personal-invite-sim.js` — the invited person's three steps (0059 /
+  v0.99.12). The REAL `redeem-invite` in a vm with three safeguards
+  sabotaged in turn, the REAL database rolled back, and the REAL app in
+  Chrome on four paths. Baseline `index.pre-v0.99.12.html`. Its control
+  first failed two checks FOR THE WRONG REASON: the stub did not answer the
+  shared-link call, so the baseline sent no link at all
 - `signin-account-sim.js` — WhatsApp sign-in opens the account that carries the
   number (0057). Section 1 runs the REAL `complete-join` in a vm; baseline
   `fn-pre-0057/` reproduces dan's case — a session for
@@ -503,4 +517,12 @@ fixed on 24 Aug, guarded by `unchecked-writes-sim.js`. What remains:
    `answerer_on_trustnet` is false and their questions arrive by WhatsApp only.
 12. **Inside WhatsApp's in-app browser, the home-screen sheet says "you stay
    signed in"** before sending people to Chrome. They do not — Chrome is a
-   separate app with its own storage.
+   separate app with its own storage. Elsewhere it is now TRUE (v0.99.11: the
+   icon sees the cookie). Not reproduced on the one Android tested; fixing it
+   reverses the 27 Sep decision that the step gates — dan's call.
+13. **An account made from a personal link (0059) has no phone**, so a later
+   WhatsApp sign-in on ANOTHER device makes a separate account. Deliberate:
+   the inviter typed that number and the person never proved it. The answer
+   is a "connect WhatsApp to this account" step, not built.
+14. **`web/hs-test/` is temporary** — the home-screen and WhatsApp-hop test
+   pages. Remove once Android testing is done.
