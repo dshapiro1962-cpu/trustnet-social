@@ -8,7 +8,8 @@
 // FROM HER PHONE NUMBER — WhatsApp guarantees that — so the act of sending IS
 // the verification. No code, no digits, nothing typed.
 //
-// WHY THE WEBHOOK CANNOT DO THIS: it does not verify Meta's signature, so a
+// WHY THE WEBHOOK DOES NOT DO THIS: it did not verify Meta's signature until
+// 7 Oct 2026 (it does now), so a
 // forged request could claim to come from any number. If the webhook created
 // accounts and memberships, one forged call would let anyone become anyone.
 // Instead the webhook only RECORDS a claim; this function — reached from the

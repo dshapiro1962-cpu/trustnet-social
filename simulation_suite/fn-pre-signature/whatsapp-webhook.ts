@@ -4,8 +4,7 @@
 // and it becomes a classified, embedded library item — replied with ✓.
 // GET  = Meta's verification handshake (hub.challenge echo)
 // POST = incoming message events
-// Secrets used: WHATSAPP_VERIFY_TOKEN (you invent it), WHATSAPP_APP_SECRET
-//               (Meta app settings; signs every POST), WHATSAPP_TOKEN,
+// Secrets used: WHATSAPP_VERIFY_TOKEN (you invent it), WHATSAPP_TOKEN,
 //               WHATSAPP_PHONE_ID, OPENAI_API_KEY, OPENAI_MODEL?,
 //               GOOGLE_PLACES_API_KEY?
 // ============================================================================
@@ -41,30 +40,6 @@ function pick(re: RegExp, s: string): string {
   return m ? m[1].trim() : "";
 }
 
-// META SIGNS EVERY DELIVERY, AND NOW WE CHECK (7 Oct 2026). Each POST carries
-// X-Hub-Signature-256: sha256=<HMAC-SHA256 of the raw body, keyed with the
-// app secret>. Until today nothing checked it, so anyone who found this URL
-// could post a message "from" any number - and since 0052 anyone can mint a
-// sign-in token, a forged claim was no longer inert. FAILS CLOSED: no secret,
-// no header, or a wrong signature, and nothing below runs.
-// Computed over the RAW BYTES, before any parsing: re-serialising the JSON
-// would not reproduce what Meta signed.
-async function signedByMeta(header: string | null, body: Uint8Array): Promise<boolean> {
-  const secret = Deno.env.get("WHATSAPP_APP_SECRET");
-  if (!secret || !header || !header.startsWith("sha256=")) return false;
-  const key = await crypto.subtle.importKey(
-    "raw", new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, body));
-  const want = Array.from(mac, (b) => b.toString(16).padStart(2, "0")).join("");
-  const given = header.slice("sha256=".length).toLowerCase();
-  if (given.length !== want.length) return false;
-  // Constant time: every character is compared whether or not one differed.
-  let diff = 0;
-  for (let i = 0; i < want.length; i++) diff |= want.charCodeAt(i) ^ given.charCodeAt(i);
-  return diff === 0;
-}
-
 Deno.serve(async (req) => {
   const url = new URL(req.url);
 
@@ -81,14 +56,8 @@ Deno.serve(async (req) => {
 
   if (req.method !== "POST") return json({ ok: true });
 
-  const rawBody = new Uint8Array(await req.arrayBuffer());
-  if (!(await signedByMeta(req.headers.get("x-hub-signature-256"), rawBody))) {
-    console.error("webhook_signature_rejected", ENGINE);
-    return new Response("forbidden", { status: 401 });
-  }
-
   let payload: Record<string, unknown>;
-  try { payload = JSON.parse(new TextDecoder().decode(rawBody)); } catch { return json({ ok: true }); }
+  try { payload = await req.json(); } catch { return json({ ok: true }); }
 
   // Always 200 quickly — Meta retries aggressively otherwise.
   const value = (payload as any)?.entry?.[0]?.changes?.[0]?.value;
@@ -137,10 +106,10 @@ Deno.serve(async (req) => {
   // No code, no digits, nothing typed. A forwarded invite fails safely: her
   // husband's tap sends from HIS number, so he would join as himself.
   //
-  // THIS ONLY RECORDS THE CLAIM. It creates no account and no membership; the
-  // browser tab that holds the token completes it. That alone was believed to
-  // make a forged claim inert - it did not, once anyone could mint a token -
-  // which is why every POST is now checked against Meta's signature above.
+  // THIS ONLY RECORDS THE CLAIM. It creates no account and no membership,
+  // because THIS WEBHOOK DOES NOT VERIFY META'S SIGNATURE — a forged request
+  // could claim any number. The browser tab that holds the token completes it.
+  // A forged claim with no browser behind it achieves nothing.
   const joinMatch = (msg.type === "text" && msg.text?.body)
     ? String(msg.text.body).match(/Join\s+Trustnet:\s*([A-Za-z0-9_-]{8,})/i)
     : null;
