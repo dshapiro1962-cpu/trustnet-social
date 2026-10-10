@@ -43,3 +43,12 @@
   to = "/?join=:splat"
   status = 301
   force = true
+
+# ── THE PERSONAL LINK (0059) ───────────────────────────────────────────────
+# /i/<token> is one person's own invitation; the app reads it as ?invite=.
+# A 301 for the same reason as /j/ above.
+[[redirects]]
+  from = "/i/*"
+  to = "/?invite=:splat"
+  status = 301
+  force = true

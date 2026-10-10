@@ -2519,7 +2519,7 @@ const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
 // The Trustnet business number, in one place: the invite join and the
 // sign-in both open WhatsApp with it.
 const TN_WA_NUMBER = '972587786049';
-const APP_VERSION = 'v0.99.11 · live';
+const APP_VERSION = 'v0.99.12 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -8411,6 +8411,26 @@ async function refreshCircleLinks(circleId) {
   } catch (e) { console.error('refreshCircleLinks failed:', e); }
 }
 
+// A LINK OF YOUR OWN (v0.99.12 / 0059). dan, 10 Oct: the invited person taps
+// the link, fills in a name and a location, taps Sign in - and is in. The
+// circle's shared link cannot say who tapped it, so it needs a WhatsApp
+// message as proof; a personal link, sent from your WhatsApp to their number,
+// IS the proof. The code is made here, in the browser, so WhatsApp can open
+// with it straight away; create_personal_invite then records whose it is.
+function newInviteToken() {
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  return Array.from(b, function (x) { return x.toString(16).padStart(2, '0'); }).join('');
+}
+async function personalInviteLink(memberId, token) {
+  try {
+    const r = await sb.rpc('create_personal_invite', { p_member_id: memberId, p_token: token });
+    if (r && r.data === token) return TN_ORIGIN + '/i/' + token;
+    if (r && r.error) console.error('create_personal_invite failed:', r.error.message);
+  } catch (e) { console.error('create_personal_invite threw:', e); }
+  return '';
+}
+
 async function circleInviteLink(circleId) {
   try {
     const r = await sb.rpc('get_or_create_circle_link', { p_circle_id: circleId });
@@ -8535,7 +8555,8 @@ async function handleInviteMember(btn) {
   if (!m.contactValue) { fail('No contact details for ' + m.name + ' \u2014 add a number or email first.'); return; }
 
   btn.disabled = true; btn.textContent = 'Preparing\u2026';
-  const url = await circleInviteLink(circleId);
+  // Their own link, not the circle's shared one (0059).
+  const url = await personalInviteLink(m.id, newInviteToken());
   if (!url) { btn.disabled = false; btn.textContent = 'Invite'; fail('Could not create an invite link.'); return; }
   if (m.contactMethod === 'whatsapp') {
     const text = inviteMessageFor(circleName, url, true);
@@ -8658,9 +8679,11 @@ async function handleInviteNew(btn) {
     }
   }
 
-  btn.disabled = true; btn.textContent = 'Preparing\u2026';
-  const url = await circleInviteLink(circleId);
-  if (!url) { btn.disabled = false; btn.textContent = 'Send invite'; fail('Could not create an invite link.'); return; }
+  // Their own link (0059). Their member row does not exist yet - it is made
+  // below, after WhatsApp opens - so the code is made now and registered
+  // against the row once it is saved.
+  const inviteToken = newInviteToken();
+  const url = TN_ORIGIN + '/i/' + inviteToken;
   if (method === 'whatsapp') {
     const text = inviteMessageFor(circleName, url, true);
     const ph = invPhone.replace(/[^0-9]/g, '');
@@ -8715,6 +8738,14 @@ async function handleInviteNew(btn) {
     toast(invName + ' added to ' + madeIn.join(', ') + ' \u2014 invite sent.');
   }
   if (couldNot.length) toast("Couldn't add to " + couldNot.join('; '), 'warn');
+
+  // REGISTER THE LINK THAT WENT OUT, for this person's row in the circle the
+  // message names - made a moment ago, or already there.
+  const invitee = (AppState.userMembers || []).find(function(m) {
+    return m.circleId === circleId && normContact(m.contactValue) === normContact(invValue); });
+  if (!invitee || !(await personalInviteLink(invitee.id, inviteToken))) {
+    inviteSay('The invitation went out, but its link could not be set up \u2014 send it again from the member list.', 'error');
+  }
 
   const inp = document.getElementById('inv-contact'); if (inp) inp.value = '';
   const nmInp = document.getElementById('inv-name'); if (nmInp) nmInp.value = '';
@@ -10802,6 +10833,9 @@ document.addEventListener('click', function(e) {
   else if (action === 'add-known-person') {
     handleAddKnownPerson(target);
   }
+  else if (action === 'personal-invite-signin') {
+    handlePersonalInviteSignin(target);
+  }
   else if (action === 'codeless-join') {
     handleCodelessJoin(target);
   }
@@ -11603,7 +11637,91 @@ async function handleFinishLanding() {
   return false;
 }
 
+// THE THREE STEPS (v0.99.12 / 0059): the invited person sees who asked, a
+// name, a location and Sign in. No WhatsApp button - the personal link is
+// the proof - and nothing after it asks them to sign in again: the session
+// lives in a cookie (v0.99.11), which the home-screen icon can see.
+async function showPersonalInvite() {
+  const tok = localStorage.getItem('tn_invite_token');
+  const host = document.getElementById('login-invite');
+  if (!host || !tok) return;
+  let d = {};
+  try { const r = await sb.rpc('personal_invite_preview', { p_token: tok }); d = (r && r.data) || {}; }
+  catch (e) { console.error('personal_invite_preview failed:', e); }
+  if (!d.ok) {
+    localStorage.removeItem('tn_invite_token');
+    host.innerHTML = '<div style="font-size:12.5px;color:#7A9086;line-height:1.5;">'
+      + (d.reason === 'used'
+          ? 'This invitation has already been used. If that was you, sign in below.'
+          : 'That invitation link is no longer valid. You can still sign in below.')
+      + '</div>';
+    host.style.display = 'block';
+    return;
+  }
+  host.innerHTML = '<div class="tn-inv">'
+    + '<div class="tn-inv-av">' + tnAvatar(d.inviter, '')
+    + '<span class="tn-inv-c" style="background:#DCE8F1;color:#2C5877;">' + esc(String(d.circle || '?').trim().charAt(0).toUpperCase()) + '</span></div>'
+    + '<p class="tn-inv-h" dir="auto">' + esc(d.inviter) + ' is inviting you to their ' + esc(d.circle) + ' circle</p>'
+    + '<p class="tn-inv-s">They value your recommendations.</p>'
+    + '<div class="field" style="text-align:left;"><div class="field-label">YOUR NAME</div>'
+    + '<input class="field-input" id="pi-name" maxlength="50" autocomplete="name" dir="auto" placeholder="e.g. Maya Levi"></div>'
+    + '<div class="field" style="text-align:left;"><div class="field-label">LOCATION</div>'
+    + '<input class="field-input" id="pi-location" maxlength="80" dir="auto" placeholder="e.g. Tel Aviv"></div>'
+    + '<button class="btn btn-primary" data-action="personal-invite-signin" style="width:100%;">Sign in</button>'
+    + '<p id="pi-err" style="font-size:12px;color:#C0392B;margin-top:10px;display:none;"></p>'
+    + '</div>';
+  host.style.display = 'block';
+  const formEl = document.getElementById('login-methods');
+  if (formEl) formEl.style.display = 'none';
+}
+
+async function handlePersonalInviteSignin(btn) {
+  const tok = localStorage.getItem('tn_invite_token');
+  const nameEl = document.getElementById('pi-name');
+  const name = ((nameEl || {}).value || '').trim();
+  const loc = ((document.getElementById('pi-location') || {}).value || '').trim();
+  const errEl = document.getElementById('pi-err');
+  const say = function (t) { if (errEl) { errEl.textContent = t; errEl.style.display = 'block'; } };
+  if (!name) { say('Please enter your name.'); if (nameEl) nameEl.focus(); return; }
+  btn.disabled = true; btn.textContent = 'Signing in\u2026';
+  try {
+    const r = await fnPost('redeem-invite', { token: tok, name: name, location: loc });
+    if (!r || !r.access_token) throw new Error((r && r.error) || 'no session returned');
+    const { error } = await sb.auth.setSession({ access_token: r.access_token, refresh_token: r.refresh_token });
+    if (error) throw new Error(error.message);
+    localStorage.removeItem('tn_invite_token');
+    document.getElementById('login').style.display = 'none';
+    await boot();
+  } catch (e) {
+    console.error('redeem-invite failed:', e);
+    btn.disabled = false; btn.textContent = 'Sign in';
+    say(/used|expired|already_joined/.test(String(e && e.message))
+      ? 'This invitation has already been used or has expired. Ask for a new one, or sign in another way.'
+      : 'Could not sign you in \u2014 please try again.');
+  }
+}
+
+// Someone already signed in taps their personal link: same linking, as them.
+async function handleAcceptPersonalInvite(token) {
+  try {
+    const r = await sb.rpc('accept_personal_invite', { p_token: token });
+    localStorage.removeItem('tn_invite_token');
+    const d = (r && r.data) || {};
+    if (r.error || !d.ok) {
+      if (d.reason === 'own_circle') toast('That is your own invitation \ud83d\ude42', 'warn');
+      else if (d.reason === 'used' || d.reason === 'already_joined') toast('This invitation has already been used.', 'warn');
+      else toast('This invitation link is no longer valid.', 'warn');
+      return;
+    }
+    toast('You joined the ' + (d.circle || '') + ' circle \u2014 they can now ask you for recommendations.');
+    try { await loadUserData(); } catch (e) {}
+  } catch (e) {
+    localStorage.removeItem('tn_invite_token');
+  }
+}
+
 async function showInviteBannerIfPending() {
+  if (localStorage.getItem('tn_invite_token')) { await showPersonalInvite(); return; }
   const tok = localStorage.getItem('tn_join_token');
   const host = document.getElementById('login-invite');
   if (!host) return;
@@ -11736,6 +11854,12 @@ async function boot() {
     localStorage.setItem('tn_join_token', joinParam);
     history.replaceState(null, '', location.pathname);
   }
+  // A PERSONAL INVITATION (0059): /i/<token> arrives as ?invite=<token>.
+  const inviteParam = new URLSearchParams(location.search).get('invite');
+  if (inviteParam) {
+    localStorage.setItem('tn_invite_token', inviteParam);
+    history.replaceState(null, '', location.pathname);
+  }
   const collParam = new URLSearchParams(location.search).get('collection');
   if (collParam) {
     localStorage.setItem('tn_collection_token', collParam);
@@ -11796,6 +11920,8 @@ async function boot() {
   } else {
     document.getElementById('onboarding').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
+    const pendingInvite = localStorage.getItem('tn_invite_token');
+    if (pendingInvite) { await handleAcceptPersonalInvite(pendingInvite); }
     const pendingJoin = localStorage.getItem('tn_join_token');
     if (pendingJoin) { await handleJoinViaLink(pendingJoin); }
     const pendingColl = localStorage.getItem('tn_collection_token');
