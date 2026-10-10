@@ -13,8 +13,9 @@ Live at trustnetsocial.com. Postgres on Supabase, project
 
 Read `docs/HANDOVER-2026-10-07.md` first — the WhatsApp reply's link that sent
 people round in a loop (v0.99.9 / 0056), the webhook now checking Meta's
-signature, the answer-page rewrite that is written but NOT shipped, and five
-open items. Then `docs/HANDOVER-2026-09-27.md` — six days, four migrations
+signature, the answer-page rewrite (respond r2.6), WhatsApp sign-in opening the
+right account (0057), and what is still open. Then
+`docs/HANDOVER-2026-09-27.md` — six days, four migrations
 (0051–0054), the sign-in rebuild, the film, one phone normaliser on each side,
 three legal pages, and the Meta connector that was submitted on 27 Sep. Then
 `docs/HANDOVER-2026-09-21.md` — v0.96.0, the sheet moved out of "my
@@ -223,8 +224,16 @@ Added 7–10 Oct:
   duplicate `const raw` in the fix that would have stopped the webhook from
   starting — which no structural check could have seen. Baseline
   `fn-pre-signature/`; three sabotages each break it
-- `respond-words-sim.js` — **uncommitted**, with the answer-page change it
-  guards (see the 7 Oct handover, section 1)
+- `respond-words-sim.js` — the answer page's thank-you screen (respond r2.6),
+  RENDERED in Chrome at 390px, and the privacy promise held to the code in both
+  directions. Baselines `respond.pre-r2.6.html`, `privacy.pre-2026-10-07.html`,
+  `support.pre-2026-10-07.html`; control fails 21
+- `signin-account-sim.js` — WhatsApp sign-in opens the account that carries the
+  number (0057). Section 1 runs the REAL `complete-join` in a vm; baseline
+  `fn-pre-0057/` reproduces dan's case — a session for
+  `wa<number>@wa.trustnet.local` and an empty second account. Section 2 runs on
+  the REAL database as `authenticated`, rolled back: a user cannot change the
+  number on their own account. Before 0057 it showed the number writable
 
 Added 6 Oct:
 
@@ -462,9 +471,13 @@ fixed on 24 Aug, guarded by `unchecked-writes-sim.js`. What remains:
    sign-in already does, and the claim is keyed on that. Needs dan's go. (The
    bigger hole beside it — a webhook that acted on unsigned messages — was
    closed on 10 Oct, `9f973a1`.)
-9. **WhatsApp sign-in can land in a second, empty account.** dan's number is on
-   his email account (8 circles, 124 recommendations); WhatsApp sign-in puts him
-   in an account created 5 Oct with nothing in it. Cause not traced.
+9. ~~WhatsApp sign-in can land in a second, empty account.~~ **Fixed 10 Oct
+   (0057, `77f4ba3`)** — `complete-join` found the account by phone, then
+   minted the session for `wa<number>@wa.trustnet.local` regardless. Confirmed
+   on dan's phone: WhatsApp sign-in now opens his email account. What remains:
+   someone who signs up by email with NO number on their profile still gets a
+   separate account from WhatsApp sign-in; the complete answer is a "connect
+   WhatsApp to this account" step, not built.
 10. **The reply link's own pass (0056) has not been seen signing anyone in on a
    real phone.** Simulated, and its server path verified live with a made-up
    pass; on dan's iPhone it either opened where he was already signed in or, once,
