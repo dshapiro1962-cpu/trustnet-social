@@ -109,71 +109,8 @@ function render(data) {
   saveBtn.href = '/?collection=' + encodeURIComponent(token);
   // Session-aware CTA: a signed-in Trustnet user (same origin) sees an
   // "open" verb, not a "sign up" verb — saving stays idempotent either way.
-// ── TN SESSION STORE (v0.99.11) ───────────────────────────────────────────
-// IDENTICAL in index, respond, collection, connect and confirm;
-// session-cookie-sim.js holds the five copies equal and runs them.
-// THE SIGN-IN LIVES IN A COOKIE. Measured on dan's iPhone (Chrome and Safari)
-// and an Android, 10 Oct 2026, with web/hs-test: an icon added to the home
-// screen sees the browser's COOKIES but not its saved data (localStorage),
-// where supabase-js keeps the session by default - so every iPhone icon asked
-// for a second sign-in. Cookies ONLY, never a cookie and localStorage both:
-// refresh tokens rotate, and two copies would drift until one signed the
-// other out. Long enough to need splitting, so it is kept in numbered parts.
-var TN_SB_KEY = 'sb-kgsdtfrcyjrxeyqqxoic-auth-token';
-var TN_COOKIE_PART = 3000;
-function tnCookieJar() {
-  var jar = {};
-  var all = (document.cookie || '').split('; ');
-  for (var i = 0; i < all.length; i++) {
-    var at = all[i].indexOf('=');
-    if (at > 0) jar[all[i].slice(0, at)] = all[i].slice(at + 1);
-  }
-  return jar;
-}
-function tnCookieClear(key) {
-  var jar = tnCookieJar();
-  for (var name in jar) {
-    if (name.indexOf(key + '.') === 0) document.cookie = name + '=; path=/; max-age=0; SameSite=Lax; Secure';
-  }
-}
-var tnCookieStorage = {
-  getItem: function (key) {
-    var jar = tnCookieJar();
-    if (jar[key + '.0'] === undefined) return null;
-    var enc = '';
-    for (var i = 0; jar[key + '.' + i] !== undefined; i++) enc += jar[key + '.' + i];
-    try { return decodeURIComponent(enc); } catch (e) { return null; }
-  },
-  setItem: function (key, value) {
-    tnCookieClear(key);
-    // Encoded first and split after, so a %XX is never cut in a way that
-    // matters: the parts are joined again before anything is decoded.
-    var enc = encodeURIComponent(value);
-    for (var i = 0, n = 0; i < enc.length; i += TN_COOKIE_PART, n++) {
-      document.cookie = key + '.' + n + '=' + enc.slice(i, i + TN_COOKIE_PART)
-        + '; path=/; max-age=34560000; SameSite=Lax; Secure';
-    }
-  },
-  removeItem: function (key) { tnCookieClear(key); }
-};
-// A sign-in saved before v0.99.11 is in localStorage: move it, once, so
-// nobody is signed out by the change, and leave no second copy behind.
-function tnMoveSessionToCookie() {
-  try {
-    var old = localStorage.getItem(TN_SB_KEY);
-    if (old && tnCookieStorage.getItem(TN_SB_KEY) === null) tnCookieStorage.setItem(TN_SB_KEY, old);
-    if (old) localStorage.removeItem(TN_SB_KEY);
-  } catch (e) {}
-}
-// ── END TN SESSION STORE ──────────────────────────────────────────────────
   var viewerId = null;
-  // The sign-in is in a cookie since v0.99.11; localStorage only holds one
-  // saved before that.
   try {
-    var cookieSess = JSON.parse(tnCookieStorage.getItem(TN_SB_KEY) || 'null');
-    if (cookieSess && cookieSess.user && cookieSess.user.id) viewerId = cookieSess.user.id;
-  } catch (e) {}
-  if (!viewerId) try {
     for (var i = 0; i < localStorage.length; i++) {
       var k = localStorage.key(i);
       if (k && k.indexOf('sb-') === 0 && k.indexOf('auth-token') > -1) {
