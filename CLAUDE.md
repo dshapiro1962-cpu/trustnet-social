@@ -46,6 +46,13 @@ finish its own work.
   be applied BEFORE that push. `gh` is still not installed; watch
   `supabase functions list` and compare `updated_at` to the push time — a
   version number from an earlier deploy fooled one check on 10 Oct.
+- **Workflow results ARE readable without `gh`**: the repo is public, so
+  `curl https://api.github.com/repos/dshapiro1962-cpu/trustnet-social/actions/workflows/e2e.yml/runs`
+  lists runs with no sign-in, and `.../check-runs/<job id>/annotations` gives
+  the failure. A push touching `web/**` or `e2e/**` runs the public E2E spec
+  against the live site; when it fails, the only other signal is a mail on
+  dan's phone. Check it after such a push. On 10 Oct respond r2.6 broke it by
+  changing the stamp's shape (`a0cc563` fixed the spec).
 
 Never end a piece of work with a deploy block as though the change were live.
 And when a client change
