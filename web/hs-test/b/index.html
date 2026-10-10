@@ -1,0 +1,48 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Test B">
+<meta name="robots" content="noindex">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<title>Test B</title>
+
+
+<style>*{box-sizing:border-box}body{margin:0;background:#F4F8F5;color:#1C2420;font:17px/1.5 -apple-system,"Segoe UI",Roboto,sans-serif}.wrap{max-width:560px;margin:0 auto;padding:22px 16px 40px}h1{font-size:24px;margin:0 0 6px}.sub{color:#56695F;margin:0 0 18px}.box{background:#fff;border:1px solid #DCE7E0;border-radius:14px;padding:16px;margin:0 0 14px}.big{font-size:22px;font-weight:800;padding:16px;border-radius:14px;margin:0 0 14px;text-align:center}.yes{background:#D3E7DC;color:#133D2F}.no{background:#F8D9D2;color:#7A2414}.info{background:#E6EFEA;color:#133D2F}ol{margin:0;padding-left:22px}li{margin:6px 0}code{background:#E9EFEA;padding:2px 6px;border-radius:5px;font-size:15px;word-break:break-all}a.btn{display:block;text-align:center;background:#1D5A45;color:#fff;text-decoration:none;font-weight:700;padding:14px;border-radius:12px;margin:10px 0}button{font:inherit;padding:10px 14px;border-radius:10px;border:1px solid #CDD9D1;background:#fff}.small{font-size:14px;color:#56695F}</style></head><body><div class="wrap" id="root"></div>
+<script>
+(function(){
+var KEY="hs-test-b";
+var standalone=false;
+try{standalone=(window.matchMedia&&window.matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true;}catch(e){standalone=navigator.standalone===true;}
+var q=new URLSearchParams(location.search);
+if(!standalone&&!q.get("code")){history.replaceState(null,"",location.pathname+"?code=PAGE-B");q=new URLSearchParams(location.search);}
+var code=q.get("code");
+var root=document.getElementById("root");
+function el(h){root.insertAdjacentHTML("beforeend",h);}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
+var now=new Date().toTimeString().slice(0,8);
+el("<h1>Test B</h1><p class=\"sub\">No instructions for the icon. The page puts the code into its own address after it loads, as the fix would.</p>");
+if(!standalone){
+  try{localStorage.setItem(KEY,"saved in the browser at "+now);}catch(e){}
+  document.cookie=KEY+"="+encodeURIComponent("browser "+now)+"; path=/; max-age=86400; SameSite=Lax";
+  el("<div class=\"big info\">Step 1 of 2 — you are in the BROWSER</div>");
+  el("<div class=\"box\"><b>Address right now:</b><br><code>"+esc(location.pathname+location.search)+"</code></div>");
+  el("<div class=\"box\"><b>Now add this page to your home screen:</b><ol>"
+    +"<li><b>Chrome:</b> tap the share icon in the address bar (or ⋯), then <b>Add to Home Screen</b>.</li>"
+    +"<li><b>Safari:</b> tap the share icon at the bottom, then <b>Add to Home Screen</b>.</li>"
+    +"<li>Tap <b>Add</b>. An icon called <b>Test B</b> appears.</li>"
+    +"<li>Go to your home screen and open <b>Test B</b> from the icon.</li>"
+    +"<li>Take a screenshot of what it shows and send it.</li></ol></div>");
+}else{
+  var saved=null;try{saved=localStorage.getItem(KEY);}catch(e){}
+  var cookie=(document.cookie.split("; ").filter(function(c){return c.indexOf(KEY+"=")===0;})[0]||"");
+  el("<div class=\"big info\">Step 2 of 2 — opened from the HOME-SCREEN ICON</div>");
+  el(code?"<div class=\"big yes\">CODE ARRIVED: "+esc(code)+"</div>":"<div class=\"big no\">NO CODE ARRIVED</div>");
+  el((saved||cookie)?"<div class=\"big yes\">BROWSER DATA VISIBLE</div>":"<div class=\"big no\">BROWSER DATA NOT VISIBLE</div>");
+  el("<div class=\"box small\"><b>Opened at:</b> <code>"+esc(location.pathname+location.search)+"</code><br>"
+    +"<b>Saved data:</b> "+esc(saved||"none")+"<br><b>Cookie:</b> "+esc(cookie?decodeURIComponent(cookie.split("=")[1]):"none")+"</div>");
+  el("<p class=\"small\">Screenshot this screen and send it. Then you can delete the icon.</p>");
+}
+el("<p class=\"small\">Version B · code expected: PAGE-B · "+esc(navigator.userAgent)+"</p>");
+})();
+</script></body></html>
