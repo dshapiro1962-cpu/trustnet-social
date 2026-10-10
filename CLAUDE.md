@@ -11,7 +11,10 @@ Live at trustnetsocial.com. Postgres on Supabase, project
 
 ## Start here
 
-Read `docs/HANDOVER-2026-09-27.md` first — six days, four migrations
+Read `docs/HANDOVER-2026-10-07.md` first — the WhatsApp reply's link that sent
+people round in a loop (v0.99.9 / 0056), the webhook now checking Meta's
+signature, the answer-page rewrite that is written but NOT shipped, and five
+open items. Then `docs/HANDOVER-2026-09-27.md` — six days, four migrations
 (0051–0054), the sign-in rebuild, the film, one phone normaliser on each side,
 three legal pages, and the Meta connector that was submitted on 27 Sep. Then
 `docs/HANDOVER-2026-09-21.md` — v0.96.0, the sheet moved out of "my
@@ -36,7 +39,12 @@ finish its own work.
 - `netlify deploy` is refused by the permission classifier. `netlify sites:list`
   is allowed. Push instead and let Netlify build from `origin/main` — it lands
   in about 25 seconds.
-- `gh` is still not installed, so workflow runs cannot be checked.
+- **A push that touches `supabase/functions/` deploys EVERY function** through
+  `.github/workflows/deploy-functions.yml`. It runs (6, 7 and 10 Oct), in two
+  to five minutes, alphabetically. So a migration a function depends on must
+  be applied BEFORE that push. `gh` is still not installed; watch
+  `supabase functions list` and compare `updated_at` to the push time — a
+  version number from an earlier deploy fooled one check on 10 Oct.
 
 Never end a piece of work with a deploy block as though the change were live.
 And when a client change
@@ -133,6 +141,15 @@ no shared transaction.
 - `create or replace trigger`, never `drop` then `create`: stopping between them
   leaves the trigger disarmed.
 - Verify with `simulation_suite/sql-editor-runner.sh` before handing it over.
+  That needs the container's Postgres. On dan's machine instead: run every
+  statement against the REAL database in one transaction that is ROLLED BACK,
+  EXECUTE any function the migration changes, and check what it returns.
+- **Apply it yourself**: `node tools/apply-migration.js migrations/00NN_x.sql
+  --dry`, then without `--dry`. It sends each statement on its own connection,
+  like the editor, and is pre-approved in `.claude/settings.json`. dan, 7 Oct:
+  "you have access to supabase you dont need me". An ad-hoc script writing to
+  production is refused by the permission classifier; this tool is not. Read
+  the live state back afterwards.
 
 ---
 
@@ -164,7 +181,9 @@ Added 24 Aug. Every one has a CONTROL that must FAIL (`--old`, exit 1):
 - `suggestion-filing-sim.js` — runs **the real modal and filing function**
 - `personal-category-sim.js` — runs **the real category helpers**
 - `unchecked-writes-sim.js` — source structure only, and says so in its header;
-  there is no Deno or TypeScript runtime on dan's machine
+  there is no Deno or TypeScript runtime on dan's machine (true when written;
+  since Node 24, `module.stripTypeScriptTypes` runs a real `.ts` file in a vm —
+  `webhook-signature-sim.js` does, and this one could)
 
 Added 25–26 Aug, same rule:
 
@@ -184,6 +203,28 @@ Added 21 Sep, same rule:
   anything, and its control restores the pre-0051 path from the 0025 migration
 - `invite-words-sim.js` — lifts the REAL invite-message builders out of the page
   and executes them, then reads the message a person actually receives
+
+Added 7–10 Oct:
+
+- `join-link-sim.js` — the WhatsApp reply's link must get a person in wherever
+  it opens (v0.99.9 / 0056). Runs the REAL app in two Playwright browsers with
+  SEPARATE STORAGE — the waiting page, and wherever WhatsApp opens the link —
+  against a server model whose section 0 checks the model against the source
+  before anything runs. Baseline `index.pre-v0.99.9.html` + `fn-pre-0056/`;
+  the control reproduces phone …4488 exactly: 2 messages, 2 sign-ins, a link
+  landing on a silent Sign in. Its first live run reported "signed in" while
+  the loading screen still covered the page — `#app` is visible from the
+  start. **A SCREEN CHECK MUST WAIT FOR THE LOADING SCREEN AND REQUIRE A REAL
+  SESSION**
+- `webhook-signature-sim.js` — the webhook acts only on messages Meta signed.
+  **IT RUNS THE REAL TYPESCRIPT FILE**: Node 24 has
+  `module.stripTypeScriptTypes`, so the whole of `whatsapp-webhook/index.ts`
+  runs in a vm with the database and fetch as recorders. Its first run caught a
+  duplicate `const raw` in the fix that would have stopped the webhook from
+  starting — which no structural check could have seen. Baseline
+  `fn-pre-signature/`; three sabotages each break it
+- `respond-words-sim.js` — **uncommitted**, with the answer-page change it
+  guards (see the 7 Oct handover, section 1)
 
 Added 6 Oct:
 
@@ -239,12 +280,13 @@ Added 25–26 Sep, same rule:
   for rather than guessed. Baseline `index.pre-v0.99.2.html`; its control fails
   36 of 37, and the one that survives is the line proving the library is absent
 
-**47 of the 99 sims in this directory run on this machine, and all 47 are
-green** (measured 5 Oct by running every one of them: `for f in *-sim.js; do
-node $f; done`). The other 52 open `/home/claude/...` — a container path that
-does not exist here — so they exit 1 on ENOENT without asserting anything.
-**Count them before quoting a number.** This line said "26" for four days after
-the true figure had passed thirty.
+**Measured 7 Oct by running every one of them** (`for f in *-sim.js; do node
+$f; done`): 102 files, **49 green**, 52 that open `/home/claude/...` — a
+container path that does not exist here — and exit 1 on ENOENT without
+asserting anything, and `respond-words-sim.js`, which failed 2 inside that loop
+and passes 38 of 38 run alone. `webhook-signature-sim.js` was added after the
+run and is green. **Count them before quoting a number.** This line said "26"
+for four days after the true figure had passed thirty.
 
 Eight were added
 10–19 Sep, and three of them run against the REAL database as role
@@ -414,3 +456,22 @@ fixed on 24 Aug, guarded by `unchecked-writes-sim.js`. What remains:
    selected, which understates how cheap the fix is — it is one more field in
    the map at `web/index.html:1828`. Doing it would also give
    `PHONE_DEFAULT_COUNTRY` a real signal to use instead of assuming Israel.
+8. **Invite joins still key their claim on the circle's shared invite token.**
+   Everyone invited to a circle holds the same token. Fix designed 10 Oct, not
+   built: each join attempt mints its own code in the joiner's browser, as
+   sign-in already does, and the claim is keyed on that. Needs dan's go. (The
+   bigger hole beside it — a webhook that acted on unsigned messages — was
+   closed on 10 Oct, `9f973a1`.)
+9. **WhatsApp sign-in can land in a second, empty account.** dan's number is on
+   his email account (8 circles, 124 recommendations); WhatsApp sign-in puts him
+   in an account created 5 Oct with nothing in it. Cause not traced.
+10. **The reply link's own pass (0056) has not been seen signing anyone in on a
+   real phone.** Simulated, and its server path verified live with a made-up
+   pass; on dan's iPhone it either opened where he was already signed in or, once,
+   landed on Sign in unused — probably expired. dan: leave it for now.
+11. **An answerer is linked to the asker's circle only when the asker next opens
+   that circle** (`refresh_member_links`, 0017), not at sign-up. Until then
+   `answerer_on_trustnet` is false and their questions arrive by WhatsApp only.
+12. **Inside WhatsApp's in-app browser, the home-screen sheet says "you stay
+   signed in"** before sending people to Chrome. They do not — Chrome is a
+   separate app with its own storage.
