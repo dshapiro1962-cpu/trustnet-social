@@ -69,6 +69,9 @@ function load(world) {
     }
     if (table === 'invite_claims' && op === 'update') { log.consumed = true; return { data: null, error: null }; }
     if (table === 'circle_invite_links') return { data: null, error: null };   // a sign-in, not an invite
+    // Since 0058 every claim is keyed on a one-off code, and complete-join
+    // reads it first. A plain sign-in's code names no invitation.
+    if (table === 'signin_tokens') return { data: { token: world.token, invite_token: null }, error: null };
     if (table === 'users' && op === 'select') return { data: world.users.filter((u) => u.phone), error: null };
     if (table === 'users' && op === 'insert') return { data: null, error: null };
     return { data: null, error: null };

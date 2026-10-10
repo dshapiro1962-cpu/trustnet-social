@@ -99,7 +99,9 @@ const src = [
     ['...and only the waiting page\u2019s door spends the claim',
       /if \(!finish\) \{\s*const \{ error: claimErr2 \} = await admin\.from\("invite_claims"\)\s*\.update\(\{ consumed_at:/.test(COMPLETE)],
     ['...and the reply\u2019s door needs the sign-in token to exist, not to be unspent',
-      /if \(!link && finish\) \{[\s\S]{0,400}from\("signin_tokens"\)\.select\("token"\)\.eq\("token", token\)/.test(COMPLETE)],
+      // Since 0058 the code's row is read once for both doors; only the
+      // waiting page's door then requires it to be live.
+      /from\("signin_tokens"\)\.select\("token, invite_token"\)\.eq\("token", token\)[\s\S]{0,200}if \(!attempt\) return err\("invite_no_longer_valid", 410\);[\s\S]{0,300}if \(!finish\) \{\s*const \{ data: live/.test(COMPLETE)],
   ]),
   ['the waiting page asks every 2 seconds',
     /TN_JOIN_POLL = setTimeout\(function \(\) \{ pollForClaim\(token, attempt \+ 1\); \}, 2000\)/.test(INDEX)],

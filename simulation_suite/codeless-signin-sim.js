@@ -128,12 +128,19 @@ function oldRecordClaim() {
     ck('an expired token is refused',
        (await c.query(`select public.record_invite_claim('expired-probe','+972500000005',null) as r`)).rows[0].r.ok === false);
 
-    // AND THE INVITE MUST BE UNTOUCHED. This is the guard that matters most:
-    // the change adds a second kind of token, it does not alter the first.
+    // THE INVITE GOES THROUGH A CODE OF ITS OWN (0058, 10 Oct). This guard
+    // used to require that a RAW circle token still records a claim - 0052's
+    // promise that the second kind of token left the first untouched. 0058
+    // retires the first kind on purpose: a circle's token is shared by everyone
+    // invited, so a claim keyed on it belonged to whoever held the link. The
+    // guard now holds the new contract, both halves of it.
     const link = (await c.query(`select token from circle_invite_links where active limit 1`)).rows[0].token;
-    const inv = (await c.query(`select public.record_invite_claim($1,'+972500000006',null) as r`, [link])).rows[0].r;
-    ck('[guard] a circle invitation still records a claim and still names the circle',
-       inv.ok === true && !!inv.circle, inv);
+    const code = (await c.query(`select public.mint_join_token($1) as t`, [link])).rows[0].t;
+    const inv = (await c.query(`select public.record_invite_claim($1,'+972500000006',null) as r`, [code])).rows[0].r;
+    ck('[guard] a circle invitation records a claim through its own code, and still names the circle',
+       inv.ok === true && inv.kind === 'invite' && !!inv.circle, inv);
+    const raw = (await c.query(`select public.record_invite_claim($1,'+972500000007',null) as r`, [link])).rows[0].r;
+    ck('[guard] ...and the shared invite token alone records nothing', raw.ok === false, raw);
   } catch (e) {
     fail++; console.log('  FAIL  the SQL half threw: ' + e.message);
   } finally {

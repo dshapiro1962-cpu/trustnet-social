@@ -22,9 +22,6 @@
 // since 10 August, none ever used, because wa-signin sent a free-form message
 // and WhatsApp refuses those outside a 24-hour window. dan: "no digit path
 // discard it", and sign-in and sign-up are one act.
-// SINCE 0058 ONE KIND OF TOKEN: a join mints a one-off code too, with the
-// invitation it is for in signin_tokens.invite_token. The invitation's own
-// token is shared by everyone invited, so it no longer keys a claim.
 //
 // TWO DOORS ONTO ONE CLAIM (0056). The waiting page finishes with { token,
 // phone }; the link in Trustnet's WhatsApp reply finishes with { finish }, a
@@ -98,38 +95,31 @@ Deno.serve(async (req) => {
     }
   }
 
-  // ── 2. the one-off code, and the circle it is for ───────────────────────
-  // A JOIN HAS A CODE OF ITS OWN (0058). An invitation's token is shared by
-  // everyone invited to the circle, and the claim used to be keyed on it - so
-  // the claim belonged to whoever held the link, not to the browser that
-  // started the join. Every claim is now keyed on a one-off code from
-  // signin_tokens: a plain sign-in (invite_token null) or a join, whose circle
-  // comes from invite_token. Since 0058 record_invite_claim refuses anything
-  // else, so a token that is not a one-off code is nothing.
-  const { data: attempt, error: atErr } = await admin
-    .from("signin_tokens").select("token, invite_token").eq("token", token).maybeSingle();
-  if (atErr) return err("signin_token_lookup_failed: " + atErr.message, 500);
-  if (!attempt) return err("invite_no_longer_valid", 410);
+  // ── 2. the invite must still be valid ────────────────────────────────────
+  const { data: link, error: linkErr } = await admin
+    .from("circle_invite_links").select("token, circle_id, owner_id, active")
+    .eq("token", token).eq("active", true).maybeSingle();
+  if (linkErr) return err("link_lookup_failed: " + linkErr.message, 500);
 
-  // Through the waiting page the code must still be live; it is spent at step
-  // 5. Through the reply's door the page may already have spent it - the very
-  // case that door exists for - so it need only exist: the claim's ten
-  // minutes, checked above, are the limit.
-  if (!finish) {
+  // NO CIRCLE BEHIND IT? Then it is a sign-in token, or it is nothing. Asked
+  // of the database rather than assumed: only a live, unspent one counts.
+  let isSignin = false;
+  if (!link && finish) {
+    // Through the reply's door the waiting page may already have spent the
+    // sign-in token - that is the very case this door exists for. The claim's
+    // ten minutes, checked above, are the limit; the token need only be one.
+    const { data: st, error: stErr } = await admin
+      .from("signin_tokens").select("token").eq("token", token).maybeSingle();
+    if (stErr) return err("signin_token_lookup_failed: " + stErr.message, 500);
+    if (!st) return err("invite_no_longer_valid", 410);
+    isSignin = true;
+  } else if (!link) {
     const { data: live, error: liveErr } = await admin
       .rpc("is_live_signin_token", { p_token: token });
     if (liveErr) return err("signin_token_lookup_failed: " + liveErr.message, 500);
     if (!live) return err("invite_no_longer_valid", 410);
+    isSignin = true;
   }
-
-  // The invitation must still be live: an owner may have revoked it since.
-  const { data: link, error: linkErr } = attempt.invite_token
-    ? await admin.from("circle_invite_links").select("token, circle_id, owner_id, active")
-        .eq("token", attempt.invite_token).eq("active", true).maybeSingle()
-    : { data: null, error: null };
-  if (linkErr) return err("link_lookup_failed: " + linkErr.message, 500);
-  if (attempt.invite_token && !link) return err("invite_no_longer_valid", 410);
-  // No circle behind the code: a plain sign-in, which joins nothing below.
 
   const { data: circle } = link
     ? await admin.from("circles").select("id, name, owner_id").eq("id", link.circle_id).maybeSingle()
@@ -266,14 +256,12 @@ Deno.serve(async (req) => {
     // which binds as `?? (0 + 1)` — an existing count of 5 stayed 5, and only a
     // null became 1. Lint and type-check both passed it. Operator precedence is
     // invisible to every check except reading it.
-    // The INVITATION's token, not the one-off code (0058): `token` is now the
-    // code, and counting uses against it would count nothing.
     const { data: linkRow } = await admin.from("circle_invite_links")
-      .select("uses").eq("token", attempt.invite_token).maybeSingle();
+      .select("uses").eq("token", token).maybeSingle();
     const { error: useErr } = await admin.from("circle_invite_links")
       .update({ uses: (linkRow?.uses ?? 0) + 1 })
-      .eq("token", attempt.invite_token);
-    if (useErr) console.error("invite_uses_increment_failed", attempt.invite_token, useErr.message);
+      .eq("token", token);
+    if (useErr) console.error("invite_uses_increment_failed", token, useErr.message);
 
     const who = String(res.member_name ?? ("+" + e164));
     const { error: joinNotifErr } = await admin.from("notifications").insert({
@@ -299,11 +287,12 @@ Deno.serve(async (req) => {
     if (claimErr2) {
       console.error("invite_claim_not_consumed", claim.id, claimErr2.message);
     }
-    // And the one-off code itself, for the same reason: one message, one
-    // session. Since 0058 a join has one too, so it is spent either way.
-    // Loud rather than fatal - the session below is already earned.
-    const { error: stErr } = await admin.rpc("consume_signin_token", { p_token: token });
-    if (stErr) console.error("signin_token_not_consumed", stErr.message);
+    // And the sign-in token itself, for the same reason: one message, one
+    // session. Loud rather than fatal - the session below is already earned.
+    if (isSignin) {
+      const { error: stErr } = await admin.rpc("consume_signin_token", { p_token: token });
+      if (stErr) console.error("signin_token_not_consumed", stErr.message);
+    }
   }
 
   // ── 6. mint a session — same mechanism wa-signin already uses ────────────
