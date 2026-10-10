@@ -55,10 +55,12 @@
 
   /* Conversion block on thank-you */
   .convert { background:linear-gradient(135deg,#EBF7F1,#fff); border:1px solid #C6EDD9; border-radius:14px; padding:22px 20px; margin-top:24px; text-align:left; }
+  .convert-badge { display:inline-block; font-size:11px; font-weight:700; color:#1A5235; background:#C6EDD9; padding:3px 10px; border-radius:10px; margin-bottom:12px; }
   .convert-headline { font-size:16px; font-weight:800; color:var(--green-dark); margin-bottom:8px; line-height:1.4; }
   .convert-body { font-size:13px; color:var(--slate); line-height:1.6; margin-bottom:18px; }
   .convert-btn { display:block; width:100%; text-align:center; background:var(--green); color:#fff; text-decoration:none; font-weight:600; font-size:15px; padding:13px; border-radius:8px; }
   .convert-btn:hover { background:#1A5235; }
+  .convert-sub { font-size:11px; color:var(--slate-light); text-align:center; margin-top:12px; }
 </style>
 </head>
 <body>
@@ -110,35 +112,25 @@
       </span>
     </label>
     <button id="submit-btn">Send recommendation</button>
-    <div style="font-size:9px;color:#A8BDAF;text-align:center;margin-top:10px;">r2.6</div>
+    <div style="font-size:9px;color:#A8BDAF;text-align:center;margin-top:10px;">r2.5-lib</div>
   </div>
 
   <!-- Rich thank-you + conversion -->
   <div id="thanks-view" class="state hidden">
     <div class="state-icon">✅</div>
     <div class="state-title" id="thanks-title">Sent!</div>
+    <div class="state-body" id="thanks-body">You just gave a recommendation they'll actually trust.</div>
 
-    <!-- THE ONE PLACE A STRANGER MEETS TRUSTNET (r2.6, 7 Oct). Everyone who
-         answers lands here, and most of them have no account. ONE version of
-         it, here: a script used to overwrite it whenever there was a circle
-         name, so the page carried two pitches.
-         The headline asks the thing we want to happen next - the person who
-         answered asks a question of their own. The body is TN_WHAT_IT_IS in
-         index.html, word for word; respond-words-sim.js holds them equal.
-         The small print that said "Sign up with the email this request
-         reached you on" is gone, not reworded, because no instruction makes it
-         true. The answerer's row in the asker's circle is linked by
-         refresh_member_links (0017) when the ASKER next opens that circle,
-         matching phone or email - not when the answerer signs up. An email
-         answerer who signs in by WhatsApp is never matched. That is an
-         engineering gap, not a sentence to write. -->
     <div class="convert">
-      <div class="convert-headline" id="convert-headline">Have a question of your own?</div>
+      <span class="convert-badge" id="convert-badge">YOU'RE A TRUSTED VOICE</span>
+      <div class="convert-headline" id="convert-headline">People ask you for recommendations all the time.</div>
       <div class="convert-body" id="convert-body">
-        Trustnet is the channel for reaching out to people you trust for reliable information — and recommending back.
-        No public reviews, no algorithmic feeds.
+        Trustnet keeps them all in one place — and lets you ask your own trusted people back.
+        No ads, no strangers, no algorithm.
       </div>
       <a class="convert-btn" id="convert-btn" href="https://trustnetsocial.com">Get your own Trustnet →</a>
+      <div style="font-size:11.5px;color:#7A9086;text-align:center;margin-top:8px;line-height:1.5;">Sign up with the email this request reached you on, and your answers link to you automatically.</div>
+      <div class="convert-sub">Free. Takes a minute.</div>
     </div>
   </div>
 
@@ -157,7 +149,7 @@ window.TRUSTNET_CONFIG = {
 const CFG = window.TRUSTNET_CONFIG || {};
 const SUPABASE_FUNCTIONS_URL = CFG.FUNCTIONS_URL || window.TRUSTNET_FUNCTIONS_URL || "https://YOUR_PROJECT.supabase.co/functions/v1";
 const APP_URL = CFG.APP_URL || "https://trustnetsocial.com";
-const RESPOND_VERSION = "r2.6";
+const RESPOND_VERSION = "r2.5-lib";
 const LIB_DEBUG = new URLSearchParams(location.search).get("debug") === "1";
 function dbg(line) {
   if (!LIB_DEBUG) return;
@@ -185,16 +177,11 @@ async function init() {
     const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/response-meta?t=${encodeURIComponent(token)}`);
     if (res.ok) {
       const meta = await res.json();
-      // Questions arrive by WhatsApp or by email, so this names neither.
-      if (meta.used) { showError("This link was already used", "Each response link works exactly once \u2014 a recommendation has already been sent from this one. If you were sent a newer question, use the link in that message."); return; }
+      if (meta.used) { showError("This link was already used", "Each response link works exactly once \u2014 a recommendation has already been sent from this one. If you have a newer request email, use the button in that message (in Gmail, the newest message sits at the bottom of the thread)."); return; }
       if (meta.expired) { showError(); return; }
       context.requesterName = meta.requester_name || "them";
       context.circleName = meta.circle_name || "";
-      // The circle's name stays: dan, 7 Oct, chose to keep showing it to the
-      // people in it, and privacy.html now says that they see it. Without a
-      // name this line read "is asking their  circle".
-      $("ask-from").textContent = context.requesterName + " is asking"
-        + (context.circleName ? " their " + context.circleName + " circle" : "");
+      $("ask-from").textContent = context.requesterName + " is asking their " + context.circleName + " circle";
       $("ask-text").textContent = '"' + (meta.query_text || "") + '"';
     }
   } catch (_) { /* show form anyway */ }
@@ -371,10 +358,16 @@ $("submit-btn").addEventListener("click", async () => {
     });
     const data = await res.json();
     if (res.ok && data.success) {
-      // Personalise who it went to. The pitch below it is the same for
-      // everyone and lives in the HTML, once. dan, 7 Oct: "Sent to Tal" stays;
-      // the line under it and the TRUSTED VOICE badge went.
+      // Personalise the conversion screen with real context
       $("thanks-title").textContent = "Sent to " + context.requesterName + "!";
+      $("thanks-body").textContent =
+        "You just gave " + context.requesterName + " a recommendation they'll actually trust.";
+      if (context.circleName) {
+        $("convert-headline").textContent =
+          context.requesterName + " has you in their " + context.circleName + " circle.";
+        $("convert-body").textContent =
+          "People ask you for recommendations all the time. Trustnet keeps them in one place — and lets you ask your own trusted people back. No ads, no strangers, no algorithm.";
+      }
       $("convert-btn").href = APP_URL;
       // ASK ABOUT THE ANSWERER, NOT THE BROWSER.
       // This used to be `if (readTnSession())` — "is there a session in THIS
