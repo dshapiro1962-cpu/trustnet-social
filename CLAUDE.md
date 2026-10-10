@@ -235,6 +235,13 @@ Added 7–10 Oct:
   RENDERED in Chrome at 390px, and the privacy promise held to the code in both
   directions. Baselines `respond.pre-r2.6.html`, `privacy.pre-2026-10-07.html`,
   `support.pre-2026-10-07.html`; control fails 21
+- `invite-code-sim.js` — a join is keyed on a code of its own, never the
+  circle's shared invite token (0058). The REAL `complete-join` in a vm (five
+  cases, including the reply's link after the page spent the code), the REAL
+  database as `anon`, rolled back (the shared token records and reveals
+  nothing; a plain sign-in still records), and the REAL app in Chrome pressing
+  the invite button. Baseline `fn-pre-0058/` + `index.pre-v0.99.10.html`
+  fails 7 and prints WhatsApp opening with the shared token
 - `signin-account-sim.js` — WhatsApp sign-in opens the account that carries the
   number (0057). Section 1 runs the REAL `complete-join` in a vm; baseline
   `fn-pre-0057/` reproduces dan's case — a session for
@@ -472,12 +479,14 @@ fixed on 24 Aug, guarded by `unchecked-writes-sim.js`. What remains:
    selected, which understates how cheap the fix is — it is one more field in
    the map at `web/index.html:1828`. Doing it would also give
    `PHONE_DEFAULT_COUNTRY` a real signal to use instead of assuming Israel.
-8. **Invite joins still key their claim on the circle's shared invite token.**
-   Everyone invited to a circle holds the same token. Fix designed 10 Oct, not
-   built: each join attempt mints its own code in the joiner's browser, as
-   sign-in already does, and the claim is keyed on that. Needs dan's go. (The
-   bigger hole beside it — a webhook that acted on unsigned messages — was
-   closed on 10 Oct, `9f973a1`.)
+8. ~~Invite joins keyed their claim on the circle's shared invite token.~~
+   **Fixed 10 Oct (0058, `6d6dd61` + v0.99.10 `f164b65`)**: a join mints a
+   one-off code (`mint_join_token`), the claim is keyed on it, and
+   `record_invite_claim` refuses the shared token. The first draft of 0058
+   broke every plain sign-in (an unassigned record in its return); a
+   rolled-back dry run that EXECUTED it caught that before it was applied.
+   The bigger hole beside it — a webhook that acted on unsigned messages — was
+   closed the same day, `9f973a1`.
 9. ~~WhatsApp sign-in can land in a second, empty account.~~ **Fixed 10 Oct
    (0057, `77f4ba3`)** — `complete-join` found the account by phone, then
    minted the session for `wa<number>@wa.trustnet.local` regardless. Confirmed
