@@ -52,6 +52,14 @@ test.describe('public — login screen and respond page', () => {
   test('respond page mounts and carries a version marker', async ({ page }) => {
     await page.goto('/respond.html?t=selftest');
     await expect(page.locator('.card')).toBeVisible({ timeout: 15000 });
-    expect(await page.content()).toMatch(/r\d+\.\d+-lib/);
+    // THE STAMP UNDER "Send recommendation". This line demanded the shape
+    // "r2.5-lib"; on 10 Oct the stamp became "r2.6" and the check failed on a
+    // live site with nothing wrong with it - dan got the failure mail. Assert
+    // what the marker is FOR: a version shown on the page, and the same one
+    // the page's script runs.
+    const html = await page.content();
+    const shown = (html.match(/>(r\d+\.\d+(?:-[a-z]+)?)<\/div>/) || [])[1];
+    expect(shown, 'a version stamp on the page').toBeTruthy();
+    expect(html).toContain('const RESPOND_VERSION = "' + shown + '"');
   });
 });
