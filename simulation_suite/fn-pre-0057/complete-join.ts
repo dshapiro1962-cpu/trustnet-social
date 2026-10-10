@@ -170,32 +170,10 @@ Deno.serve(async (req) => {
   const { data: candidates, error: usersErr } = await admin
     .from("users").select("id, name, phone").not("phone", "is", null);
   if (usersErr) return err("users_lookup_failed: " + usersErr.message, 500);
-  // ONE NUMBER, ONE ACCOUNT (0057). Since 0057 only the server can set
-  // users.phone, so a match here is a number WhatsApp proved. Measured 10 Oct:
-  // no number is on two accounts. If one ever is, refuse rather than guess -
-  // guessing is how a sign-in opens the wrong person's account.
-  const matches = (candidates ?? []).filter((u) => phoneKey(u.phone) === key);
-  if (matches.length > 1) {
-    console.error("phone_on_several_accounts", key, matches.map((u) => u.id).join(","));
-    return err("phone_on_several_accounts", 409);
-  }
-  let userId: string | null = matches[0]?.id ?? null;
+  let userId = (candidates ?? []).find((u) => phoneKey(u.phone) === key)?.id ?? null;
   let isNew = false;
 
   const syntheticEmail = `wa${key}@wa.trustnet.local`;
-  // THE SESSION OPENS THE ACCOUNT THAT WAS FOUND (0057). This used to mint it
-  // for syntheticEmail whatever was found. For an account made by WhatsApp
-  // those are the same; for dan's email account, which carries his number, it
-  // was a DIFFERENT address - created as an empty account on 5 Oct, and every
-  // WhatsApp sign-in since opened that instead of his 8 circles.
-  let sessionEmail = syntheticEmail;
-  if (userId) {
-    const { data: found, error: fErr } = await admin.auth.admin.getUserById(userId);
-    if (fErr || !found?.user?.email) {
-      return err("account_email_lookup_failed: " + (fErr?.message ?? "no email"), 500);
-    }
-    sessionEmail = found.user.email;
-  }
   if (!userId) {
     const { data: created, error: cErr } = await admin.auth.admin.createUser({
       email: syntheticEmail, email_confirm: true,
@@ -296,9 +274,8 @@ Deno.serve(async (req) => {
   }
 
   // ── 6. mint a session — same mechanism wa-signin already uses ────────────
-  // For the account found or created above - see sessionEmail.
   const { data: linkData, error: lErr } = await admin.auth.admin.generateLink({
-    type: "magiclink", email: sessionEmail,
+    type: "magiclink", email: syntheticEmail,
   });
   if (lErr || !linkData) return err("session_failed: " + (lErr?.message ?? "unknown"), 500);
   const hashed = (linkData.properties as Record<string, string> | undefined)?.hashed_token;
