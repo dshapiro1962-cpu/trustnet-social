@@ -2461,7 +2461,7 @@ const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
 // The Trustnet business number, in one place: the invite join and the
 // sign-in both open WhatsApp with it.
 const TN_WA_NUMBER = '972587786049';
-const APP_VERSION = 'v0.99.9 · live';
+const APP_VERSION = 'v0.99.10 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -10742,9 +10742,7 @@ document.addEventListener('click', function(e) {
     handleAddKnownPerson(target);
   }
   else if (action === 'codeless-join') {
-    // The Trustnet business number. She never types it; wa.me prefills the
-    // whole message and she only presses send.
-    startCodelessJoin(target.dataset.token, TN_WA_NUMBER);
+    handleCodelessJoin(target);
   }
   else if (action === 'confirm-interest') {
     handleSetInterests(target.dataset.circleId, (target.dataset.interest || '').split(',').filter(Boolean), 'confirmed');
@@ -11397,6 +11395,29 @@ function wireWhatsAppLogin() {
 // presses send, and this tab — still open behind WhatsApp — notices and signs
 // her in. She types nothing and never sees a digit.
 let TN_JOIN_POLL = null;
+
+// A CODE OF ITS OWN FOR THIS JOIN (v0.99.10 / 0058). The invitation's token is
+// shared by everyone invited to the circle, and the message used to carry it -
+// so the claim it made belonged to whoever held the link, not to this browser.
+// Mint a one-off code tied to the invitation, as sign-in already does, and
+// send THAT. The shared token is still what shows the invitation banner.
+async function handleCodelessJoin(btn) {
+  const invite = btn.dataset.token;
+  btn.disabled = true;
+  try {
+    const r = await sb.rpc('mint_join_token', { p_invite: invite });
+    if (r.error || !r.data) {
+      throw new Error(r.error ? r.error.message : 'that invitation is no longer valid');
+    }
+    // The Trustnet business number. She never types it; wa.me prefills the
+    // whole message and she only presses send.
+    startCodelessJoin(r.data, TN_WA_NUMBER);
+  } catch (e) {
+    console.error('mint_join_token failed:', e);
+    btn.disabled = false;
+    toast('Could not start joining: ' + (e.message || 'network error'), 'warn');
+  }
+}
 
 function startCodelessJoin(token, waNumber) {
   const host = document.getElementById('login-invite');
