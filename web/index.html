@@ -1347,7 +1347,7 @@ body {
            that is precisely the friction dan objected to. -->
       <div id="login-methods">
       <h1 class="tn-login-h">Sign in</h1>
-      <p class="tn-login-sub">Recommendations from the people you trust. No password, no code to type &mdash; you send one message and you&rsquo;re in.</p>
+      <p class="tn-login-sub">Recommendations from the people you trust.</p>
 
       <div style="display:none;gap:6px;margin-bottom:16px;">
         <button type="button" id="login-tab-wa" class="btn btn-sm" style="flex:1;background:#E6EFEA;border:1.5px solid #1D5A45;color:#133D2F;font-weight:700;">WhatsApp</button>
@@ -1448,7 +1448,7 @@ body {
     </div>
     <div class="mtab" data-action="nav" data-view="library" id="mtab-library">
       <svg viewBox="0 0 24 24"><path d="M12 6.3C9.8 4.9 6.9 4.4 3.5 4.9v13.6c3.4-.5 6.3 0 8.5 1.4 2.2-1.4 5.1-1.9 8.5-1.4V4.9c-3.4-.5-6.3 0-8.5 1.4z"/><path d="M12 6.3v13.6"/></svg>
-      Library
+      Saved
     </div>
   </div>
   <!-- Sidebar -->
@@ -1506,7 +1506,7 @@ body {
       </div>
       <div class="nav-item" data-action="nav" data-view="library">
         <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"/></svg>
-        Library
+        Saved
         <span class="nav-badge" id="sb-lib-count">0</span>
       </div>
       <div class="nav-item" data-action="nav" data-view="taste-match">
@@ -1993,7 +1993,7 @@ async function loadUserData() {
   if (rs.error) {
     AppState.dataLoadFailed = true;
     console.error('recommendations load failed:', rs.error);
-    toast('Could not load your library. Nothing has been changed \u2014 please reload.', 'warn');
+    toast('Could not load your saved items. Nothing has been changed \u2014 please reload.', 'warn');
     throw new Error('load_failed: ' + (rs.error.message || 'unknown'));
   }
   AppState.userRecs = (rs.data || []).map(function(r){ return { id:r.id, canonicalId:r.canonical_id, circleId:r.circle_id||'',
@@ -2276,7 +2276,7 @@ async function saveCanonicals(ids) {
 async function saveRecs(ids) {
   if (!CURRENT_UID) return;
   if (AppState.dataLoadFailed) {
-    toast('Not saving \u2014 your library did not load. Please reload first.', 'warn');
+    toast('Not saving \u2014 your saved items did not load. Please reload first.', 'warn');
     throw new Error('save refused: data did not load');
   }
   if (ids === undefined || ids === null) {
@@ -2316,7 +2316,7 @@ async function saveRecs(ids) {
       // where the library renders it. dan saw BOTH notices at once and could
       // not tell which was true. Eighth instance of this pattern this week.
       console.error('saveRecs', res.error);
-      toast('Could not save to library: ' + (res.error.message || 'unknown'), 'warn');
+      toast('Could not save: ' + (res.error.message || 'unknown'), 'warn');
       throw new Error('saveRecs failed: ' + (res.error.message || 'unknown'));
     }
   }
@@ -2363,12 +2363,12 @@ async function saveQueries(responseIds) {
     const r = await sb.rpc('mark_response_saved', { p_response_id: rid });
     if (r && r.error) {
       console.error('saveQueries: could not mark response saved', rid, r.error);
-      toast('Saved to library, but the "already saved" mark did not stick: '
+      toast('Saved, but the "already saved" mark did not stick: '
         + (r.error.message || r.error.code || 'refused'), 'warn');
     } else if (!r || r.data !== true) {
       // No error AND nothing marked. This is the case that hid for six days.
       console.error('saveQueries: marked nothing for', rid, r && r.data);
-      toast('Saved to your library, but it could not be marked as saved \u2014 '
+      toast('Saved, but it could not be marked as saved \u2014 '
         + 'you may be offered it again.', 'warn');
     }
   }
@@ -2519,7 +2519,7 @@ const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
 // The Trustnet business number, in one place: the invite join and the
 // sign-in both open WhatsApp with it.
 const TN_WA_NUMBER = '972587786049';
-const APP_VERSION = 'v0.99.12 · live';
+const APP_VERSION = 'v0.99.13 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -2544,7 +2544,7 @@ const VIEW_TITLES = {
   'history-detail': 'Question',
   sheet: 'Answer sheet',
   inbox: 'Inbox',
-  library: 'Library',
+  library: 'Saved',
   'rec-detail': 'Recommendation',
   'taste-match': 'Taste Match',
   profile: 'Profile',
@@ -2557,10 +2557,10 @@ const VIEW_TITLES = {
 // tab bar is always there.
 const VIEW_BACK = {
   'circle-detail': ['circles', 'Circles'],
-  'rec-detail': ['library', 'Library'],
+  'rec-detail': ['library', 'Saved'],
   'history-detail': ['history', 'Your questions'],
   sheet: ['history', 'Your questions'],
-  'topic-sheet': ['library', 'Library'],
+  'topic-sheet': ['library', 'Saved'],
   'answer-lib': ['inbox', 'Inbox']
 };
 
@@ -2960,7 +2960,7 @@ function homeWaitingHtml(list) {
     + '<button type="button" class="tn-bigbtn alt" data-action="answer-lib"'
     + ' data-token="' + esc(n.response_token) + '" data-question="' + esc(n.body || '') + '"'
     + ' data-who="' + esc(who) + '" data-when="' + esc(n.created_at || '') + '">'
-    + tnIcon('list', 2) + 'Answer from my library</button>'
+    + tnIcon('list', 2) + 'Answer from Saved</button>'
     + (list.length > 1 ? '<a class="tn-more-waiting" href="#" data-action="nav" data-view="inbox">+ ' + (list.length - 1) + ' more waiting in your Inbox</a>' : '')
     + '</div>';
 }
@@ -3012,8 +3012,8 @@ function homeFeedHtml() {
         + (facts ? '<p class="tn-t2" dir="auto">' + esc(facts) + '</p>' : '')
         + (f.note ? '<p class="tn-quote" dir="auto">\u201c' + esc(f.note) + '\u201d</p>' : '')
         + '<div class="tn-fe-a">' + (inLib
-            ? '<span class="tn-done">\u2713 In your library</span>'
-            : '<button class="btn btn-secondary btn-sm" data-action="save-from-feed" data-feed-idx="' + i + '">Save to library</button>')
+            ? '<span class="tn-done">\u2713 Saved</span>'
+            : '<button class="btn btn-secondary btn-sm" data-action="save-from-feed" data-feed-idx="' + i + '">Save</button>')
         + '</div></div></div>';
     }).join('');
 }
@@ -3033,7 +3033,7 @@ function renderCircles() {
   if (!cs.length) {
     return '<div class="tn-empty">'
       + '<p class="tn-empty-t">No circles yet</p>'
-      + '<p class="tn-t2" style="white-space:normal;font-size:15px;">A circle is the people you\u2019d ask about one thing \u2014 travel, food, a good plumber.</p>'
+      + '<p class="tn-t2" style="white-space:normal;font-size:15px;">A circle is the people you\u2019d ask about one thing \u2014 travel, food, books.</p>'
       + '<button type="button" class="tn-pill" data-action="open-modal" data-modal="add-circle" style="margin-top:8px;">Create your first circle</button>'
       + '</div>';
   }
@@ -3499,7 +3499,7 @@ function qItemResultsHtml(term) {
     return (x.can.name || '').toLowerCase().indexOf(q) > -1
       || (x.can.location || '').toLowerCase().indexOf(q) > -1;
   }).slice(0, 40);
-  if (!rows.length) return '<div style="padding:10px;font-size:12px;color:#7A9086;">Nothing in your library matches.</div>';
+  if (!rows.length) return '<div style="padding:10px;font-size:12px;color:#7A9086;">Nothing you\u2019ve saved matches.</div>';
   return rows.map(function(x) {
     return '<div style="display:flex;align-items:center;gap:9px;padding:7px 4px;border-bottom:1px solid #F0F5F1;cursor:pointer;"'
       + ' data-action="q-pick-item" data-rec-id="' + esc(x.rec.id) + '">'
@@ -3558,8 +3558,8 @@ function renderQuery() {
 
   const mode = AppState.queryMode === 'recommend' ? 'recommend' : 'ask';
 
-  const qPlaceholder = 'e.g. Who is the best cardiologist in Tel Aviv? '
-    + 'Or: Great restaurant for a birthday dinner in Jaffa?';
+  const qPlaceholder = 'e.g. Great restaurant for a birthday dinner in Jaffa? '
+    + 'Or: A book you couldn\u2019t put down?';
 
   // Whatever you typed survives switching verb and coming back (USER-FLOWS #5).
   const draft = AppState.queryDraft || '';
@@ -3581,7 +3581,7 @@ function renderQuery() {
 
     + '<div class="field" id="q-rec-block"' + (mode === 'recommend' ? '' : ' style="display:none;"') + '>'
     + '<div class="tn-sl" style="margin-top:18px;">What are you recommending</div>'
-    + '<input class="field-input" type="search" id="q-item-search" dir="auto" placeholder="Search your library\u2026" style="width:100%;">'
+    + '<input class="field-input" type="search" id="q-item-search" dir="auto" placeholder="Search saved\u2026" style="width:100%;">'
     + '<div id="q-item-results" style="max-height:190px;overflow-y:auto;border:1px solid #E5EDE8;border-radius:10px;padding:2px 8px;margin-top:8px;display:none;"></div>'
     + '<div id="q-item-picked" style="margin-top:8px;"></div>'
     + '<input type="hidden" id="q-item">'
@@ -3765,8 +3765,8 @@ function renderQuerySent(qs) {
       + respFindLinks(resp.recName, resp.recLoc, qs.circleId)
       + '<div class="response-actions" style="display:flex;gap:8px;flex-wrap:wrap;">'
       + (alreadySaved
-        ? '<span style="font-size:12px;color:#2A7258;font-weight:600;">✓ Saved to library</span>'
-        : '<button class="btn btn-primary btn-sm" data-action="save-to-library" data-resp-id="' + esc(resp.id) + '">+ Save to Library</button>')
+        ? '<span style="font-size:12px;color:#2A7258;font-weight:600;">✓ Saved</span>'
+        : '<button class="btn btn-primary btn-sm" data-action="save-to-library" data-resp-id="' + esc(resp.id) + '">+ Save</button>')
       + (!resp.isAnonymous && member
           ? '<button class="btn btn-secondary btn-sm" data-action="open-reply" data-resp-id="' + esc(resp.id) + '" data-member-name="' + esc(member.name) + '">Reply</button>'
           : '')
@@ -3882,7 +3882,7 @@ function initQueryView() {
 async function handleSendRecFromCircle(btn) {
   const rec = (AppState.userRecs || []).find(function(r) { return r.id === AppState.queryItemId; });
   const can = rec ? AppState.canonicalById(rec.canonicalId) : null;
-  if (!rec || !can) { toast('Pick something from your library first.', 'warn'); return; }
+  if (!rec || !can) { toast('Pick something you\u2019ve saved first.', 'warn'); return; }
   const targets = qChosen();
   if (!targets.length) { toast('Nobody is ticked.', 'warn'); return; }
   if (AppState.isDemoMode) { toast('Switch back to your account to send.', 'warn'); return; }
@@ -4233,7 +4233,7 @@ function suggestionCardHtml(sg) {
         : '<span style="color:#B4553F;">This arrived without a sender \u2014 please report it.</span>')
     + '</div>'
     + '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">'
-    + '<button class="btn btn-primary btn-sm" data-action="accept-suggestion" data-sg-id="' + esc(sg.id) + '">Add to my library</button>'
+    + '<button class="btn btn-primary btn-sm" data-action="accept-suggestion" data-sg-id="' + esc(sg.id) + '">Save</button>'
     + '<button class="btn btn-ghost btn-sm" data-action="dismiss-suggestion" data-sg-id="' + esc(sg.id) + '">Not for me</button>'
     + '</div></div>';
 }
@@ -4305,8 +4305,8 @@ function renderInbox() {
         + '<span class="tn-t1" style="font-size:15px;" dir="auto">' + esc(it.recName) + '</span></div>'
         + '<div class="tn-ib-a">'
         + (it.saved
-            ? '<span class="tn-done">\u2713 In your library</span>'
-            : '<button class="btn btn-primary btn-sm" data-action="save-to-library" data-resp-id="' + esc(it.respId) + '">Save to library</button>')
+            ? '<span class="tn-done">\u2713 Saved</span>'
+            : '<button class="btn btn-primary btn-sm" data-action="save-to-library" data-resp-id="' + esc(it.respId) + '">Save</button>')
         + '<button class="btn btn-ghost btn-sm" data-action="open-sheet" data-query-id="' + esc(it.queryId) + '">Answer sheet</button>'
         + '</div></div></div>';
     }
@@ -4323,7 +4323,7 @@ function renderInbox() {
             : '<a class="btn btn-primary btn-sm" style="text-decoration:none;" href="respond.html?t=' + esc(it.token) + '" target="_blank" rel="noopener">Answer</a>'
               + '<button class="btn btn-secondary btn-sm" data-action="answer-lib" data-token="' + esc(it.token) + '"'
               + ' data-question="' + esc(it.body || '') + '" data-who="' + esc(it.who || '') + '"'
-              + ' data-when="' + esc(it.ts ? new Date(it.ts).toISOString() : '') + '">From my library</button>');
+              + ' data-when="' + esc(it.ts ? new Date(it.ts).toISOString() : '') + '">From Saved</button>');
     } else if (it.type === 'collection_shared' && it.linkUrl && /^https:\/\//.test(it.linkUrl)) {
       actions = '<a class="btn btn-primary btn-sm" style="text-decoration:none;" href="' + esc(it.linkUrl) + '" target="tn_ext" rel="noopener">View list</a>';
     } else if (it.circleId && (it.type === 'invite_accepted' || it.type === 'member_joined')) {
@@ -4467,11 +4467,11 @@ function renderTopicSheet() {
   const topic = AppState.viewParams.topic || '';
   const st = sheetSearch(topic, function() { if (AppState.currentView === 'topic-sheet') renderApp(); });
   if (st.loading) {
-    return '<div class="tn-home" style="max-width:640px;">' + sheetHeadHtml('From your library', topic)
-      + '<p class="tn-t2" style="white-space:normal;padding:26px 0;">Reading your library\u2026</p></div>';
+    return '<div class="tn-home" style="max-width:640px;">' + sheetHeadHtml('From Saved', topic)
+      + '<p class="tn-t2" style="white-space:normal;padding:26px 0;">Reading what you\u2019ve saved\u2026</p></div>';
   }
   if (st.error) {
-    return '<div class="tn-home" style="max-width:640px;">' + sheetHeadHtml('From your library', topic)
+    return '<div class="tn-home" style="max-width:640px;">' + sheetHeadHtml('From Saved', topic)
       + '<p class="tn-t2" style="white-space:normal;padding-top:16px;color:#B3261E;">The search did not answer ('
       + esc(st.error) + ').</p>'
       + '<button type="button" class="btn btn-secondary" style="margin-top:12px;" data-action="topic-sheet"'
@@ -4479,15 +4479,15 @@ function renderTopicSheet() {
   }
   const pairs = sheetPairs(st);
   if (!pairs.length) {
-    return '<div class="tn-home" style="max-width:640px;">' + sheetHeadHtml('From your library', topic)
-      + '<p class="tn-t2" style="white-space:normal;padding-top:16px;">Nothing in your library is about that yet. '
+    return '<div class="tn-home" style="max-width:640px;">' + sheetHeadHtml('From Saved', topic)
+      + '<p class="tn-t2" style="white-space:normal;padding-top:16px;">Nothing you\u2019ve saved is about that yet. '
       + 'What your circles answer, and what you save, lands here.</p></div>';
   }
   const circles = {};
   pairs.forEach(function(p) { if (p.rec.circleId) circles[p.rec.circleId] = 1; });
   const nC = Object.keys(circles).length;
   return '<div class="tn-home" style="max-width:640px;">'
-    + sheetHeadHtml('From your library \u00b7 ' + pairs.length + ' item' + (pairs.length === 1 ? '' : 's')
+    + sheetHeadHtml('From Saved \u00b7 ' + pairs.length + ' item' + (pairs.length === 1 ? '' : 's')
         + (nC ? ' \u00b7 ' + nC + ' circle' + (nC === 1 ? '' : 's') : ''), topic)
     + '<p class="tn-t2" style="white-space:normal;margin-top:8px;">Everything you have saved about it, '
     + 'whichever circle it came from \u2014 found by meaning, not just the word.</p>'
@@ -4510,7 +4510,7 @@ function renderAnswerFromLibrary() {
     + (p.when ? ' \u00b7 ' + String(relDate(p.when)).toLowerCase() : ''), question);
   if (st.loading) {
     return '<div class="tn-home" style="max-width:640px;">' + head
-      + '<p class="tn-t2" style="white-space:normal;padding:26px 0;">Reading your library\u2026</p></div>';
+      + '<p class="tn-t2" style="white-space:normal;padding:26px 0;">Reading what you\u2019ve saved\u2026</p></div>';
   }
   const pairs = sheetPairs(st);
   if (st.error || !pairs.length) {
@@ -4519,14 +4519,14 @@ function renderAnswerFromLibrary() {
     return '<div class="tn-home" style="max-width:640px;">' + head
       + '<p class="tn-t2" style="white-space:normal;padding-top:16px;">'
       + (st.error ? 'The search did not answer (' + esc(st.error) + ').'
-                  : 'Nothing in your library matches what ' + esc(who) + ' asked.') + '</p>'
+                  : 'Nothing you\u2019ve saved matches what ' + esc(who) + ' asked.') + '</p>'
       + '<a class="tn-bigbtn" style="margin-top:14px;" href="respond.html?t=' + esc(p.token || '')
       + '" target="_blank" rel="noopener">Answer in your own words</a></div>';
   }
   const n = sheetPicked(pairs).length;
   return '<div class="tn-home" style="max-width:640px;">' + head
     + '<div class="tn-nojoin" style="margin-top:14px;">' + tnIcon('list')
-    + '<span>' + pairs.length + ' thing' + (pairs.length === 1 ? '' : 's') + ' in your library match'
+    + '<span>' + pairs.length + ' thing' + (pairs.length === 1 ? '' : 's') + ' you\u2019ve saved match'
     + (pairs.length === 1 ? 'es' : '') + ' the question. Untick anything you would rather not send.</span></div>'
     + '<div style="padding-bottom:8px;">' + sheetGroupsHtml(pairs, true) + '</div>'
     + '<button type="button" class="btn btn-primary tn-pill tn-sendbar" id="al-send" data-action="answer-lib-send"'
@@ -4651,7 +4651,7 @@ async function sheetToCollection(topic) {
   const pairs = st ? sheetPairs(st) : [];
   if (!pairs.length) return { error: 'there is nothing on this sheet' };
   const token = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
-  const desc = 'Everything in my library about ' + topic + '.';
+  const desc = 'Everything I\u2019ve saved about ' + topic + '.';
   const ins = await sb.from('collections').insert({
     owner_id: CURRENT_UID, token: token, title: topic, description: desc,
   }).select('id').single();
@@ -4672,7 +4672,7 @@ async function handleSheetSaveList(btn) {
   btn.disabled = false;
   btn.textContent = label;
   if (r.error) { toast('Could not save the list: ' + r.error, 'warn'); return; }
-  toast('Saved as a list of ' + r.count + ' \u2014 it is in your Library, under More.');
+  toast('Saved as a list of ' + r.count + ' \u2014 it is in Saved, under More.');
 }
 
 async function handleSheetSend(btn) {
@@ -4702,7 +4702,7 @@ async function handleSheetSend(btn) {
     btn.disabled = false; btn.textContent = ssSendLabel(chosen.length);
     // The list itself was created, so nothing is lost.
     if (resEl) resEl.innerHTML = '<p class="tn-t2" style="color:#B3261E;">Could not reach the server. '
-      + 'The sheet is saved as a list in your Library, so you can send it from there.</p>';
+      + 'The sheet is saved as a list in Saved, so you can send it from there.</p>';
     return;
   }
   if (!r || r.error) {
@@ -4743,7 +4743,7 @@ function renderSheet() {
       AppState._sheet = { queryId: queryId, loading: false, error: detail };
       if (AppState.currentView === 'sheet') renderApp();
     });
-    return sheetShellHtml(q, '<div style="padding:60px 20px;text-align:center;color:#7A9086;font-size:13px;">🧩 Building your answer sheet — gathering responses, searching your own library, filing everything…</div>');
+    return sheetShellHtml(q, '<div style="padding:60px 20px;text-align:center;color:#7A9086;font-size:13px;">🧩 Building your answer sheet — gathering responses, searching what you\u2019ve saved, filing everything…</div>');
   }
   if (s.loading) {
     return sheetShellHtml(q, '<div style="padding:60px 20px;text-align:center;color:#7A9086;font-size:13px;">🧩 Building…</div>');
@@ -4797,7 +4797,7 @@ function renderSheet() {
                     + '</div>';
                 }).join('')
               : '<div style="font-size:12px;color:#7A9086;">Nobody commented on this one.</div>')
-          + (con.total ? '<button class="btn btn-primary btn-sm" data-action="save-from-sheet" data-sheet-idx="' + si + '" style="margin-top:12px;">+ Save to Library</button>' : '')
+          + (con.total ? '<button class="btn btn-primary btn-sm" data-action="save-from-sheet" data-sheet-idx="' + si + '" style="margin-top:12px;">+ Save</button>' : '')
           + '</div>';
       });
       if (d.advice && d.advice.length) {
@@ -4837,12 +4837,12 @@ function renderSheet() {
                 + '</div>';
             }).join('') + '</div>'
           : '<div style="font-size:12px;color:#7A9086;margin-top:10px;">No answers yet \u2014 your circle hasn\'t replied.</div>')
-      + (con.total ? '<button class="btn btn-primary btn-sm" data-action="save-from-sheet" data-sheet-idx="0" style="margin-top:14px;">+ Save to Library</button>' : '')
+      + (con.total ? '<button class="btn btn-primary btn-sm" data-action="save-from-sheet" data-sheet-idx="0" style="margin-top:14px;">+ Save</button>' : '')
       + (subj.resolved === false ? '<div style="font-size:10.5px;color:#A8BDAF;margin-top:10px;">Couldn\'t match this to a place automatically \u2014 edit the name after saving if needed.</div>' : '')
       + '</div>';
     const rest = (d.items || []).slice(1);
     if (rest.length) {
-      vh += '<div class="tn-sl" style="margin:18px 0 10px;">ALSO IN YOUR LIBRARY</div>'
+      vh += '<div class="tn-sl" style="margin:18px 0 10px;">ALSO IN SAVED</div>'
         + rest.map(function(it, i) { return sheetItemHtml(it, i + 1); }).join('');
     }
     return sheetShellHtml(q, summary + vh);
@@ -4879,7 +4879,7 @@ function renderSheet() {
   if (!sections) {
     sections = '<div class="empty-state" style="padding:50px 20px;"><div class="empty-icon">🕰</div>'
       + '<div class="empty-title">Nothing yet</div>'
-      + '<div class="empty-body">No responses have arrived and nothing in your library matches — check back after your circle answers.</div></div>';
+      + '<div class="empty-body">No responses have arrived and nothing you\u2019ve saved matches — check back after your circle answers.</div></div>';
   }
 
   return sheetShellHtml(q, summary + sections);
@@ -4920,9 +4920,9 @@ function sheetItemHtml(it, idx) {
   // ONE ROW PER THING (v0.95.0): what it is, who said it, in their words.
   let sourceLine;
   if (it.from_you && it.recommenders.length) {
-    sourceLine = '<span style="color:#133D2F;font-weight:700;">\u2713 In your library \u00b7 also recommended by ' + esc(it.recommenders.join(', ')) + '</span>';
+    sourceLine = '<span style="color:#133D2F;font-weight:700;">\u2713 Saved \u00b7 also recommended by ' + esc(it.recommenders.join(', ')) + '</span>';
   } else if (it.from_you) {
-    sourceLine = '<span>From your library</span>';
+    sourceLine = '<span>From Saved</span>';
   } else {
     sourceLine = '<span>Recommended by ' + esc(it.recommenders.join(', ')) + '</span>';
   }
@@ -5119,8 +5119,8 @@ function renderHistoryDetail() {
           + respFindLinks(resp.recName, resp.recLoc, q.circleId)
           + '<div class="response-actions" style="display:flex;gap:8px;flex-wrap:wrap;">'
           + (alreadySaved
-              ? '<span style="font-size:12px;color:#2A7258;font-weight:600;">✓ Saved to library</span>'
-              : '<button class="btn btn-primary btn-sm" data-action="save-to-library" data-resp-id="' + esc(resp.id) + '">+ Save to Library</button>')
+              ? '<span style="font-size:12px;color:#2A7258;font-weight:600;">✓ Saved</span>'
+              : '<button class="btn btn-primary btn-sm" data-action="save-to-library" data-resp-id="' + esc(resp.id) + '">+ Save</button>')
           + (!resp.isAnonymous && member
               ? '<button class="btn btn-secondary btn-sm" data-action="open-reply" data-resp-id="' + esc(resp.id) + '" data-member-name="' + esc(member.name) + '">Reply</button>'
               : '')
@@ -5592,7 +5592,7 @@ function libSheetCtaHtml() {
   if (q.length < 3) return '';
   return '<button type="button" class="tn-makesheet" data-action="topic-sheet" data-topic="' + esc(q) + '">'
     + tnIcon('list', 2) + '<b>Make a sheet for \u201c' + esc(q) + '\u201d</b>'
-    + '<small>Everything in your library about it, from every circle</small></button>';
+    + '<small>Everything you\u2019ve saved about it, from every circle</small></button>';
 }
 
 function libResultsHtml(f) {
@@ -5600,7 +5600,7 @@ function libResultsHtml(f) {
   const shimmer = (AppState._semPending && search.length >= 3)
     ? '<div class="sem-shimmer" id="sem-shimmer">also searching by meaning\u2026</div>' : '';
   if (!f.filtered.length) {
-    return shimmer + '<div class="empty-state"><div class="empty-icon">\ud83d\udcda</div><div class="empty-title">' + (search ? 'No matches' : 'Nothing here yet') + '</div><div class="empty-body">' + (search ? 'Try different keywords.' : 'Your library fills as you ask questions and save recommendations.') + '</div></div>';
+    return shimmer + '<div class="empty-state"><div class="empty-icon">\ud83d\udcda</div><div class="empty-title">' + (search ? 'No matches' : 'Nothing here yet') + '</div><div class="empty-body">' + (search ? 'Try different keywords.' : 'This fills up as you ask questions and save recommendations.') + '</div></div>';
   }
   const groups = f.groups || libGroupByCanonical(f);
   return shimmer + '<div style="display:flex;flex-direction:column;gap:10px;">'
@@ -6035,7 +6035,7 @@ async function handleChatImportSave(btn) {
       collection_title: mkcol ? (colTitle || 'WhatsApp chat picks') : '' });
   } catch (e) { btn.disabled = false; btn.textContent = 'Save selected'; toast('Save failed: ' + (e.message || 'network'), 'error'); return; }
   if (!res || res.error) { btn.disabled = false; btn.textContent = 'Save selected'; toast('Save failed: ' + ((res && res.error) || 'unknown'), 'error'); return; }
-  let msg = 'Saved ' + res.saved + ' item' + (res.saved !== 1 ? 's' : '') + (res.skipped ? ' (' + res.skipped + ' already in your library)' : '');
+  let msg = 'Saved ' + res.saved + ' item' + (res.saved !== 1 ? 's' : '') + (res.skipped ? ' (' + res.skipped + ' already saved)' : '');
   if (res.collection_token) {
     try { await navigator.clipboard.writeText(collectionUrl(res.collection_token)); msg += ' \u2014 collection link copied!'; }
     catch (e) { msg += ' \u2014 collection created.'; }
@@ -6114,7 +6114,7 @@ async function handleDeleteRec(btn) {
   const rec = AppState.userRecs.find(function(r) { return r.id === btn.dataset.recId; });
   const can = rec ? AppState.canonicalById(rec.canonicalId) : null;
   if (!rec) return;
-  if (!confirm('Delete \u201c' + (can ? can.name : 'this item') + '\u201d from your library? This cannot be undone.')) return;
+  if (!confirm('Delete \u201c' + (can ? can.name : 'this item') + '\u201d from Saved? This cannot be undone.')) return;
   // The id is captured before the filter. saveRecs no longer deletes by diffing
   // against the database — that diff is what made a failed load look like the
   // user having emptied their library. (v0.69.0)
@@ -6222,7 +6222,7 @@ function modalEditCircle(params) {
     + '<button class="modal-close" data-action="close-modal">\u00d7</button></div>'
     + '<div class="modal-body">'
     + '<div class="field"><div class="field-label">NAME</div><input class="field-input" id="ec-name" dir="auto" maxlength="40" style="width:100%;" value="' + esc(c.name) + '"></div>'
-    + '<div class="field"><div class="field-label">DOMAIN</div><select class="field-input field-select" id="ec-domain" style="width:100%;">' + domainOptions + '</select></div>'
+    + '<div class="field"><div class="field-label">TOPIC</div><select class="field-input field-select" id="ec-domain" style="width:100%;">' + domainOptions + '</select></div>'
     + '<div class="field"><div class="field-label">DESCRIPTION</div><textarea class="field-input field-textarea" id="ec-desc" dir="auto" style="min-height:60px;">' + esc(c.description || '') + '</textarea></div>'
     // Open when a place is already set - a restriction in force must not be
     // hidden behind a fold - and closed when there is none to see.
@@ -6259,7 +6259,7 @@ async function handleDeleteCircle(btn) {
   const c = AppState.userCircles.find(function(x) { return x.id === btn.dataset.circleId; });
   if (!c) return;
   const memberCount = AppState.userMembers.filter(function(m) { return m.circleId === c.id; }).length;
-  if (!confirm('Delete the \u201c' + c.name + '\u201d circle? Its ' + memberCount + ' member' + (memberCount !== 1 ? 's' : '') + ' will be removed; saved items stay in your library (moved to Needs Filing).')) return;
+  if (!confirm('Delete the \u201c' + c.name + '\u201d circle? Its ' + memberCount + ' member' + (memberCount !== 1 ? 's' : '') + ' will be removed; what you saved from it stays, moved to Needs Filing.')) return;
   // The ids are captured BEFORE they are filtered out of AppState. The saves
   // used to work out what had gone by diffing against the database, which is
   // what made a failed load look like a deliberate mass deletion. (v0.69.0)
@@ -6326,7 +6326,7 @@ async function handleSaveEditCollection(btn) {
 async function handleDeleteCollection(btn) {
   const c = (AppState.userCollections || []).find(function(x) { return x.id === btn.dataset.collId; });
   if (!c) return;
-  if (!confirm('Delete the list \u201c' + c.title + '\u201d? Its share link stops working; the items stay in your library.')) return;
+  if (!confirm('Delete the list \u201c' + c.title + '\u201d? Its share link stops working; the items stay in Saved.')) return;
   await sb.from('collection_items').delete().eq('collection_id', c.id);
   const r = await sb.from('collections').delete().eq('id', c.id);
   if (r.error) { toast('Could not delete: ' + r.error.message, 'warn'); return; }
@@ -6460,12 +6460,12 @@ function modalCollectionCreate() {
     + '<button class="modal-close" data-action="close-modal">\u00d7</button></div>'
     + '<div class="modal-body">'
     + '<div class="field"><div class="field-label">NAME</div>'
-    + '<input class="field-input" id="coll-title" dir="auto" placeholder="e.g. My trusted Tel Aviv doctors" maxlength="80" style="width:100%;"></div>'
+    + '<input class="field-input" id="coll-title" dir="auto" placeholder="e.g. Best brunch in Tel Aviv" maxlength="80" style="width:100%;"></div>'
     + '<div class="field"><div class="field-label">ONE LINE ABOUT IT (optional)</div>'
     + '<input class="field-input" id="coll-desc" dir="auto" placeholder="15 years of experience in one list" maxlength="140" style="width:100%;"></div>'
-    + '<div class="field"><div class="field-label">PICK ITEMS FROM YOUR LIBRARY</div>'
+    + '<div class="field"><div class="field-label">PICK FROM SAVED</div>'
     + '<div style="max-height:240px;overflow-y:auto;border:1px solid #E5EDE8;border-radius:10px;padding:4px 8px;">'
-    + (recRows || '<div style="padding:10px;font-size:12px;color:#7A9086;">Your library is empty \u2014 save a few things first.</div>')
+    + (recRows || '<div style="padding:10px;font-size:12px;color:#7A9086;">Nothing saved yet \u2014 save a few things first.</div>')
     + '</div></div>'
     + '<p id="coll-err" style="font-size:12px;color:#C0392B;display:none;"></p>'
     + '<button class="btn btn-primary" data-action="create-collection" style="width:100%;justify-content:center;">Create &amp; get link</button>'
@@ -6523,7 +6523,7 @@ async function handleImportCollection(token) {
   if (res.imported > 0) {
     toast('Saved ' + res.imported + ' items from ' + (res.curator || 'the list') + ' \u2014 file them from the tray below.');
   } else {
-    toast('Everything in ' + (res.curator || 'that') + '\u2019s list is already in your library \u2713');
+    toast('Everything in ' + (res.curator || 'that') + '\u2019s list is already saved \u2713');
   }
 }
 
@@ -6778,8 +6778,8 @@ function networkFeedHtml() {
       + (links ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">' + links + '</div>' : '')
       + '<div style="margin-top:10px;">'
       + (inLib
-          ? '<span style="font-size:12px;color:#2A7258;font-weight:600;">✓ In your library</span>'
-          : '<button class="btn btn-primary btn-sm" data-action="save-from-feed" data-feed-idx="' + i + '">+ Save to my library</button>')
+          ? '<span style="font-size:12px;color:#2A7258;font-weight:600;">✓ Saved</span>'
+          : '<button class="btn btn-primary btn-sm" data-action="save-from-feed" data-feed-idx="' + i + '">+ Save</button>')
       + '</div>'
       + '</div></div></div></div>';
   }).join('');
@@ -6790,7 +6790,7 @@ function homeAskHtml() {
   return '<div style="background:linear-gradient(135deg,#0D2B1F,#133D2F);border-radius:16px;padding:16px 18px;margin-bottom:22px;">'
     + '<div style="font-size:10px;font-weight:800;letter-spacing:0.8px;color:#9BC7AE;margin-bottom:9px;">ASK PEOPLE YOU TRUST</div>'
     + '<div style="display:flex;gap:9px;">'
-    + '<input id="home-ask" placeholder="What do you need? e.g. best dentist in Ramat Gan…" '
+    + '<input id="home-ask" placeholder="What do you need? e.g. a wine bar for a first date…" '
     + 'style="flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.22);border-radius:11px;color:#fff;font-size:13px;padding:11px 13px;outline:none;">'
     + '<button class="btn btn-primary" data-action="home-ask-go" style="flex-shrink:0;">Ask →</button>'
     + '</div></div>';
@@ -7288,7 +7288,7 @@ function renderTasteMatch() {
     return '<div style="max-width:640px;"><div class="empty-state" style="padding:70px 20px;">'
       + '<div class="empty-icon">🌱</div>'
       + '<div class="empty-title">Taste Match is warming up</div>'
-      + '<div class="empty-body">Matches appear once you and others on Trustnet have built up libraries with overlapping taste. Keep saving recommendations — this switches on automatically as the network grows.</div>'
+      + '<div class="empty-body">Matches appear once you and others on Trustnet have saved enough with overlapping taste. Keep saving recommendations — this switches on automatically as the network grows.</div>'
       + '</div></div>';
   }
 
@@ -7375,7 +7375,7 @@ function renderSettings() {
     + '<div class="card" style="margin-bottom:16px;"><div class="card-body" style="display:flex;flex-direction:column;gap:16px;">'
     + '<div style="font-size:13px;font-weight:700;color:var(--slate-700);">Privacy</div>'
     + '<div style="display:flex;align-items:center;justify-content:space-between;">'
-    + '<div><div style="font-size:13px;font-weight:600;">Share my recommendations</div><div style="font-size:12px;color:var(--slate-400);">New library items are visible to people in your circles who share that interest. You can unshare any single item on its page.</div></div>'
+    + '<div><div style="font-size:13px;font-weight:600;">Share my recommendations</div><div style="font-size:12px;color:var(--slate-400);">New things you save are visible to people in your circles who share that interest. You can unshare any single item on its page.</div></div>'
     + (shareDefault()
         ? '<div style="width:44px;height:24px;border-radius:12px;background:var(--green-400);display:flex;align-items:center;justify-content:flex-end;padding:2px;cursor:pointer;flex-shrink:0;" data-action="toggle-share-default"><div style="width:20px;height:20px;border-radius:50%;background:#fff;pointer-events:none;"></div></div>'
         : '<div style="width:44px;height:24px;border-radius:12px;background:#CDD9D1;display:flex;align-items:center;justify-content:flex-start;padding:2px;cursor:pointer;flex-shrink:0;" data-action="toggle-share-default"><div style="width:20px;height:20px;border-radius:50%;background:#fff;pointer-events:none;"></div></div>')
@@ -7399,7 +7399,7 @@ function renderSettings() {
     // failed one way: someone wanting to sign out on a shared phone read it and
     // did not dare. The button is no longer styled as destructive either.
     + '<button class="btn btn-secondary btn-sm" data-action="clear-data" style="align-self:flex-start;">Sign out</button>'
-    + '<div style="font-size:11px;color:var(--slate-300);">Signs you out on this device. Your circles, people and library stay exactly as they are.</div>'
+    + '<div style="font-size:11px;color:var(--slate-300);">Signs you out on this device. Your circles, people and saved items stay exactly as they are.</div>'
     + '</div></div>'
     + '</div>';
 }
@@ -7530,7 +7530,6 @@ function openModal(name, params) {
   else if (name === 'add-member') html = modalAddMember(params);
   else if (name === 'add-rec') html = modalAddRec();
   else if (name === 'reply') html = modalReply(params);
-  else if (name === 'share-list') html = modalShareList();
   else if (name === 'interests') html = modalInterests(params);
   else if (name === 'invite') html = modalInvite(params);
   else if (name === 'add-reciprocal') html = modalAddReciprocal(params);
@@ -7627,7 +7626,7 @@ function modalFileSuggestion(params) {
   }
 
   return '<div class="modal" style="max-width:420px;">'
-    + '<div class="modal-header"><div class="modal-title">Add to your library</div>'
+    + '<div class="modal-header"><div class="modal-title">Save</div>'
     + '<button class="btn btn-ghost btn-icon" data-action="close-modal">\u2715</button></div>'
     + '<div class="modal-body">' + body + '</div>'
     + '<div class="modal-footer">'
@@ -7646,7 +7645,7 @@ function modalAddCircle() {
   return '<div class="modal"><div class="modal-header"><div class="modal-title">New Circle</div><button class="btn btn-ghost btn-icon" data-action="close-modal">✕</button></div>'
     + '<div class="modal-body">'
     + '<div class="field"><div class="field-label">NAME</div><input class="field-input" id="nc-name" placeholder="e.g. Dining" maxlength="40"></div>'
-    + '<div class="field"><div class="field-label">DOMAIN</div><select class="field-input field-select" id="nc-domain">' + domainOptions + '</select></div>'
+    + '<div class="field"><div class="field-label">TOPIC</div><select class="field-input field-select" id="nc-domain">' + domainOptions + '</select></div>'
     + '<div class="field"><div class="field-label">DESCRIPTION</div><textarea class="field-input field-textarea" id="nc-desc" placeholder="What kind of recommendations does this circle give?" style="min-height:70px;"></textarea></div>'
     // WHERE, IF ANYWHERE (0048). A circle called "Italy" is about Italy, and
     // until this existed nothing in the app knew that - a seafood restaurant in
@@ -7920,7 +7919,7 @@ function modalAddMember(params) {
           + '<div id="pc-review"></div></div>'
         : '')
     + '<div class="field"><div class="field-label">FULL NAME</div><input class="field-input" id="nm-name" placeholder="e.g. Yael Ben-David" maxlength="60" value="' + esc(em && !isSourceEdit ? em.name : '') + '"></div>'
-    + '<div class="field"><div class="field-label">WHY DO YOU TRUST THEM?</div><textarea class="field-input field-textarea" id="nm-trust" placeholder="e.g. Food journalist, same taste in wine. Or: Managed her team for 3 years." style="min-height:60px;">' + esc(em && !isSourceEdit ? (em.trustBasis || '') : '') + '</textarea></div>'
+    + '<div class="field"><div class="field-label">NOTES</div><textarea class="field-input field-textarea" id="nm-trust" placeholder="e.g. Food journalist, same taste in wine. Or: Managed her team for 3 years." style="min-height:60px;">' + esc(em && !isSourceEdit ? (em.trustBasis || '') : '') + '</textarea></div>'
     + '<div class="field"><div class="field-label">HOW TO REACH THEM</div>' + methodPicker + '</div>'
     + '<div class="field" id="nm-contact-wrap" style="display:' + (emContactVisible ? 'block' : 'none') + ';">'
       + '<div class="field-label" id="nm-contact-label">' + emContactLabel + '</div>'
@@ -7943,7 +7942,7 @@ function modalAddMember(params) {
     + '<div class="field"><div class="field-label">SOURCE NAME</div><input class="field-input" id="nm-srcname" placeholder="e.g. Eater London, Monocle, Adam Gopnik" maxlength="80" value="' + esc(isSourceEdit ? em.name : '') + '"></div>'
     + '<div class="field"><div class="field-label">TYPE</div>' + sourceTypePicker + '</div>'
     + '<div class="field"><div class="field-label">URL <span style="font-weight:400;color:#A8BDAF;">(optional)</span></div><input class="field-input" id="nm-srcurl" placeholder="https://…" type="url" value="' + esc(isSourceEdit ? (em.sourceUrl || '') : '') + '"></div>'
-    + '<div class="field"><div class="field-label">WHY DO YOU TRUST THIS SOURCE?</div><textarea class="field-input field-textarea" id="nm-srctrust" placeholder="e.g. Best coverage of London restaurants for 10 years. Always ahead of trends." style="min-height:60px;">' + esc(isSourceEdit ? (em.trustBasis || '') : '') + '</textarea></div>'
+    + '<div class="field"><div class="field-label">NOTES</div><textarea class="field-input field-textarea" id="nm-srctrust" placeholder="e.g. Best coverage of London restaurants for 10 years. Always ahead of trends." style="min-height:60px;">' + esc(isSourceEdit ? (em.trustBasis || '') : '') + '</textarea></div>'
     + '<div style="padding:10px 12px;background:#E6EFEA;border-radius:8px;border:1px solid #D3E7DC;">'
     + '<div style="font-size:11px;color:#133D2F;font-weight:600;margin-bottom:3px;">How external sources work</div>'
     + '<div style="font-size:11px;color:#56695F;line-height:1.6;">External sources are not messaged directly. Their recommendations are surfaced when you query this circle, based on their published coverage — alongside responses from your personal contacts.</div>'
@@ -8006,7 +8005,7 @@ function modalAddRec() {
   const allCircles = AppState.userCircles.concat(AppState.synCircles);
 
   const circlePickerHtml = allCircles.length === 0
-    ? '<div style="font-size:12px;color:#7A9086;">No circles yet — rec will be added to your general library.</div>'
+    ? '<div style="font-size:12px;color:#7A9086;">No circles yet — it will be saved without a circle.</div>'
     : '<div id="ar-circle-picker" style="display:flex;gap:8px;flex-wrap:wrap;">'
       + '<button type="button" class="filter-chip ar-circle-opt active" data-action="pick-ar-circle" data-circle-id="">No circle</button>'
       + allCircles.map(function(c) {
@@ -8024,7 +8023,7 @@ function modalAddRec() {
     + '<input class="field-input" id="ar-url" placeholder="Paste a link and let AI fill this form" style="flex:1;">'
     + '<button class="btn btn-secondary" data-action="ingest-link" id="ar-url-btn" style="flex-shrink:0;">Fetch</button>'
     + '</div></div>'
-    + '<div class="field"><div class="field-label">WHAT ARE YOU RECOMMENDING?</div><input class="field-input" id="ar-name" placeholder="Restaurant, book, doctor, place…" maxlength="80"></div>'
+    + '<div class="field"><div class="field-label">WHAT ARE YOU RECOMMENDING?</div><input class="field-input" id="ar-name" placeholder="Restaurant, book, hotel, place…" maxlength="80"></div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
     + '<div class="field"><div class="field-label">CATEGORY</div><input class="field-input" id="ar-cat" placeholder="e.g. Restaurant, Book"></div>'
     + '<div class="field"><div class="field-label">LOCATION <span style="font-weight:400;color:#A8BDAF;">(optional)</span></div><input class="field-input" id="ar-location" placeholder="e.g. Tel Aviv"></div>'
@@ -8064,7 +8063,7 @@ function modalAddRec() {
       + '</div>')
     + '</div>'
     + '<div class="modal-footer"><button class="btn btn-secondary" data-action="close-modal">Cancel</button>'
-    + '<button class="btn btn-primary" id="ar-save" data-action="save-rec">Add to Library</button></div>'
+    + '<button class="btn btn-primary" id="ar-save" data-action="save-rec">Save</button></div>'
     + '</div>';
 }
 
@@ -8128,7 +8127,7 @@ function arUpdateSaveLabel() {
   const btn = document.getElementById('ar-save');
   if (!btn) return;
   const on = (document.getElementById('ar-send') || {}).checked;
-  if (!on) { btn.textContent = 'Add to Library'; btn.style.opacity = '1'; return; }
+  if (!on) { btn.textContent = 'Save'; btn.style.opacity = '1'; return; }
   const n = arSendTargets().length;
   btn.textContent = n ? ('Save and send to ' + n) : 'Save and send';
   btn.style.opacity = n ? '1' : '.6';
@@ -8171,67 +8170,6 @@ function modalReply(params) {
 }
 
 // SIMULATED: Curator Share — shows a preview of the public shareable list page
-function modalShareList() {
-  var user = AppState.userProfile;
-  var name = user ? user.name : 'You';
-  var handle = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-  var allRecs = AppState.allRecs().slice(0, 4);
-
-  var previewItems = allRecs.length > 0
-    ? allRecs.map(function(rec) {
-        var can = AppState.canonicalById(rec.canonicalId);
-        if (!can) return '';
-        return '<div style="background:#fff;border:1px solid #E5EDE8;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;gap:12px;align-items:flex-start;">'
-          + '<div style="font-size:22px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;background:#F2F6F3;border-radius:8px;flex-shrink:0;">' + esc(can.imageEmoji || '📌') + '</div>'
-          + '<div style="flex:1;min-width:0;">'
-          + '<div style="font-size:14px;font-weight:700;color:#1C2420;">' + esc(can.name) + '</div>'
-          + '<div style="font-size:11px;color:#7A9086;">' + esc(can.category || '') + (can.location ? ' · ' + esc(can.location) : '') + '</div>'
-          + (rec.note ? '<div style="font-size:12px;color:#3D4F46;line-height:1.5;margin-top:4px;">' + esc(rec.note) + '</div>' : '')
-          + '</div>'
-          + '</div>';
-      }).join('')
-    : '<div style="text-align:center;padding:20px;color:#A8BDAF;font-size:13px;">Add recommendations to your library to include them here.</div>';
-
-  return '<div class="modal" style="max-width:460px;">'
-    + '<div class="modal-header">'
-    + '<div><div class="modal-title">Share as a public list</div>'
-    + '<div style="font-size:11px;color:#7A9086;margin-top:2px;">A beautiful page anyone can view — no account needed</div>'
-    + '</div>'
-    + '<button class="btn btn-ghost btn-icon" data-action="close-modal">✕</button>'
-    + '</div>'
-    + '<div class="modal-body">'
-    // The share URL bar
-    + '<div style="display:flex;align-items:center;gap:8px;background:#F2F6F3;border:1px solid #E5EDE8;border-radius:8px;padding:10px 12px;margin-bottom:16px;">'
-    + '<span style="font-size:12px;color:#56695F;font-family:monospace;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">trustnet.com/u/' + esc(handle) + '/my-favourites</span>'
-    + '<button class="btn btn-secondary btn-sm" data-action="copy-share-link" style="flex-shrink:0;">Copy</button>'
-    + '</div>'
-    // Live preview of the public page
-    + '<div style="font-size:11px;font-weight:700;color:#7A9086;letter-spacing:0.5px;margin-bottom:8px;">PREVIEW</div>'
-    + '<div style="border:1px solid #E5EDE8;border-radius:12px;overflow:hidden;">'
-    + '<div style="background:#0D2B1F;padding:20px;text-align:center;">'
-    + '<div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.6);letter-spacing:1px;margin-bottom:12px;">TRUSTNET</div>'
-    + '<div class="avatar" style="background:' + esc(user && user.avatarColor ? user.avatarColor : '#1D5A45') + ';margin:0 auto 8px;">' + esc(user && user.avatar ? user.avatar : 'ME') + '</div>'
-    + '<div style="font-size:13px;color:rgba(255,255,255,0.85);">' + esc(name) + '</div>'
-    + '<div style="font-size:18px;font-weight:800;color:#fff;margin-top:2px;">My Favourites</div>'
-    + '</div>'
-    + '<div style="padding:16px;background:#F2F6F3;max-height:280px;overflow-y:auto;">'
-    + previewItems
-    + '<div style="background:linear-gradient(135deg,#E6EFEA,#fff);border:1px solid #D3E7DC;border-radius:10px;padding:14px;text-align:center;margin-top:8px;">'
-    + '<div style="font-size:12px;font-weight:700;color:#0D2B1F;margin-bottom:8px;">Recommendations from people you trust</div>'
-    + '<div style="display:inline-block;background:#1D5A45;color:#fff;font-size:12px;font-weight:600;padding:8px 18px;border-radius:6px;">Build your trusted network →</div>'
-    + '</div>'
-    + '</div>'
-    + '</div>'
-    + '<div style="padding:10px 12px;background:#E6EFEA;border-radius:8px;border:1px solid #D3E7DC;margin-top:16px;">'
-    + '<div style="font-size:11px;color:#133D2F;line-height:1.6;">Anyone who opens this link sees your picks — and an invitation to join. This is how curators bring their friends onto Trustnet.</div>'
-    + '</div>'
-    + '</div>'
-    + '<div class="modal-footer">'
-    + '<button class="btn btn-secondary" data-action="close-modal">Close</button>'
-    + '<button class="btn btn-primary" data-action="copy-share-link">Copy share link</button>'
-    + '</div>'
-    + '</div>';
-}
 
 // SIMULATED: Direct Invite — shows the flattering "you're trusted" message preview
 function modalInvite(params) {
@@ -8782,7 +8720,7 @@ function modalCircleMore(params) {
     + opt('data-action="open-circle-link"' + idAttrs, 'link', 'Invite link', 'One link for anyone \u2014 they join with a tap')
     + opt('data-action="open-invite"' + idAttrs, 'send', 'Invite', 'Send it to people in this circle who aren\u2019t on Trustnet yet')
     + opt('data-action="open-modal" data-modal="edit-circle"' + idAttrs, 'pencil', 'Edit circle', 'Name, what it\u2019s about, where')
-    + opt('data-action="circle-more-delete"' + idAttrs, 'trash', 'Delete circle', 'Saved items stay in your library', true)
+    + opt('data-action="circle-more-delete"' + idAttrs, 'trash', 'Delete circle', 'What you saved stays', true)
     + '</div></div>';
 }
 
@@ -8798,13 +8736,13 @@ function modalFabMenu() {
     return '<button type="button" class="tn-sheet-opt" ' + actionAttr + '>'
       + '<span class="tn-optile">' + tnIcon(icon) + '</span>'
       + '<span class="tn-row-b"><span class="tn-t1" style="display:block;">' + title + '</span>'
-      + '<span class="tn-t2" style="display:block;white-space:normal;">' + sub + '</span></span>'
+      + (sub ? '<span class="tn-t2" style="display:block;white-space:normal;">' + sub + '</span>' : '') + '</span>'
       + tnIcon('chev', 2) + '</button>';
   };
   return '<div class="modal" style="max-width:420px;">'
     + '<div class="modal-body" style="padding-top:10px;gap:0;">'
-    + opt('data-action="fab-save"', 'bmplus', 'Save a recommendation', 'To your library \u2014 and send it on, if you want')
-    + opt('data-action="fab-recommend"', 'send', 'Recommend to a circle', 'Something already in your library')
+    + opt('data-action="fab-save"', 'bmplus', 'Save recommendation', '')
+    + opt('data-action="fab-recommend"', 'send', 'Recommend to a circle', 'Something you\u2019ve saved')
     + '</div>'
     + '<div class="modal-footer"><button type="button" class="btn btn-secondary" data-action="close-modal" style="flex:1 1 auto;">Cancel</button></div>'
     + '</div>';
@@ -9383,7 +9321,7 @@ async function handleSendRecInApp(btn) {
     if (!res.ok) {
       const say = {
         already_sent: member.name + ' already has this in their inbox.',
-        already_in_their_library: member.name + ' already has this in their library.',
+        already_in_their_library: member.name + ' already has this saved.',
         not_your_member_or_not_on_app: member.name + ' is not on Trustnet yet \u2014 use WhatsApp or email instead.',
         cannot_send_to_yourself: "That's you.",
         not_your_item: 'That item is not yours to send.',
@@ -9484,7 +9422,7 @@ async function handleFileSuggestion(id, circleId) {
     renderApp();
     const filed = circleId ? AppState.circleById(circleId) : null;
     toast(filed ? ('Added to your ' + filed.name + ' circle.')
-                : 'Added to your library \u2014 it is in Needs filing.');
+                : 'Saved \u2014 it is in Needs filing.');
   } catch (e) {
     console.error('handleFileSuggestion failed:', e);
     toast('Could not add that: ' + (e.message || 'unknown error'), 'warn');
@@ -10067,7 +10005,7 @@ async function handleSaveRec() {
     // fire over a rejected write. It has already told the user why.
     try { await saveRecs([dupRec.id]); } catch (e) { return; }
     closeModal();
-    toast('"' + name + '" is already in your library — updated it.');
+    toast('"' + name + '" is already saved — updated it.');
     renderApp();
     return;
   }
@@ -10099,13 +10037,13 @@ async function handleSaveRec() {
     if (r.already.length) bits.push(r.already.length + ' already had it');
     if (r.failed.length) bits.push('could not reach ' + r.failed.join(', '));
     toast('"' + name + '" saved' + (bits.length ? ' \u2014 ' + bits.join(', ') : '')
-      + (r.manual ? '. Some need a tap from your Library.' : '.'),
+      + (r.manual ? '. Some need a tap from Saved.' : '.'),
       r.failed.length ? 'warn' : 'ok');
     return;
   }
 
   closeModal();
-  toast('"' + name + '" added to your library.');
+  toast('"' + name + '" saved.');
   renderApp();
 }
 
@@ -10199,7 +10137,7 @@ async function handleSaveToLibrary(respId) {
     + '<div class="modal" style="max-width:460px;">'
     + '<div class="modal-header">'
     + '<div>'
-    + '<div class="modal-title">Save to Library</div>'
+    + '<div class="modal-title">Save</div>'
     + '<div style="font-size:11px;color:#7A9086;margin-top:2px;">Recommended by ' + esc(recommenderName) + '</div>'
     + '</div>'
     + '<button class="btn btn-ghost btn-icon" data-action="close-modal">✕</button>'
@@ -10236,7 +10174,7 @@ async function handleSaveToLibrary(respId) {
     + '</div>'
     + '<div class="modal-footer">'
     + '<button class="btn btn-secondary" data-action="close-modal">Cancel</button>'
-    + '<button class="btn btn-primary" data-action="confirm-save-to-library" data-resp-id="' + esc(respId) + '">Save to Library</button>'
+    + '<button class="btn btn-primary" data-action="confirm-save-to-library" data-resp-id="' + esc(respId) + '">Save</button>'
     + '</div>'
     + '</div></div>';
 
@@ -10350,7 +10288,7 @@ async function handleConfirmSaveToLibrary(respId) {
   await saveQueries([resp.id]);
 
   closeModal();
-  toast('"' + name + '" saved to your library.');
+  toast('"' + name + '" saved.');
 
   // Re-render the response list in place without resetting query state
   const respEl = document.getElementById('q-responses');
@@ -10371,7 +10309,7 @@ async function handleConfirmSaveToLibrary(respId) {
         + (r.recTags && r.recTags.length ? '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;">' + r.recTags.slice(0,3).map(function(t){return'<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:#E5EDE8;color:#56695F;">#'+esc(t)+'</span>';}).join('') + '</div>' : '')
         + respFindLinks(r.recName, r.recLoc, query.circleId)
         + '<div class="response-actions" style="display:flex;gap:8px;flex-wrap:wrap;">'
-        + (saved ? '<span style="font-size:12px;color:#2A7258;font-weight:600;">✓ Saved to library</span>' : '<button class="btn btn-primary btn-sm" data-action="save-to-library" data-resp-id="' + esc(r.id) + '">+ Save to Library</button>')
+        + (saved ? '<span style="font-size:12px;color:#2A7258;font-weight:600;">✓ Saved</span>' : '<button class="btn btn-primary btn-sm" data-action="save-to-library" data-resp-id="' + esc(r.id) + '">+ Save</button>')
         + (!r.isAnonymous && mem ? '<button class="btn btn-secondary btn-sm" data-action="open-reply" data-resp-id="' + esc(r.id) + '" data-member-name="' + esc(mem.name) + '">Reply</button>' : '')
         + '</div></div></div>';
     }).join('');
@@ -10405,7 +10343,7 @@ async function handleSaveFromFeed(idx) {
   try { await saveRecs([feedRecId]); } catch (e) { return; }
   requestClassify(f.canonical_id, f.note || '');
   renderApp();
-  toast('Saved to your library.');
+  toast('Saved.');
 }
 
 async function handleClearData() {
@@ -11174,14 +11112,8 @@ document.addEventListener('click', function(e) {
   else if (action === 'confirm-add-reciprocal') {
     handleConfirmAddReciprocal(target.dataset.recipId, target.dataset.circleChoice);
   }
-  else if (action === 'open-share-list') {
-    openModal('share-list');
-  }
   else if (action === 'open-invite') {
     openInviteFresh({ circleId: target.dataset.circleId, circleName: target.dataset.circleName });
-  }
-  else if (action === 'copy-share-link') {
-    toast('Link copied to clipboard.');
   }
   else if (action === 'invite-member') {
     handleInviteMember(target);

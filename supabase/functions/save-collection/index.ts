@@ -88,7 +88,7 @@ Deno.serve(async (req: Request) => {
     const { error: nErr } = await admin.from("notifications").insert({
       user_id: col.owner_id, type: "collection_saved",
       title: receiverName + " saved your list \u201c" + col.title + "\u201d",
-      body: imported + " recommendation" + (imported !== 1 ? "s" : "") + " now live in their library, credited to you.",
+      body: imported + " recommendation" + (imported !== 1 ? "s" : "") + " now saved by them, credited to you.",
       actor_name: receiverName,
     });
     if (nErr) console.error("collection_saved_notification_failed", nErr.message);

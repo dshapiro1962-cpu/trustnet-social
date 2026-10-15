@@ -118,9 +118,10 @@ const iRecIns = ww.indexOf('.from("recommendations").insert(');
 // Searched FROM the insert: the phrase also appears in the comment above it,
 // which this sim matched first and failed on. Anchoring on prose you wrote
 // yourself is not anchoring.
-const iSaved  = iRecIns > 0 ? ww.indexOf('Saved to your library', iRecIns) : -1;
+// The reply is "✓ Saved: <name>" since v0.99.13 ("Saved to your library" before).
+const iSaved  = iRecIns > 0 ? ww.indexOf('"✓ Saved: "', iRecIns) : -1;
 const between = (iRecIns > 0 && iSaved > iRecIns) ? ww.slice(iRecIns, iSaved) : '';
-ck('...and returns before replying "Saved to your library"',
+ck('...and returns before replying "Saved"',
    /if\s*\(\s*\w*[Ee]rr\w*\s*\)[\s\S]{0,400}?return\s+json\(/.test(between),
    'insert@' + iRecIns + ' saved@' + iSaved);
 

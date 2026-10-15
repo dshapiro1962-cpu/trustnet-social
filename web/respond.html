@@ -77,23 +77,22 @@
       <div class="ask-text" id="ask-text"></div>
     </div>
     <div id="lib-strip" class="hidden" style="background:var(--bg);border:1px solid #DCE7E0;border-radius:10px;padding:12px 14px;margin-bottom:20px;">
-      <div style="font-size:11px;font-weight:700;color:#1A5235;letter-spacing:0.4px;margin-bottom:8px;">ANSWER FROM YOUR LIBRARY</div>
+      <div style="font-size:11px;font-weight:700;color:#1A5235;letter-spacing:0.4px;margin-bottom:8px;">ANSWER FROM SAVED</div>
       <input id="lib-search" dir="auto" placeholder="Search your saved recommendations…" style="margin-bottom:8px;">
       <div id="lib-results"></div>
-      <div id="lib-filled" style="display:none;font-size:11.5px;color:#1A5235;font-weight:600;">✓ Filled from your library — edit freely before sending</div>
+      <div id="lib-filled" style="display:none;font-size:11.5px;color:#1A5235;font-weight:600;">✓ Filled from Saved — edit freely before sending</div>
     </div>
     <!-- PASTE A LINK AND LET IT FILL THE FORM. The same affordance as the
-         Add to Library dialog in the app. It needs no account: ingest-link
+         Save dialog in the app. It needs no account: ingest-link
          accepts the response token this page already carries. -->
     <label for="rec-url">Have a link? <span style="font-weight:400;opacity:.7;text-transform:none;">(optional)</span></label>
     <div class="input-row">
-      <input id="rec-url" dir="ltr" placeholder="Paste a link" maxlength="500">
-      <button type="button" id="rec-url-btn" style="background:#EBF7F1;border:1.5px solid #217A4B;color:#1A5235;font-weight:700;">Fetch</button>
+      <input id="rec-url" dir="ltr" type="url" inputmode="url" placeholder="Paste a link and we fill in the rest" maxlength="500">
     </div>
     <div id="rec-url-msg" style="font-size:11.5px;margin:6px 0 0;min-height:1em;"></div>
 
     <label for="rec-name">What do you recommend?</label>
-    <input id="rec-name" placeholder="e.g. A. Wong, Demon Copperhead, Dr. Cohen" maxlength="120">
+    <input id="rec-name" placeholder="e.g. A. Wong, Demon Copperhead, Hotel Montefiore" maxlength="120">
     <label for="rec-location">Location (optional)</label>
     <input id="rec-location" placeholder="e.g. London, UK" maxlength="80">
     <label for="rec-note">Your note</label>
@@ -104,13 +103,13 @@
          same promise as the save card in the app. -->
     <label style="display:flex;align-items:flex-start;gap:8px;font-weight:400;margin-top:14px;cursor:pointer;">
       <input type="checkbox" id="rec-share" checked style="margin-top:3px;flex:none;">
-      <span style="font-size:13px;line-height:1.5;">
-        <strong>Share to their network</strong><br>
-        <span style="opacity:.75;">Lets people in their circles who share this interest see it too. Untick to keep it just for them.</span>
+      <span style="font-size:13px;line-height:1.5;text-transform:none;letter-spacing:0;">
+        <strong id="share-h">Their friends can see this too</strong><br>
+        <span style="opacity:.75;" id="share-s">Trustnet may suggest it to people in their circles who like this kind of thing. Untick to send it to them only.</span>
       </span>
     </label>
     <button id="submit-btn">Send recommendation</button>
-    <div style="font-size:9px;color:#A8BDAF;text-align:center;margin-top:10px;">r2.7</div>
+    <div style="font-size:9px;color:#A8BDAF;text-align:center;margin-top:10px;">r2.8</div>
   </div>
 
   <!-- Rich thank-you + conversion -->
@@ -157,7 +156,7 @@ window.TRUSTNET_CONFIG = {
 const CFG = window.TRUSTNET_CONFIG || {};
 const SUPABASE_FUNCTIONS_URL = CFG.FUNCTIONS_URL || window.TRUSTNET_FUNCTIONS_URL || "https://YOUR_PROJECT.supabase.co/functions/v1";
 const APP_URL = CFG.APP_URL || "https://trustnetsocial.com";
-const RESPOND_VERSION = "r2.7";
+const RESPOND_VERSION = "r2.8";
 const LIB_DEBUG = new URLSearchParams(location.search).get("debug") === "1";
 function dbg(line) {
   if (!LIB_DEBUG) return;
@@ -193,6 +192,7 @@ async function init() {
       // The circle's name stays: dan, 7 Oct, chose to keep showing it to the
       // people in it, and privacy.html now says that they see it. Without a
       // name this line read "is asking their  circle".
+      shareWords(context.requesterName);
       $("ask-from").textContent = context.requesterName + " is asking"
         + (context.circleName ? " their " + context.circleName + " circle" : "");
       $("ask-text").textContent = '"' + (meta.query_text || "") + '"';
@@ -363,7 +363,7 @@ function renderLibResults() {
     + '</div>'
     + (it.note ? '<div dir="auto" style="font-size:11.5px;color:#56695F;margin-top:3px;line-height:1.45;">' + escR(it.note.slice(0, 80)) + (it.note.length > 80 ? '\u2026' : '') + '</div>' : '')
     + '</div>').join('')
-    + (libMatches.length === 0 && q ? '<div style="font-size:11.5px;color:#7A9086;">Nothing matching in your library \u2014 fill the form below.</div>' : '');
+    + (libMatches.length === 0 && q ? '<div style="font-size:11.5px;color:#7A9086;">Nothing you\u2019ve saved matches \u2014 fill the form below.</div>' : '');
 }
 
 document.addEventListener("click", (e) => {
@@ -385,16 +385,22 @@ function showError(title, body) {
   show("error-view");
 }
 
-// FETCH: fill the form from a link. The token is the credential - there is no
-// account here and there never will be, so ingest-link takes the same response
-// token receive-response does. It is refused if the token is used or expired.
-$("rec-url-btn").addEventListener("click", async () => {
-  const btn = $("rec-url-btn");
+// A PASTED LINK FILLS THE FORM (r2.8). dan, 13 Oct: "fetch is not a good
+// term". There is no button now: pasting a link, or typing one and leaving the
+// box, reads it. The token is the credential - there is no account here and
+// there never will be, so ingest-link takes the same response token
+// receive-response does. It is refused if the token is used or expired.
+let linkRead = "";
+let linkTimer = null;
+async function readLink(quiet) {
   const msg = $("rec-url-msg");
   const url = $("rec-url").value.trim();
   const say = (t, ok) => { msg.textContent = t; msg.style.color = ok ? "#1A5235" : "#C0392B"; };
-  if (!/^https?:\/\/.+/i.test(url)) { say("Paste a full link starting with http…", false); return; }
-  btn.disabled = true; btn.textContent = "Reading…"; say("", true);
+  if (!url) { say("", true); return; }
+  if (!/^https?:\/\/\S+\.\S+/i.test(url)) { if (!quiet) say("Paste a full link starting with http\u2026", false); return; }
+  if (url === linkRead) return;
+  linkRead = url;
+  say("Reading the link\u2026", true);
   let data = null;
   try {
     const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/ingest-link`, {
@@ -405,10 +411,11 @@ $("rec-url-btn").addEventListener("click", async () => {
     data = await res.json();
     if (!res.ok) data = { error: (data && data.error) || ("http_" + res.status) };
   } catch (e) { data = { error: "network" }; }
-  btn.disabled = false; btn.textContent = "Fetch";
+  if ($("rec-url").value.trim() !== url) return;
   if (!data || data.error) {
+    linkRead = "";
     say("Could not read that link" + (data && data.error ? " (" + data.error + ")" : "")
-        + " — fill it in yourself below.", false);
+        + " \u2014 fill it in yourself below.", false);
     return;
   }
   // Never overwrite something already typed.
@@ -417,9 +424,21 @@ $("rec-url-btn").addEventListener("click", async () => {
   fill("rec-location", data.location || "");
   fill("rec-note", data.note || "");
   say(data.needs_review
-    ? "Filled what I could — check the name before sending."
-    : "Got it — check it over and send.", true);
-});
+    ? "Filled what I could \u2014 check the name before sending."
+    : "Got it \u2014 check it over and send.", true);
+}
+$("rec-url").addEventListener("paste", () => { setTimeout(() => readLink(true), 0); });
+$("rec-url").addEventListener("input", () => { clearTimeout(linkTimer); linkTimer = setTimeout(() => readLink(true), 700); });
+$("rec-url").addEventListener("change", () => { clearTimeout(linkTimer); readLink(false); });
+
+// The share box names the person who asked, once we know who that is.
+function shareWords(name) {
+  const known = name && name !== "them";
+  const h = $("share-h"), s = $("share-s");
+  if (h) h.textContent = known ? name + "\u2019s friends can see this too" : "Their friends can see this too";
+  if (s) s.textContent = "Trustnet may suggest it to people in " + (known ? name + "\u2019s" : "their")
+    + " circles who like this kind of thing. Untick to send it to " + (known ? name : "them") + " only.";
+}
 
 $("submit-btn").addEventListener("click", async () => {
   const recName = $("rec-name").value.trim();

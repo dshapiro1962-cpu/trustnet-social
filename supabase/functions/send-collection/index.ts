@@ -74,7 +74,7 @@ Deno.serve(async (req: Request) => {
       const { error: nErr } = await admin.from("notifications").insert({
         user_id: m.linked_user_id, type: "collection_shared",
         title: senderName + " shared a list with you: \u201C" + col.title + "\u201D",
-        body: nItems + " recommendation" + (nItems !== 1 ? "s" : "") + " \u2014 tap to view and save them to your library.",
+        body: nItems + " recommendation" + (nItems !== 1 ? "s" : "") + " \u2014 tap to view and save them.",
         actor_name: senderName, circle_id: circle.id, link_url: shareUrl,
       });
       appDoorway = !nErr;

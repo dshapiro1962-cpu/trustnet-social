@@ -136,7 +136,8 @@ if (fn) {
 // ── 3. THE PAGE ─────────────────────────────────────────────────────────
 console.log('\n== the answer dialog itself ==\n');
 ck('respond.html has the link field', /id="rec-url"/.test(respond));
-ck('...and a Fetch button', /id="rec-url-btn"/.test(respond));
+// r2.8 (15 Oct): no Fetch button - a pasted link is read as it lands.
+ck('...which reads a link the moment it is pasted', respond.indexOf('$("rec-url").addEventListener("paste"') > -1);
 ck('it posts the token with the url',
    /response_token: token/.test(respond),
    'without the token ingest-link will refuse it');
@@ -170,7 +171,7 @@ console.log('\n== the layout the stylesheet was quietly breaking ==\n');
   ck('...and whose input is allowed to shrink',
      /\.input-row input[^}]*min-width:\s*0/.test(css),
      'min-width:auto is the default and is why the field collapsed to 30px');
-  ck('the Fetch row uses it rather than fighting it inline',
+  ck('the link row uses it rather than fighting it inline',
      /class="input-row"/.test(css));
 }
 

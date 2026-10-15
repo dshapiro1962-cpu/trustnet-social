@@ -132,8 +132,8 @@ console.log('\n== the toggle is the guard ==\n');
        w.ctx.arSendTargets().length === 0,
        'saving privately is the common case; this must not leak');
     w.ctx.arUpdateSaveLabel();
-    ck('...and the button just says Add to Library',
-       w.els['ar-save'].textContent === 'Add to Library',
+    ck('...and the button just says Save',
+       w.els['ar-save'].textContent === 'Save',
        'got ' + JSON.stringify(w.els['ar-save'].textContent));
   }
 }

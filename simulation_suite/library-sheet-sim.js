@@ -471,8 +471,8 @@ window.addEventListener('load', function () {
   ck('...and WhatsApp is still a one-tap hand-off from your own WhatsApp', r.waLink === true);
 
   console.log('  -- answering someone out of your library --');
-  ck('the waiting question on Home offers it', /Answer from my library/.test(r.homeDoor || ''), r.homeDoor);
-  ck('the Inbox row offers it too', /From my library/.test(r.inboxDoor || ''), r.inboxDoor);
+  ck('the waiting question on Home offers it', /Answer from Saved/.test(r.homeDoor || ''), r.homeDoor);
+  ck('the Inbox row offers it too', /From Saved/.test(r.inboxDoor || ''), r.inboxDoor);
   ck('...carrying their actual question', r.inboxQ === QUESTION, r.inboxQ);
   ck('it opens its own screen', r.view2 === 'answer-lib', r.view2);
   ck('the screen says who asked', /Tom Adler asked/.test(r.askedHead || ''), r.askedHead);
@@ -502,7 +502,7 @@ window.addEventListener('load', function () {
   ck('...and the four things they sent are still counted as four', /4 recommendations/.test(r.byline || ''), r.byline);
 
   console.log('  -- when the library has nothing --');
-  ck('it says so plainly', /Nothing in your library matches what Tom asked/.test(r.emptyText || ''), r.emptyText);
+  ck('it says so plainly', /Nothing you’ve saved matches what Tom asked/.test(r.emptyText || ''), r.emptyText);
   ck('...and is never a dead end: their question can still be answered in your own words', r.emptyFallback === true);
 }
 

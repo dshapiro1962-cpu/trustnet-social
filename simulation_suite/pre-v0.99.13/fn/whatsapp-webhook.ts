@@ -1,0 +1,339 @@
+// ============================================================================
+// /functions/v1/whatsapp-webhook          (deploy with --no-verify-jwt)
+// Forward-to-library: message Trustnet's WhatsApp number with text or a link,
+// and it becomes a classified, embedded library item — replied with ✓.
+// GET  = Meta's verification handshake (hub.challenge echo)
+// POST = incoming message events
+// Secrets used: WHATSAPP_VERIFY_TOKEN (you invent it), WHATSAPP_APP_SECRET
+//               (Meta app settings; signs every POST), WHATSAPP_TOKEN,
+//               WHATSAPP_PHONE_ID, OPENAI_API_KEY, OPENAI_MODEL?,
+//               GOOGLE_PLACES_API_KEY?
+// ============================================================================
+import { adminClient, json, phoneKey } from "../_shared/utils.ts";
+import { CATEGORIES, buildSearchDoc, embed as embedDoc } from "../_shared/enrich_core.ts";
+
+const ENGINE = "wawh-v3-image";
+
+
+// digits() remains for DELIVERY formatting only (building "+<number>"), never
+// for identity. Using a delivery format as an identity is exactly the bug this
+// change removes.
+function digits(s: string): string { return (s || "").replace(/\D/g, ""); }
+
+async function sendText(to: string, text: string): Promise<void> {
+  const token = Deno.env.get("WHATSAPP_TOKEN");
+  const phoneId = Deno.env.get("WHATSAPP_PHONE_ID");
+  if (!token || !phoneId) return;
+  try {
+    await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messaging_product: "whatsapp", to,
+        type: "text", text: { body: text.slice(0, 900) },
+      }),
+    });
+  } catch (_) { /* replies are best-effort */ }
+}
+
+function pick(re: RegExp, s: string): string {
+  const m = s.match(re);
+  return m ? m[1].trim() : "";
+}
+
+// META SIGNS EVERY DELIVERY, AND NOW WE CHECK (7 Oct 2026). Each POST carries
+// X-Hub-Signature-256: sha256=<HMAC-SHA256 of the raw body, keyed with the
+// app secret>. Until today nothing checked it, so anyone who found this URL
+// could post a message "from" any number - and since 0052 anyone can mint a
+// sign-in token, a forged claim was no longer inert. FAILS CLOSED: no secret,
+// no header, or a wrong signature, and nothing below runs.
+// Computed over the RAW BYTES, before any parsing: re-serialising the JSON
+// would not reproduce what Meta signed.
+async function signedByMeta(header: string | null, body: Uint8Array): Promise<boolean> {
+  const secret = Deno.env.get("WHATSAPP_APP_SECRET");
+  if (!secret || !header || !header.startsWith("sha256=")) return false;
+  const key = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, body));
+  const want = Array.from(mac, (b) => b.toString(16).padStart(2, "0")).join("");
+  const given = header.slice("sha256=".length).toLowerCase();
+  if (given.length !== want.length) return false;
+  // Constant time: every character is compared whether or not one differed.
+  let diff = 0;
+  for (let i = 0; i < want.length; i++) diff |= want.charCodeAt(i) ^ given.charCodeAt(i);
+  return diff === 0;
+}
+
+Deno.serve(async (req) => {
+  const url = new URL(req.url);
+
+  // ── Meta's verification handshake ──────────────────────────────────────────
+  if (req.method === "GET") {
+    const mode = url.searchParams.get("hub.mode");
+    const token = url.searchParams.get("hub.verify_token");
+    const challenge = url.searchParams.get("hub.challenge") ?? "";
+    if (mode === "subscribe" && token === Deno.env.get("WHATSAPP_VERIFY_TOKEN")) {
+      return new Response(challenge, { status: 200 });
+    }
+    return new Response("forbidden", { status: 403 });
+  }
+
+  if (req.method !== "POST") return json({ ok: true });
+
+  const rawBody = new Uint8Array(await req.arrayBuffer());
+  if (!(await signedByMeta(req.headers.get("x-hub-signature-256"), rawBody))) {
+    console.error("webhook_signature_rejected", ENGINE);
+    return new Response("forbidden", { status: 401 });
+  }
+
+  let payload: Record<string, unknown>;
+  try { payload = JSON.parse(new TextDecoder().decode(rawBody)); } catch { return json({ ok: true }); }
+
+  // Always 200 quickly — Meta retries aggressively otherwise.
+  const value = (payload as any)?.entry?.[0]?.changes?.[0]?.value;
+
+  // Delivery-status callbacks: log the verdict Meta gives us for each send
+  const st = value?.statuses?.[0];
+  if (st) {
+    console.log("wa_status", ENGINE, JSON.stringify({
+      status: st.status, to: st.recipient_id,
+      errors: st.errors ?? null, ts: st.timestamp,
+    }));
+    return json({ ok: true });
+  }
+
+  const msg = value?.messages?.[0];
+  if (!msg) return json({ ok: true });
+
+  const from: string = msg.from || "";
+
+  // THE SENDER ALREADY TOLD US THEIR NAME (0050).
+  //
+  // dan, 9 Sep: "whoever joins should not do anything except click." Every
+  // inbound Cloud API message carries the sender's own WhatsApp profile name
+  // beside the message, and this webhook has never read it:
+  //
+  //     value.contacts[0].profile.name
+  //
+  // complete-join says "WhatsApp does not expose a name" - true of the phone
+  // number on its own, wrong about the payload. Four neighbours joined dan's
+  // Travel circle as +9725488206.. and he renamed every one by hand.
+  //
+  // Read defensively: an account with no profile name set yields undefined,
+  // the claim stores null, and everything behaves exactly as it did before.
+  const profileName: string =
+    String((value as any)?.contacts?.[0]?.profile?.name ?? "").trim();
+
+  const admin = adminClient();
+
+  // ── JOIN A CIRCLE, CODELESSLY (v0.62.0) ───────────────────────────────────
+  // MUST COME FIRST — before the "this phone isn't linked to an account" reply,
+  // which is exactly what naama received when she messaged this number.
+  //
+  // She taps ONE button in the browser, WhatsApp opens with "Join Trustnet:
+  // <token>" already written, she presses send. The message arrives FROM HER
+  // PHONE NUMBER — WhatsApp guarantees that — so sending IS the verification.
+  // No code, no digits, nothing typed. A forwarded invite fails safely: her
+  // husband's tap sends from HIS number, so he would join as himself.
+  //
+  // THIS ONLY RECORDS THE CLAIM. It creates no account and no membership; the
+  // browser tab that holds the token completes it. That alone was believed to
+  // make a forged claim inert - it did not, once anyone could mint a token -
+  // which is why every POST is now checked against Meta's signature above.
+  const joinMatch = (msg.type === "text" && msg.text?.body)
+    ? String(msg.text.body).match(/Join\s+Trustnet:\s*([A-Za-z0-9_-]{8,})/i)
+    : null;
+  if (joinMatch) {
+    const token = joinMatch[1];
+    const { data: rec, error: recErr } = await admin
+      .rpc("record_invite_claim", {
+        p_token: token, p_phone: "+" + digits(from), p_name: profileName || null });
+    if (recErr) {
+      console.error("record_invite_claim_failed", recErr.message);
+      await sendText(from, "Something went wrong joining. Please tap the invite link again.");
+      return json({ ok: true });
+    }
+    if (!rec?.ok) {
+      await sendText(from, "That invitation link is no longer valid. Ask for a new one.");
+      return json({ ok: true });
+    }
+    // ONE INSTRUCTION, AND A LINK THAT WORKS (0056). This used to say "Got it -
+    // switch back to your browser and you're in. If that tab closed, open this
+    // instead", on the belief that when the tab survived she "never taps it".
+    // She does: unsure which browser to switch back to, she taps the link. It
+    // shared the waiting page's single-use claim, the page had already spent
+    // it, and she landed on Sign in and went round again (phone ...4488, 6 Oct).
+    // The link now carries its own pass, so it works wherever it opens and the
+    // reply can simply say to tap it.
+    const appUrl = Deno.env.get("APP_URL") ?? "https://trustnetsocial.com";
+    await sendText(from, "Tap to open Trustnet:\n" + appUrl + "/?finish=" + rec.finish);
+    return json({ ok: true });
+  }
+
+  // ── who is this? match sender phone to a Trustnet account ─────────────────
+  const { data: candidates } = await admin
+    .from("users").select("id, name, share_by_default, phone")
+    .not("phone", "is", null);
+  // phoneKey, NOT digits. digits() keeps the country code, so a profile storing
+  // '0545543467' never matched a WhatsApp sender of '972545543467' — the same
+  // person, recognised by wa-signin and refused here with "this phone isn't
+  // linked to an account yet". One identity rule now, shared with wa-signin,
+  // complete-join and phone_key() in SQL.
+  const senderKey = phoneKey(from);
+  const user = (candidates || []).find((u) => phoneKey(u.phone) === senderKey);
+  if (!user) {
+    await sendText(from,
+      "Hi! This is Trustnet's save-to-library number, but this phone isn't linked to an account yet. " +
+      "Link it in the app and try again.");
+    return json({ ok: true });
+  }
+
+  if (msg.type !== "text" || !msg.text?.body) {
+    await sendText(from, "Send me text or a link and I'll file it in your library 📚");
+    return json({ ok: true });
+  }
+
+  const raw: string = String(msg.text.body).slice(0, 2000);
+  const key = Deno.env.get("OPENAI_API_KEY");
+  if (!key) {
+    await sendText(from, "Saving is temporarily unavailable (AI not configured).");
+    return json({ ok: true });
+  }
+  const MODEL = Deno.env.get("OPENAI_MODEL") ?? "gpt-4o";
+
+  // ── if there's a link, fetch its page for evidence ─────────────────────────
+  let pageEvidence = "";
+  let imageUrl: string | null = null;
+  const urlMatch = raw.match(/https?:\/\/[^\s]+/);
+  if (urlMatch) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 8000);
+      const pres = await fetch(urlMatch[0], {
+        signal: ctrl.signal,
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36" },
+      });
+      clearTimeout(timer);
+      if (pres.ok) {
+        const html = (await pres.text()).slice(0, 300_000);
+        const t = pick(/<title[^>]*>([^<]{1,300})/i, html);
+        const ogT = pick(/property=["']og:title["'][^>]*content=["']([^"']{1,300})/i, html);
+        const ogD = pick(/property=["']og:description["'][^>]*content=["']([^"']{1,600})/i, html);
+        const bodyText = html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ")
+          .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 2500);
+        const ogImg = pick(/property=["']og:image["'][^>]*content=["']([^"']{1,500})/i, html)
+          || pick(/content=["']([^"']{1,500})["'][^>]*property=["']og:image/i, html);
+        if (ogImg) { try { imageUrl = new URL(ogImg, urlMatch[0]).href.slice(0, 500); } catch (_) { /* skip bad url */ } }
+        pageEvidence = ["page title: " + (ogT || t), ogD ? "page description: " + ogD : "", "page text: " + bodyText]
+          .filter(Boolean).join("\n");
+      }
+    } catch (_) { /* extraction proceeds from the message text alone */ }
+  }
+
+  // ── extract the recommendation ─────────────────────────────────────────────
+  let out: Record<string, unknown> = {};
+  try {
+    const chat = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: MODEL, temperature: 0, response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content:
+              "A user forwarded a WhatsApp message to save a recommendation " +
+              "(restaurant, hotel, book, doctor, place, product...). It may be Hebrew or English. " +
+              "Identify the SINGLE thing being recommended. Respond JSON only: " +
+              '{"name": the thing, "location": city/area or "", ' +
+              '"category": one of [' + CATEGORIES.map((c) => '"' + c + '"').join(",") + "], " +
+              '"tags": [3-6 short lowercase tags in the content language], ' +
+              '"note": <=140 char note capturing why it was recommended, ' +
+              '"confident": true|false}',
+          },
+          { role: "user", content: "message: " + raw + (pageEvidence ? "\n\n" + pageEvidence : "") },
+        ],
+      }),
+    });
+    if (!chat.ok) {
+      await sendText(from, "Couldn't process that right now — try again in a minute.");
+      return json({ ok: true });
+    }
+    const c = await chat.json();
+    out = JSON.parse(c.choices?.[0]?.message?.content ?? "{}");
+  } catch (_) {
+    await sendText(from, "Couldn't process that right now — try again in a minute.");
+    return json({ ok: true });
+  }
+
+  const name = typeof out.name === "string" ? out.name.slice(0, 80).trim() : "";
+  if (!name || out.confident === false) {
+    await sendText(from, "I couldn't tell what's being recommended 🤔 Try adding a word, e.g. \"pizza at Tony's, Florentin\".");
+    return json({ ok: true });
+  }
+  const location = typeof out.location === "string" ? out.location.slice(0, 80) : "";
+  const category = CATEGORIES.includes(out.category as string) ? out.category as string : "other";
+  const tags = Array.isArray(out.tags) ? (out.tags as unknown[]).filter((t) => typeof t === "string").slice(0, 6) : [];
+  const note = typeof out.note === "string" ? out.note.slice(0, 140) : "";
+
+  // ── dedup: does this user already have it? ─────────────────────────────────
+  const { data: myRecs } = await admin
+    .from("recommendations").select("id, canonical_id, canonicals(id, name)")
+    .eq("owner_id", user.id);
+  const normName = name.toLowerCase().trim();
+  const dup = (myRecs || []).find((r: any) => (r.canonicals?.name || "").toLowerCase().trim() === normName);
+  if (dup) {
+    await sendText(from, '"' + name + '" is already in your library ✓');
+    return json({ ok: true });
+  }
+
+  // ── the search document + its embedding, from the ONE shared core ─────────
+  // This replaced a third, drifting embedding format ("name | location | note
+  // | tags") that matched neither the librarian's document nor classify-rec's
+  // text. Search retrieves against search_doc; the vector must be OF it.
+  const searchDoc = buildSearchDoc({
+    name, location, category, kind: "", tags: tags as string[],
+    note, query_text: "",
+  });
+  const embedding = await embedDoc(key, searchDoc);
+
+  // ── write canonical + recommendation ───────────────────────────────────────
+  const canInsert: Record<string, unknown> = {
+    type: "place", name, category: "", location, image_emoji: "📌",
+    created_by: user.id, primary_category: category, ai_tags: tags,
+    class_source: "ai", classified_at: new Date().toISOString(),
+    website_url: urlMatch ? urlMatch[0].slice(0, 300) : null,
+    image_url: imageUrl,
+  };
+  canInsert.search_doc = searchDoc;
+  canInsert.search_doc_at = new Date().toISOString();
+  if (embedding) canInsert.embedding = embedding;
+  const { data: canRow, error: canErr } = await admin
+    .from("canonicals").insert(canInsert).select("id").single();
+  if (canErr || !canRow) {
+    await sendText(from, "Something went wrong saving that — try again.");
+    return json({ ok: true });
+  }
+  // THE LIBRARY ROW. Unchecked until now, while the canonical insert above WAS
+  // checked - so a failure here left a canonical with no recommendation behind
+  // it and still replied "Saved to your library". Same shape as the answer bug
+  // in receive-response, in another channel where the person is on WhatsApp
+  // with no app and no way to tell anyone it did not work.
+  const { error: recErr } = await admin.from("recommendations").insert({
+    owner_id: user.id, canonical_id: canRow.id, circle_id: null,
+    recommended_by_user_id: user.id,
+    note, rating: null, tags, status: "saved", is_anonymous: false, degree: 1,
+    shared_to_network: user.share_by_default !== false,
+    rec_date: new Date().toISOString().slice(0, 10),
+  });
+  if (recErr) {
+    console.error("wa_rec_insert_failed", user.id, recErr.message);
+    await sendText(from, "Something went wrong saving that \u2014 try sending it again.");
+    return json({ ok: true });
+  }
+
+  const catLabel = category.charAt(0).toUpperCase() + category.slice(1);
+  await sendText(from, "✓ Saved to your library: " + name + (location ? " · " + location : "") + " (" + catLabel + ")");
+  return json({ ok: true });
+});

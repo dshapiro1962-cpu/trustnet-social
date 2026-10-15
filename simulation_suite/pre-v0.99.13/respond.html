@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trustnet — Share a Recommendation</title>
+<style>
+  :root { --green:#217A4B; --green-dark:#0D2B1F; --slate:#3D4F46; --slate-light:#7A9086; --bg:#F2F6F3; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:var(--bg); color:var(--slate); min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .card { background:#fff; border-radius:16px; max-width:480px; width:100%; box-shadow:0 8px 32px rgba(0,0,0,0.1); overflow:hidden; }
+  .hero { background:var(--green-dark); padding:24px; }
+  .brand { color:#fff; font-weight:800; font-size:18px; }
+  .body { padding:28px 24px; }
+  .ask { background:var(--bg); border-left:3px solid var(--green); border-radius:8px; padding:14px 16px; margin-bottom:24px; }
+  .ask-from { font-size:13px; color:var(--slate-light); margin-bottom:6px; }
+  .ask-text { font-size:16px; font-style:italic; color:var(--slate); }
+  label { display:block; font-size:12px; font-weight:600; color:var(--slate-light); letter-spacing:0.3px; margin-bottom:6px; text-transform:uppercase; }
+  input, textarea { width:100%; padding:12px 14px; border:1.5px solid #CDD9D1; border-radius:8px; font-size:15px; font-family:inherit; margin-bottom:18px; }
+  /* THE RULE ABOVE APPLIES TO CHECKBOXES TOO, AND ALWAYS DID (fixed 13 Sep).
+     A checkbox stretched to width:100% claims its whole flex row, which is why
+     the "Share to their network" text was pushed off the right edge and wrapped
+     one letter per line on a phone. The tick looked deliberately huge; it was a
+     checkbox the width of the card. Line 25 exempts these from a font-size rule
+     inside a media query and nothing else, so the exemption goes here. */
+  input[type="checkbox"], input[type="radio"] {
+    width:auto; margin:0; padding:0; flex:none;
+  }
+  input:focus, textarea:focus { outline:none; border-color:var(--green); }
+  /* 15px is one pixel under the line: iOS zooms in on focus and never zooms
+     back, which is what put the conversion panel off the right edge. Same
+     cause as the missing bottom nav in index.html. (v0.66.0) */
+  @media (hover: none) and (pointer: coarse) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+    textarea,
+    select { font-size:16px !important; }
+  }
+  textarea { resize:vertical; min-height:90px; }
+  /* AN INPUT WITH A BUTTON BESIDE IT. button{width:100%} above means a button
+     in a flex row demands the entire width, and `flex:none` then forbids it to
+     shrink - so it overflowed the screen and squeezed the URL field to a
+     sliver. The button sizes to its text here; the input takes what is left and
+     is allowed to shrink (min-width:0 defeats the default min-width:auto). */
+  .input-row { display:flex; gap:8px; align-items:stretch; margin-bottom:18px; }
+  .input-row input { flex:1 1 auto; min-width:0; margin-bottom:0; }
+  .input-row button { flex:0 0 auto; width:auto; padding:0 18px; font-size:15px; }
+  button { width:100%; background:var(--green); color:#fff; border:none; border-radius:8px; padding:14px; font-size:16px; font-weight:600; cursor:pointer; }
+  button:hover { background:#1A5235; }
+  button:disabled { opacity:0.5; cursor:not-allowed; }
+  .state { text-align:center; padding:40px 28px 32px; }
+  .state-icon { font-size:44px; margin-bottom:14px; }
+  .state-title { font-size:20px; font-weight:800; color:var(--slate); margin-bottom:8px; }
+  .state-body { font-size:14px; color:var(--slate-light); line-height:1.6; }
+  .hidden { display:none; }
+
+  /* Conversion block on thank-you */
+  .convert { background:linear-gradient(135deg,#EBF7F1,#fff); border:1px solid #C6EDD9; border-radius:14px; padding:22px 20px; margin-top:24px; text-align:left; }
+  .convert-headline { font-size:16px; font-weight:800; color:var(--green-dark); margin-bottom:8px; line-height:1.4; }
+  .convert-body { font-size:13px; color:var(--slate); line-height:1.6; margin-bottom:18px; }
+  .convert-btn { display:block; width:100%; text-align:center; background:var(--green); color:#fff; text-decoration:none; font-weight:600; font-size:15px; padding:13px; border-radius:8px; }
+  .convert-btn:hover { background:#1A5235; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="hero"><span class="brand">Trustnet</span></div>
+  <div id="lib-debug" style="display:none;background:#F5F5F0;border-bottom:1px dashed #B9C7BE;padding:8px 12px;font-size:10.5px;color:#3D4F46;font-family:monospace;white-space:pre-wrap;direction:ltr;text-align:left;"></div>
+
+  <div id="loading" class="state">
+    <div class="state-icon">⏳</div>
+    <div class="state-title">Loading…</div>
+  </div>
+
+  <div id="form-view" class="body hidden">
+    <div class="ask">
+      <div class="ask-from" id="ask-from">Someone is asking</div>
+      <div class="ask-text" id="ask-text"></div>
+    </div>
+    <div id="lib-strip" class="hidden" style="background:var(--bg);border:1px solid #DCE7E0;border-radius:10px;padding:12px 14px;margin-bottom:20px;">
+      <div style="font-size:11px;font-weight:700;color:#1A5235;letter-spacing:0.4px;margin-bottom:8px;">ANSWER FROM YOUR LIBRARY</div>
+      <input id="lib-search" dir="auto" placeholder="Search your saved recommendations…" style="margin-bottom:8px;">
+      <div id="lib-results"></div>
+      <div id="lib-filled" style="display:none;font-size:11.5px;color:#1A5235;font-weight:600;">✓ Filled from your library — edit freely before sending</div>
+    </div>
+    <!-- PASTE A LINK AND LET IT FILL THE FORM. The same affordance as the
+         Add to Library dialog in the app. It needs no account: ingest-link
+         accepts the response token this page already carries. -->
+    <label for="rec-url">Have a link? <span style="font-weight:400;opacity:.7;text-transform:none;">(optional)</span></label>
+    <div class="input-row">
+      <input id="rec-url" dir="ltr" placeholder="Paste a link" maxlength="500">
+      <button type="button" id="rec-url-btn" style="background:#EBF7F1;border:1.5px solid #217A4B;color:#1A5235;font-weight:700;">Fetch</button>
+    </div>
+    <div id="rec-url-msg" style="font-size:11.5px;margin:6px 0 0;min-height:1em;"></div>
+
+    <label for="rec-name">What do you recommend?</label>
+    <input id="rec-name" placeholder="e.g. A. Wong, Demon Copperhead, Dr. Cohen" maxlength="120">
+    <label for="rec-location">Location (optional)</label>
+    <input id="rec-location" placeholder="e.g. London, UK" maxlength="80">
+    <label for="rec-note">Your note</label>
+    <textarea id="rec-note" placeholder="What makes it great? Any tips?" maxlength="1000"></textarea>
+    <!-- The opt-OUT. Sharing is automatic: this recommendation may reach people
+         in the asker's circles who share the interest. Checked by default,
+         because the feature is on unless the contributor turns it off — the
+         same promise as the save card in the app. -->
+    <label style="display:flex;align-items:flex-start;gap:8px;font-weight:400;margin-top:14px;cursor:pointer;">
+      <input type="checkbox" id="rec-share" checked style="margin-top:3px;flex:none;">
+      <span style="font-size:13px;line-height:1.5;">
+        <strong>Share to their network</strong><br>
+        <span style="opacity:.75;">Lets people in their circles who share this interest see it too. Untick to keep it just for them.</span>
+      </span>
+    </label>
+    <button id="submit-btn">Send recommendation</button>
+    <div style="font-size:9px;color:#A8BDAF;text-align:center;margin-top:10px;">r2.7</div>
+  </div>
+
+  <!-- Rich thank-you + conversion -->
+  <div id="thanks-view" class="state hidden">
+    <div class="state-icon">✅</div>
+    <div class="state-title" id="thanks-title">Sent!</div>
+
+    <!-- THE ONE PLACE A STRANGER MEETS TRUSTNET (r2.6, 7 Oct). Everyone who
+         answers lands here, and most of them have no account. ONE version of
+         it, here: a script used to overwrite it whenever there was a circle
+         name, so the page carried two pitches.
+         The headline asks the thing we want to happen next - the person who
+         answered asks a question of their own. The body is TN_WHAT_IT_IS in
+         index.html, word for word; respond-words-sim.js holds them equal.
+         The small print that said "Sign up with the email this request
+         reached you on" is gone, not reworded, because no instruction makes it
+         true. The answerer's row in the asker's circle is linked by
+         refresh_member_links (0017) when the ASKER next opens that circle,
+         matching phone or email - not when the answerer signs up. An email
+         answerer who signs in by WhatsApp is never matched. That is an
+         engineering gap, not a sentence to write. -->
+    <div class="convert">
+      <div class="convert-headline" id="convert-headline">Have a question of your own?</div>
+      <div class="convert-body" id="convert-body">
+        Trustnet is the channel for reaching out to people you trust for reliable information — and recommending back.
+        No public reviews, no algorithmic feeds.
+      </div>
+      <a class="convert-btn" id="convert-btn" href="https://trustnetsocial.com">Get your own Trustnet →</a>
+    </div>
+  </div>
+
+  <div id="error-view" class="state hidden">
+    <div class="state-icon">🔒</div>
+    <div class="state-title" id="error-title">This link has expired</div>
+    <div class="state-body" id="error-body">Response links are valid for 72 hours and can only be used once.</div>
+  </div>
+</div>
+
+<script>
+window.TRUSTNET_CONFIG = {
+  FUNCTIONS_URL: "https://kgsdtfrcyjrxeyqqxoic.supabase.co/functions/v1",
+  APP_URL: location.origin
+};
+const CFG = window.TRUSTNET_CONFIG || {};
+const SUPABASE_FUNCTIONS_URL = CFG.FUNCTIONS_URL || window.TRUSTNET_FUNCTIONS_URL || "https://YOUR_PROJECT.supabase.co/functions/v1";
+const APP_URL = CFG.APP_URL || "https://trustnetsocial.com";
+const RESPOND_VERSION = "r2.7";
+const LIB_DEBUG = new URLSearchParams(location.search).get("debug") === "1";
+function dbg(line) {
+  if (!LIB_DEBUG) return;
+  const el = document.getElementById("lib-debug");
+  if (el) { el.style.display = "block"; el.textContent += line + "\n"; }
+}
+const SUPABASE_REST_URL = "https://kgsdtfrcyjrxeyqqxoic.supabase.co/rest/v1";
+const SUPABASE_ANON_KEY = "sb_publishable_8MAMd56FzHTyNZtnO2XK4A_cp2lFGEm";
+
+const params = new URLSearchParams(location.search);
+const token = params.get("t");
+
+const $ = (id) => document.getElementById(id);
+function show(view) {
+  ["loading","form-view","thanks-view","error-view"].forEach((v) => $(v).classList.add("hidden"));
+  $(view).classList.remove("hidden");
+}
+
+let context = { requesterName: "them", circleName: "" };
+
+async function init() {
+  if (LIB_DEBUG) initLibraryLookup();
+  if (!token) { showError("Invalid link", "This link is missing its token."); return; }
+  try {
+    const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/response-meta?t=${encodeURIComponent(token)}`);
+    if (res.ok) {
+      const meta = await res.json();
+      // Questions arrive by WhatsApp or by email, so this names neither.
+      if (meta.used) { showError("This link was already used", "Each response link works exactly once \u2014 a recommendation has already been sent from this one. If you were sent a newer question, use the link in that message."); return; }
+      if (meta.expired) { showError(); return; }
+      context.requesterName = meta.requester_name || "them";
+      context.circleName = meta.circle_name || "";
+      // The circle's name stays: dan, 7 Oct, chose to keep showing it to the
+      // people in it, and privacy.html now says that they see it. Without a
+      // name this line read "is asking their  circle".
+      $("ask-from").textContent = context.requesterName + " is asking"
+        + (context.circleName ? " their " + context.circleName + " circle" : "");
+      $("ask-text").textContent = '"' + (meta.query_text || "") + '"';
+    }
+  } catch (_) { /* show form anyway */ }
+  show("form-view");
+  initLibraryLookup();
+}
+
+function escR(str) {
+  return String(str == null ? "" : str)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+let LIB = null;
+let libMatches = [];
+
+// ── TN SESSION STORE (v0.99.11) ───────────────────────────────────────────
+// IDENTICAL in index, respond, collection, connect and confirm;
+// session-cookie-sim.js holds the five copies equal and runs them.
+// THE SIGN-IN LIVES IN A COOKIE. Measured on dan's iPhone (Chrome and Safari)
+// and an Android, 10 Oct 2026, with web/hs-test: an icon added to the home
+// screen sees the browser's COOKIES but not its saved data (localStorage),
+// where supabase-js keeps the session by default - so every iPhone icon asked
+// for a second sign-in. Cookies ONLY, never a cookie and localStorage both:
+// refresh tokens rotate, and two copies would drift until one signed the
+// other out. Long enough to need splitting, so it is kept in numbered parts.
+var TN_SB_KEY = 'sb-kgsdtfrcyjrxeyqqxoic-auth-token';
+var TN_COOKIE_PART = 3000;
+function tnCookieJar() {
+  var jar = {};
+  var all = (document.cookie || '').split('; ');
+  for (var i = 0; i < all.length; i++) {
+    var at = all[i].indexOf('=');
+    if (at > 0) jar[all[i].slice(0, at)] = all[i].slice(at + 1);
+  }
+  return jar;
+}
+function tnCookieClear(key) {
+  var jar = tnCookieJar();
+  for (var name in jar) {
+    if (name.indexOf(key + '.') === 0) document.cookie = name + '=; path=/; max-age=0; SameSite=Lax; Secure';
+  }
+}
+var tnCookieStorage = {
+  getItem: function (key) {
+    var jar = tnCookieJar();
+    if (jar[key + '.0'] === undefined) return null;
+    var enc = '';
+    for (var i = 0; jar[key + '.' + i] !== undefined; i++) enc += jar[key + '.' + i];
+    try { return decodeURIComponent(enc); } catch (e) { return null; }
+  },
+  setItem: function (key, value) {
+    tnCookieClear(key);
+    // Encoded first and split after, so a %XX is never cut in a way that
+    // matters: the parts are joined again before anything is decoded.
+    var enc = encodeURIComponent(value);
+    for (var i = 0, n = 0; i < enc.length; i += TN_COOKIE_PART, n++) {
+      document.cookie = key + '.' + n + '=' + enc.slice(i, i + TN_COOKIE_PART)
+        + '; path=/; max-age=34560000; SameSite=Lax; Secure';
+    }
+  },
+  removeItem: function (key) { tnCookieClear(key); }
+};
+// A sign-in saved before v0.99.11 is in localStorage: move it, once, so
+// nobody is signed out by the change, and leave no second copy behind.
+function tnMoveSessionToCookie() {
+  try {
+    var old = localStorage.getItem(TN_SB_KEY);
+    if (old && tnCookieStorage.getItem(TN_SB_KEY) === null) tnCookieStorage.setItem(TN_SB_KEY, old);
+    if (old) localStorage.removeItem(TN_SB_KEY);
+  } catch (e) {}
+}
+// ── END TN SESSION STORE ──────────────────────────────────────────────────
+function readTnSession() {
+  // The sign-in is in a cookie since v0.99.11 (TN SESSION STORE, above);
+  // localStorage only holds one saved before that.
+  try {
+    const fromCookie = tnCookieStorage.getItem(TN_SB_KEY);
+    if (fromCookie) {
+      const o = JSON.parse(fromCookie);
+      const tok = o && o.access_token;
+      const uid = o && o.user && o.user.id;
+      if (tok && uid) return { token: tok, uid: uid };
+    }
+  } catch (e) {}
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!/^sb-.*-auth-token$/.test(k)) continue;
+      let o = null;
+      try { o = JSON.parse(localStorage.getItem(k)); } catch (e) { continue; }
+      const tok = o && (o.access_token || (o.currentSession && o.currentSession.access_token));
+      let uid = o && o.user && o.user.id;
+      if (!uid && o && o.currentSession && o.currentSession.user) uid = o.currentSession.user.id;
+      if (!uid && tok && tok.split(".").length === 3) {
+        try { uid = JSON.parse(atob(tok.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).sub; } catch (e) {}
+      }
+      if (tok && uid) return { token: tok, uid: uid };
+    }
+  } catch (e) {}
+  return null;
+}
+
+let libInitDone = false;
+async function initLibraryLookup() {
+  if (libInitDone) return;
+  libInitDone = true;
+  dbg("respond " + RESPOND_VERSION);
+  let keyList = [];
+  try { for (let i = 0; i < localStorage.length; i++) keyList.push(localStorage.key(i)); } catch (e) { dbg("localStorage error: " + e.message); }
+  dbg("storage keys (" + keyList.length + "): " + keyList.join(" | "));
+  // THIS use of readTnSession is CORRECT and must stay. It asks "can I offer
+  // you items from YOUR library to answer with?" — a question that genuinely
+  // depends on who is signed in to THIS browser. The identity question, "does
+  // the answerer have an account?", is a different one and is answered by
+  // receive-response (see the thanks view below).
+  const sess = readTnSession();
+  if (!sess) { dbg("session: NONE matched /^sb-.*-auth-token$/ -> strip stays hidden"); return; }
+  dbg("session: found, uid=" + sess.uid + ", token len=" + (sess.token || "").length);
+  let rows = [];
+  try {
+    const res = await fetch(SUPABASE_REST_URL + "/recommendations?select=id,note,rating,canonicals(name,location,primary_category)&owner_id=eq." + encodeURIComponent(sess.uid), {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + sess.token }
+    });
+    dbg("REST status: " + res.status);
+    if (!res.ok) {
+      let bodyTxt = "";
+      try { bodyTxt = await res.text(); } catch (e) {}
+      dbg("REST error body: " + bodyTxt.slice(0, 300));
+      return;
+    }
+    rows = await res.json();
+    dbg("rows returned: " + (rows ? rows.length : "null"));
+  } catch (e) { dbg("fetch exception: " + e.message); return; }
+  LIB = (rows || []).filter((r) => r.canonicals && r.canonicals.name).map((r) => ({
+    name: r.canonicals.name,
+    location: r.canonicals.location || "",
+    cat: r.canonicals.primary_category || "",
+    note: r.note || ""
+  }));
+  dbg("usable items (with canonical): " + LIB.length);
+  if (!LIB.length) { dbg("library empty -> strip stays hidden"); return; }
+  dbg("strip: SHOWN");
+  $("lib-strip").classList.remove("hidden");
+  $("lib-search").addEventListener("input", renderLibResults);
+  renderLibResults();
+}
+
+function renderLibResults() {
+  if (!LIB) return;
+  const q = ($("lib-search").value || "").trim().toLowerCase();
+  // Nothing until they type: an arbitrary first-6 list reads as noise.
+  libMatches = q
+    ? LIB.filter((it) => (it.name + " " + it.location + " " + it.cat + " " + it.note).toLowerCase().indexOf(q) >= 0).slice(0, 6)
+    : [];
+  if (!q) {
+    $("lib-results").innerHTML = '<div style="font-size:11.5px;color:#7A9086;">Type to search your saved recommendations.</div>';
+    return;
+  }
+  $("lib-results").innerHTML = libMatches.map((it, i) =>
+    '<div class="lib-row" data-lib-i="' + i + '" role="button" tabindex="0" style="background:#fff;border:1px solid #DCE7E0;border-radius:8px;padding:9px 12px;margin-bottom:6px;cursor:pointer;">'
+    + '<div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;">'
+    + '<span dir="auto" style="font-size:13.5px;font-weight:700;color:#1C2420;">' + escR(it.name) + '</span>'
+    + (it.location ? '<span dir="auto" style="font-size:11px;color:#7A9086;">' + escR(it.location) + '</span>' : '')
+    + (it.cat ? '<span style="font-size:9.5px;font-weight:700;color:#1A5235;background:#E9F6EE;border-radius:8px;padding:1px 7px;">' + escR(it.cat) + '</span>' : '')
+    + '</div>'
+    + (it.note ? '<div dir="auto" style="font-size:11.5px;color:#56695F;margin-top:3px;line-height:1.45;">' + escR(it.note.slice(0, 80)) + (it.note.length > 80 ? '\u2026' : '') + '</div>' : '')
+    + '</div>').join('')
+    + (libMatches.length === 0 && q ? '<div style="font-size:11.5px;color:#7A9086;">Nothing matching in your library \u2014 fill the form below.</div>' : '');
+}
+
+document.addEventListener("click", (e) => {
+  const row = e.target && e.target.closest ? e.target.closest(".lib-row") : null;
+  if (!row) return;
+  const it = libMatches[parseInt(row.dataset.libI, 10)];
+  if (!it) return;
+  $("rec-name").value = it.name;
+  $("rec-location").value = it.location;
+  $("rec-note").value = it.note;
+  $("lib-search").value = it.name;
+  $("lib-results").innerHTML = "";
+  $("lib-filled").style.display = "block";
+});
+
+function showError(title, body) {
+  if (title) $("error-title").textContent = title;
+  if (body) $("error-body").textContent = body;
+  show("error-view");
+}
+
+// FETCH: fill the form from a link. The token is the credential - there is no
+// account here and there never will be, so ingest-link takes the same response
+// token receive-response does. It is refused if the token is used or expired.
+$("rec-url-btn").addEventListener("click", async () => {
+  const btn = $("rec-url-btn");
+  const msg = $("rec-url-msg");
+  const url = $("rec-url").value.trim();
+  const say = (t, ok) => { msg.textContent = t; msg.style.color = ok ? "#1A5235" : "#C0392B"; };
+  if (!/^https?:\/\/.+/i.test(url)) { say("Paste a full link starting with http…", false); return; }
+  btn.disabled = true; btn.textContent = "Reading…"; say("", true);
+  let data = null;
+  try {
+    const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/ingest-link`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY },
+      body: JSON.stringify({ url, response_token: token }),
+    });
+    data = await res.json();
+    if (!res.ok) data = { error: (data && data.error) || ("http_" + res.status) };
+  } catch (e) { data = { error: "network" }; }
+  btn.disabled = false; btn.textContent = "Fetch";
+  if (!data || data.error) {
+    say("Could not read that link" + (data && data.error ? " (" + data.error + ")" : "")
+        + " — fill it in yourself below.", false);
+    return;
+  }
+  // Never overwrite something already typed.
+  const fill = (id, v) => { const el = $(id); if (el && v && !el.value.trim()) el.value = v; };
+  fill("rec-name", data.name || data.source_title || "");
+  fill("rec-location", data.location || "");
+  fill("rec-note", data.note || "");
+  say(data.needs_review
+    ? "Filled what I could — check the name before sending."
+    : "Got it — check it over and send.", true);
+});
+
+$("submit-btn").addEventListener("click", async () => {
+  const recName = $("rec-name").value.trim();
+  if (!recName) { $("rec-name").focus(); return; }
+  $("submit-btn").disabled = true;
+  $("submit-btn").textContent = "Sending…";
+  try {
+    const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/receive-response`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token,
+        rec_name: recName,
+        rec_location: $("rec-location").value.trim(),
+        rec_note: $("rec-note").value.trim(),
+      }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      // Personalise who it went to. The pitch below it is the same for
+      // everyone and lives in the HTML, once. dan, 7 Oct: "Sent to Tal" stays;
+      // the line under it and the TRUSTED VOICE badge went.
+      $("thanks-title").textContent = "Sent to " + context.requesterName + "!";
+      $("convert-btn").href = APP_URL;
+      // ASK ABOUT THE ANSWERER, NOT THE BROWSER.
+      // This used to be `if (readTnSession())` — "is there a session in THIS
+      // browser?" — which is a different question entirely. dan added
+      // dshari08@hotmail.com as an answerer and opened the link on his own
+      // machine: the page found HIS session, concluded the answerer already had
+      // Trustnet, SUPPRESSED THE INVITATION, and sent "Back to Trustnet" to
+      // dan's own account. Anyone answering on a shared or family computer hits
+      // the same thing.
+      // receive-response knows the truth — it loads the member row, which
+      // carries linked_user_id — and now returns it as a boolean.
+      if (data.answerer_on_trustnet === true) {
+        var conv = document.querySelector(".convert");
+        if (conv) {
+          conv.innerHTML = '<div style="text-align:center;">'
+            + '<a class="convert-btn" id="convert-btn" href="' + APP_URL + '">Back to Trustnet →</a>'
+            + '</div>';
+        }
+      }
+      show("thanks-view");
+    } else if (data.error && String(data.error).indexOf("response_not_saved") === 0) {
+      // The answer did NOT reach the database. receive-response used to return
+      // success here anyway, so this screen thanked her for a recommendation
+      // that no longer existed anywhere. The token is not spent - the statement
+      // that spends it is the one that failed - so pressing send again works.
+      $("submit-btn").disabled = false;
+      $("submit-btn").textContent = "Send recommendation";
+      alert("That didn't save — nothing was lost. Please press send again.");
+    } else if (data.error === "token_already_used") {
+      showError("This link was already used", "Each response link works exactly once \u2014 a recommendation has already been sent from this one.");
+    } else if (data.error === "token_expired") {
+      showError();
+    } else {
+      $("submit-btn").disabled = false;
+      $("submit-btn").textContent = "Send recommendation";
+      alert("Something went wrong. Please try again.");
+    }
+  } catch (_) {
+    $("submit-btn").disabled = false;
+    $("submit-btn").textContent = "Send recommendation";
+    alert("Network error. Please try again.");
+  }
+});
+
+init();
+</script>
+</body>
+</html>

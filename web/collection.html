@@ -206,7 +206,7 @@ function tnMoveSessionToCookie() {
     if (sub) sub.textContent = 'This is your list \u2014 anyone with the link can view it, no app needed';
   } else if (viewerId) {
     saveBtn.textContent = 'Open in my Trustnet';
-    if (sub) sub.textContent = 'Anything not already in your library will be added, credited to ' + (window.__curator || 'the curator');
+    if (sub) sub.textContent = 'Anything you haven\u2019t saved yet will be added, credited to ' + (window.__curator || 'the curator');
   }
   document.getElementById('c-cta').style.display = 'block';
 }

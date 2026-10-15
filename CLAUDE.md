@@ -263,6 +263,20 @@ Added 7–10 Oct:
   the REAL database as `authenticated`, rolled back: a user cannot change the
   number on their own account. Before 0057 it showed the number writable
 
+Added 15 Oct, the October overhaul (testers called the UI/UX "totally
+unsatisfactory"; dan marked 28 screens on the screen map, see the handover):
+
+- `saved-words-sim.js` — Release 1 (v0.99.13 / respond r2.8): "Library" is
+  "Saved" everywhere, Topic, Notes, no doctors in examples, no Share-list
+  sheet, the answer page fills itself from a pasted link. It READS THE DRAWN
+  SCREEN (20 screens at 390px), so a comment quoting an old word cannot fail
+  it. Baseline `pre-v0.99.13/`; control fails 49 of 56. **ITS FIRST CONTROL
+  PASSED THREE CHECKS FOR THE WRONG REASON**: connect.html, collection.html
+  and the answer page's from-Saved strip show their words only to someone
+  signed in, so a stubbed visitor saw nothing to fail on. Those three are now
+  also read from the file. A drawn-text guard must first prove the words it
+  looks for are ON the screen it draws
+
 Added 6 Oct:
 
 - `version-check-sim.js` — the app notices when it is out of date and replaces

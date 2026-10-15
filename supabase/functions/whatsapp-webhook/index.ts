@@ -184,13 +184,13 @@ Deno.serve(async (req) => {
   const user = (candidates || []).find((u) => phoneKey(u.phone) === senderKey);
   if (!user) {
     await sendText(from,
-      "Hi! This is Trustnet's save-to-library number, but this phone isn't linked to an account yet. " +
+      "Hi! This is Trustnet's number for saving things, but this phone isn't linked to an account yet. " +
       "Link it in the app and try again.");
     return json({ ok: true });
   }
 
   if (msg.type !== "text" || !msg.text?.body) {
-    await sendText(from, "Send me text or a link and I'll file it in your library 📚");
+    await sendText(from, "Send me text or a link and I'll save it for you 📚");
     return json({ ok: true });
   }
 
@@ -284,7 +284,7 @@ Deno.serve(async (req) => {
   const normName = name.toLowerCase().trim();
   const dup = (myRecs || []).find((r: any) => (r.canonicals?.name || "").toLowerCase().trim() === normName);
   if (dup) {
-    await sendText(from, '"' + name + '" is already in your library ✓');
+    await sendText(from, '"' + name + '" is already saved ✓');
     return json({ ok: true });
   }
 
@@ -334,6 +334,6 @@ Deno.serve(async (req) => {
   }
 
   const catLabel = category.charAt(0).toUpperCase() + category.slice(1);
-  await sendText(from, "✓ Saved to your library: " + name + (location ? " · " + location : "") + " (" + catLabel + ")");
+  await sendText(from, "✓ Saved: " + name + (location ? " · " + location : "") + " (" + catLabel + ")");
   return json({ ok: true });
 });

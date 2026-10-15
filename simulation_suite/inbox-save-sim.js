@@ -137,8 +137,8 @@ console.log('   fixture: ' + path.basename(file) + (useOld ? '   (must FAIL)' : 
   ck('responseContext exists', typeof w.ctx.responseContext === 'function',
      'the fix IS the helper; without it the save can only borrow screen state');
   await w.ctx.handleSaveToLibrary('resp-a');
-  ck('pressing + Save to Library from the INBOX opens the modal',
-     /Save to Library/.test(w.modalRoot.innerHTML),
+  ck('pressing + Save from the INBOX opens the modal',
+     /data-action="confirm-save-to-library"/.test(w.modalRoot.innerHTML),
      'modal-root is empty — this is dan’s "nothing happens"');
   ck('the modal names the recommender', /may shapiro/.test(w.modalRoot.innerHTML));
   ck('the modal is prefilled with the answer', /Masseria Torre Coccaro/.test(w.modalRoot.innerHTML));
@@ -178,7 +178,8 @@ console.log('   fixture: ' + path.basename(file) + (useOld ? '   (must FAIL)' : 
      w.QUERY.responses[0].savedToLibrary === true);
   ck('and that mark was PERSISTED, or the heartbeat resurrects the button',
      w.saved.queries.indexOf('resp-a') > -1);
-  ck('the user was told it worked', w.toasts.some((t) => /saved to your library/i.test(t.msg)));
+  // '"<name>" saved.' since v0.99.13 ('... saved to your library.' before).
+  ck('the user was told it worked', w.toasts.some((t) => /" saved\.$/.test(t.msg)));
 }
 
 // ── 3. dan had TWO answers. Both must save. ──────────────────────────────
@@ -202,14 +203,14 @@ console.log('   fixture: ' + path.basename(file) + (useOld ? '   (must FAIL)' : 
   await w.ctx.handleSaveToLibrary('resp-does-not-exist');
   ck('an answer that cannot be found SAYS SO rather than doing nothing',
      w.toasts.length > 0, 'no toast and no modal is the bug, not the guard');
-  ck('and it does not open an empty modal', !/Save to Library/.test(w.modalRoot.innerHTML));
+  ck('and it does not open an empty modal', !/data-action="confirm-save-to-library"/.test(w.modalRoot.innerHTML));
 }
 {
   const w = freshWorld();
   await w.ctx.handleSaveToLibrary('resp-done');
   ck('an answer already kept still says "Already saved"',
      w.toasts.some((t) => /already saved/i.test(t.msg)));
-  ck('and does not open the modal again', !/Save to Library/.test(w.modalRoot.innerHTML));
+  ck('and does not open the modal again', !/data-action="confirm-save-to-library"/.test(w.modalRoot.innerHTML));
 }
 {
   const w = freshWorld();
@@ -226,7 +227,7 @@ console.log('   fixture: ' + path.basename(file) + (useOld ? '   (must FAIL)' : 
   w.ctx.AppState.queryState = { phase: 'sent', text: QTEXT, circleId: 'c-travel',
                                 queryId: 'q1', responses: w.QUERY.responses, visibleCount: 3 };
   await w.ctx.handleSaveToLibrary('resp-b');
-  ck('the query screen still opens the modal', /Save to Library/.test(w.modalRoot.innerHTML));
+  ck('the query screen still opens the modal', /data-action="confirm-save-to-library"/.test(w.modalRoot.innerHTML));
   await w.ctx.handleConfirmSaveToLibrary('resp-b');
   ck('the query screen still writes a complete row',
      w.recs.length === 1 && w.recs[0].sourceQuestion === QTEXT && w.recs[0].circleId === 'c-travel',

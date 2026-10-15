@@ -40,7 +40,7 @@ const probe = [
   '(function(){',
   '  var out = [];',
   '  var names = ["fab-menu","add-rec","add-circle","add-member","invite","circle-link",',
-  '               "interests","edit-rec","fix-category","chat-import","share-list",',
+  '               "interests","edit-rec","fix-category","chat-import",',
   '               "share-rec","collection-create","collection-send","edit-collection",',
   '               "reply","resolve-query","file-suggestion","add-reciprocal","edit-circle","circle-more",',
   '               "sheet-send","home-screen"];',
@@ -92,7 +92,6 @@ window.addEventListener('load', function () {
         case 'edit-rec': return modalEditRec(p);
         case 'fix-category': return modalFixCategory(p);
         case 'chat-import': return modalChatImport(p);
-        case 'share-list': return modalShareList(p);
         case 'share-rec': return modalShareRec(p);
         case 'collection-create': return modalCollectionCreate(p);
         case 'collection-send': return modalCollectionSend(p);

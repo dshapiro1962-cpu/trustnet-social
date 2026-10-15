@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#ffffff">
+<title>Trustnet — what it is</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   TRUSTNET · a silent film for beta recruits.  29.5 seconds, six beats.
+
+   A STANDALONE PAGE. index.html does not know it exists, nothing links
+   here, it is noindex.  Remove with: git rm web/film.html
+
+   THE CUT, and why it is this one (dan, 23 Sep):
+     · "the first 3 frames could be one ... it cant start out of thin
+       air" — they are one beat now, under a heading that says what you
+       are looking at, and the items arrive under it in turn.
+     · "there has to be some indication that ... is WhatsApp" — a chat
+       header, the wallpaper, timestamps and the blue double ticks. No
+       logo and no wordmark on screen: the layout is recognisable
+       without borrowing a trademark for a film sent to strangers.
+     · "insert a frame about the recommendation feature" — beat 4. The
+       app has two verbs and the film showed one.
+     · "41 seconds is much to long it should be around 25" — 26, then
+       29.5 when dan timed three beats himself: 6s, 4.5s, 5.5s. Two
+       things paid for it: the sponsored-feed card went (the review and
+       the lost thread already make that point), and asking and being
+       answered became ONE beat, which is one story on one card.
+
+   Silent by design — nobody plays sound in WhatsApp.
+
+     ?lang=he   Hebrew, right to left
+     ?t=12      freeze at 12 seconds, for stills
+   ═══════════════════════════════════════════════════════════════════ */
+:root {
+  --green: #1D5A45;
+  --green-d: #0D2B1F;
+  --ink: #1C2420;
+  --grey: #7A9086;
+  --line: #E6EBE8;
+  --serif: ui-serif, 'New York', Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #fff; font-family: var(--sans); overflow: hidden; }
+#stage { position: fixed; inset: 0; background: #fff; overflow: hidden; }
+
+.beat { position: absolute; inset: 0; padding: 22px 26px; display: flex; flex-direction: column;
+        justify-content: center; opacity: 0; transition: opacity .4s ease; pointer-events: none; }
+/* pointer-events IS TURNED BACK ON HERE, and it was not: the beats are
+   stacked, so the invisible ones must not swallow taps - but the visible
+   one has to take them, or the Watch again button is a picture of a
+   button. dan found it on his phone; the test had only checked that it
+   was displayed, which is not the same as reachable. */
+.beat.on { opacity: 1; pointer-events: auto; }
+.beat > * { width: 100%; max-width: 344px; margin-left: auto; margin-right: auto; }
+
+.anim { opacity: 0; transform: translateY(9px); transition: opacity .4s ease, transform .4s ease; }
+.anim.in { opacity: 1; transform: none; }
+.anim.out { opacity: 0; transform: translateY(-7px); height: 0; margin: 0; overflow: hidden;
+            transition: opacity .3s ease, transform .3s ease, height .3s ease, margin .3s ease; }
+
+.line { font-family: var(--serif); font-size: 28px; line-height: 1.18; color: var(--green-d);
+        letter-spacing: -0.01em; }
+.sub { font-size: 14px; color: var(--grey); margin-top: 7px; line-height: 1.4; }
+[dir="rtl"] .beat { text-align: right; }
+
+.card { border: 1px solid var(--line); border-radius: 15px; padding: 13px 14px; background: #fff;
+        box-shadow: 0 14px 30px -24px rgba(13,43,31,0.45); }
+
+/* ── beat 1 ─────────────────────────────────────────────────────── */
+.stars { font-size: 22px; letter-spacing: 2px; color: #E8A020; direction: ltr; unicode-bidi: isolate; }
+.rev-h { font-size: 12.5px; color: var(--grey); margin-top: 3px; }
+.rev-q { font-family: var(--serif); font-style: italic; font-size: 15px; color: #39443E;
+         margin-top: 9px; line-height: 1.35; }
+.rev-by { font-size: 11.5px; color: var(--grey); margin-top: 6px; }
+
+/* A WhatsApp thread, recognisable without a logo: the header, the
+   wallpaper, the timestamps, and the blue double ticks. */
+.wa { border-radius: 15px; overflow: hidden; border: 1px solid var(--line);
+      box-shadow: 0 14px 30px -24px rgba(13,43,31,0.45); }
+.wa-top { display: flex; align-items: center; gap: 9px; background: #128C7E; padding: 9px 12px; }
+.wa-av { width: 27px; height: 27px; border-radius: 50%; background: #DDEDEA; color: #128C7E;
+         font-weight: 800; font-size: 12.5px; display: flex; align-items: center; justify-content: center; }
+.wa-nm { color: #fff; font-size: 14px; font-weight: 600; line-height: 1.1; }
+.wa-on { color: #CFE9E4; font-size: 10.5px; }
+.wa-body { background: #EAE0D6; padding: 9px 10px; display: flex; flex-direction: column; gap: 6px; }
+.wa-b { align-self: flex-end; max-width: 84%; background: #DCF8C6; border-radius: 11px 11px 3px 11px;
+        padding: 7px 10px 5px; font-size: 12.5px; color: #1C2420; line-height: 1.3; }
+[dir="rtl"] .wa-b { align-self: flex-start; border-radius: 11px 11px 11px 3px; }
+.wa-to { font-size: 10.5px; color: #6E7B74; margin-bottom: 2px; }
+.wa-meta { display: flex; gap: 3px; align-items: center; justify-content: flex-end;
+           font-size: 9.5px; color: #7A8A80; margin-top: 2px; }
+.ticks { color: #34B7F1; font-size: 10px; letter-spacing: -2px; }
+.wa-find { background: #fff; padding: 9px 11px; display: flex; align-items: center; gap: 7px;
+           font-size: 13px; color: var(--ink); border-top: 1px solid #E3E8E5; }
+.wa-none { background: #fff; padding: 0 11px 10px; font-size: 12px; color: #B4553F; }
+
+/* ── the product beats ──────────────────────────────────────────── */
+.q { font-family: var(--serif); font-size: 18px; color: var(--green-d); line-height: 1.3; }
+.chips { display: flex; gap: 5px; margin-top: 10px; flex-wrap: wrap; }
+.chip { font-size: 12px; padding: 5px 10px; border-radius: 999px; border: 1px solid #CBDBD2;
+        color: #3E4944; transition: background .4s ease, color .4s ease, border-color .4s ease; }
+.chip.on { background: var(--green); color: #fff; border-color: var(--green); }
+.row { display: flex; gap: 9px; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.row:last-child { border-bottom: 0; }
+.tile { width: 35px; height: 35px; border-radius: 9px; background: #DCE8F1; color: #2C5877;
+        font-weight: 800; font-size: 15px; display: flex; align-items: center; justify-content: center; flex: none; }
+.tile.w { background: #F3E4DC; color: #9A5B3C; }
+.tile.g { background: #E0EFE6; color: #22654A; }
+.tile.p { background: #EAE4F3; color: #5B3E9E; }
+.nm { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+.qt { font-family: var(--serif); font-style: italic; font-size: 13px; color: #39443E; margin-top: 1px; line-height: 1.3; }
+.by { font-size: 11px; color: var(--grey); margin-top: 2px; }
+.tag { display: inline-block; font-size: 9.5px; font-weight: 700; letter-spacing: .04em;
+       text-transform: uppercase; color: #2A7258; background: #E9F6EE; border-radius: 6px;
+       padding: 2px 6px; margin-inline-start: 5px; vertical-align: 1px; }
+.search { display: flex; align-items: center; gap: 7px; border-radius: 10px; background: #F2F6F3;
+          padding: 9px 12px; font-size: 14px; color: var(--ink); }
+.caret { display: inline-block; width: 2px; height: 15px; background: var(--green); vertical-align: -3px;
+         animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.tick { width: 19px; height: 19px; border-radius: 50%; background: var(--green); color: #fff;
+        font-size: 11px; display: flex; align-items: center; justify-content: center; flex: none; margin-top: 8px; }
+.send { margin-top: 12px; background: var(--green); color: #fff; border-radius: 999px; text-align: center;
+        padding: 11px; font-weight: 700; font-size: 14.5px; transition: background .3s ease; }
+.send.done { background: #E9F6EE; color: #133D2F; }
+.wordmark { font-family: var(--serif); font-size: 40px; color: var(--green); letter-spacing: -0.015em; }
+.icon { width: 68px; height: 68px; border-radius: 17px; background: var(--green); color: #fff;
+        font-family: var(--serif); font-size: 38px; display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 16px; }
+#b6, [dir="rtl"] #b6 { text-align: center; }
+/* WHEN IT IS NOT LOOPING, IT HAS TO END SOMEWHERE (dan, 23 Sep: "should it
+   run in a loop"). Inside the app it plays once and holds here, because a
+   loop restarts the bad half of the story immediately after the good half.
+   This turns "it stopped" into a choice. */
+.tn-replay { display: none; margin: 18px auto 0; border-radius: 999px; padding: 9px 18px;
+  background: #E9F6EE; color: #133D2F; font-size: 14px; font-weight: 700; }
+body.ended .tn-replay { display: inline-block; }
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- ══ 1 · no more of this · 0–6s ═══════════════════════════════ -->
+  <section class="beat" id="b1">
+    <div class="line anim" id="a0" data-en="No more of this." data-he="נמאס מזה.">No more of this.</div>
+    <div class="card anim" id="a1" style="margin-top:16px;">
+      <div class="stars">★★★★☆</div>
+      <div class="rev-h" data-en="4.3 · 1,204 reviews" data-he="4.3 · 1,204 ביקורות">4.3 · 1,204 reviews</div>
+      <div class="rev-q" data-en="“Great place, would definitely come again!!”"
+                         data-he="״מקום מעולה, בהחלט נחזור!!״">“Great place, would definitely come again!!”</div>
+      <div class="rev-by" data-en="Anonymous · 2 years ago · 1 review"
+                          data-he="אנונימי · לפני שנתיים · ביקורת אחת">Anonymous · 2 years ago · 1 review</div>
+    </div>
+    <div class="wa anim" id="a2" style="margin-top:12px;">
+      <div class="wa-top"><div class="wa-av">T</div>
+        <div><div class="wa-nm">Tal</div><div class="wa-on" data-en="online" data-he="מחובר">online</div></div></div>
+      <div class="wa-body">
+        <div class="wa-b"><span data-en="Need recommendations for my Puglia trip" data-he="צריך המלצות לטיול שלי בפוליה">Need recommendations for my Puglia trip</span>
+          <div class="wa-meta">09:14 <span class="ticks">✓✓</span></div></div>
+        <div class="wa-b"><div class="wa-to" data-en="forwarded to Rany" data-he="הועבר לרני">forwarded to Rany</div>
+          <span data-en="Need recommendations for my Puglia trip" data-he="צריך המלצות לטיול שלי בפוליה">Need recommendations for my Puglia trip</span>
+          <div class="wa-meta">09:15 <span class="ticks">✓✓</span></div></div>
+        <div class="wa-b"><div class="wa-to" data-en="forwarded to May, Tom" data-he="הועבר למאי, תום">forwarded to May, Tom</div>
+          <span data-en="Need recommendations for my Puglia trip" data-he="צריך המלצות לטיול שלי בפוליה">Need recommendations for my Puglia trip</span>
+          <div class="wa-meta">09:15 <span class="ticks">✓✓</span></div></div>
+      </div>
+      <div class="wa-find anim" id="a3"><span style="color:var(--grey);">⌕</span><span>Puglia</span><span class="caret"></span></div>
+      <div class="wa-none anim" id="a4" data-en="No results · 4 months later"
+           data-he="אין תוצאות · 4 חודשים אחר כך">No results · 4 months later</div>
+    </div>
+  </section>
+
+  <!-- ══ 2 · ask, and they answer · 6–11.5s ═══════════════════════ -->
+  <section class="beat" id="b2">
+    <div class="anim" id="c0">
+      <div class="line" data-en="Ask the people you trust." data-he="שאלו את מי שאתם סומכים עליו.">Ask the people you trust.</div>
+      <div class="sub" data-en="In their words — not a score." data-he="במילים שלהם — לא בכוכבים.">In their words — not a score.</div>
+    </div>
+    <div class="card anim" id="c1" style="margin-top:18px;">
+      <div class="q" data-en="Need recommendations for my Puglia trip" data-he="צריך המלצות לטיול שלי בפוליה">Need recommendations for my Puglia trip</div>
+      <div class="chips anim" id="c2">
+        <div class="chip" id="chipTravel" data-en="Travel" data-he="טיולים">Travel</div>
+        <div class="chip" data-en="Books" data-he="ספרים">Books</div>
+        <div class="chip" data-en="Restaurants" data-he="מסעדות">Restaurants</div>
+        <div class="chip" data-en="Doctors" data-he="רופאים">Doctors</div>
+      </div>
+      <div class="send anim" id="c3" data-en="Ask 6 people" data-he="שאלו 6 אנשים">Ask 6 people</div>
+      <div class="row anim" id="c4"><div class="tile">M</div><div>
+        <div class="nm">Masseria Moroseta</div>
+        <div class="qt" data-en="“Book the room with the terrace.”" data-he="״קחו את החדר עם המרפסת.״">“Book the room with the terrace.”</div>
+        <div class="by" data-en="Tal" data-he="טל">Tal</div></div></div>
+      <div class="row anim" id="c5"><div class="tile w">A</div><div>
+        <div class="nm">Arte, Lecce</div>
+        <div class="qt" data-en="“Ask for the orecchiette — not on the menu.”"
+                        data-he="״בקשו את האורקייטה — היא לא בתפריט.״">“Ask for the orecchiette — not on the menu.”</div>
+        <div class="by" data-en="May" data-he="מאי">May</div></div></div>
+    </div>
+  </section>
+
+  <!-- ══ 3 · one place · 11.5–16.5s ═══════════════════════════════ -->
+  <section class="beat" id="b3">
+    <div class="anim" id="e0">
+      <div class="line" data-en="Everything in one place." data-he="הכול במקום אחד.">Everything in one place.</div>
+      <div class="sub" data-en="Travel, books, restaurants — and you find it again."
+                       data-he="טיולים, ספרים, מסעדות — ותמיד תמצאו את זה שוב.">Travel, books, restaurants — and you find it again.</div>
+    </div>
+    <div class="card" style="margin-top:16px;">
+      <div class="search anim" id="e4"><span style="color:var(--grey);">⌕</span><span id="typed"></span><span class="caret"></span></div>
+      <div class="row anim" id="e1"><div class="tile">M</div><div>
+        <div class="nm">Masseria Moroseta<span class="tag" data-en="Travel" data-he="טיולים">Travel</span></div>
+        <div class="by" data-en="Ostuni · from Tal" data-he="אוסטוני · מטל">Ostuni · from Tal</div></div></div>
+      <div class="row anim" id="e2"><div class="tile p">S</div><div>
+        <div class="nm">Stoner<span class="tag" data-en="Books" data-he="ספרים">Books</span></div>
+        <div class="by" data-en="from May" data-he="ממאי">from May</div></div></div>
+      <div class="row anim" id="e3"><div class="tile w">A</div><div>
+        <div class="nm">Arte, Lecce<span class="tag" data-en="Restaurants" data-he="מסעדות">Restaurants</span></div>
+        <div class="by" data-en="from Rany" data-he="מרני">from Rany</div></div></div>
+      <div class="row anim" id="e5"><div class="tile g">P</div><div>
+        <div class="nm">Polignano a Mare<span class="tag" data-en="Travel" data-he="טיולים">Travel</span></div>
+        <div class="by" data-en="found by meaning" data-he="נמצא לפי משמעות">found by meaning</div></div></div>
+    </div>
+  </section>
+
+  <!-- ══ 4 · recommend · 16.5–20s ═════════════════════════════════ -->
+  <section class="beat" id="b4">
+    <div class="anim" id="h0">
+      <div class="line" data-en="Found something good? Pass it on."
+           data-he="מצאתם משהו טוב? העבירו הלאה.">Found something good? Pass it on.</div>
+      <div class="sub" data-en="Before anyone asks." data-he="עוד לפני ששואלים.">Before anyone asks.</div>
+    </div>
+    <div class="card anim" id="h1" style="margin-top:16px;">
+      <div class="row" style="border-bottom:0;padding-top:2px;"><div class="tile p">S</div><div>
+        <div class="nm">Stoner</div>
+        <div class="qt" data-en="“The best novel nobody has read.”" data-he="״הרומן הכי טוב שאף אחד לא קרא.״">“The best novel nobody has read.”</div></div></div>
+      <div class="chips">
+        <div class="chip" data-en="Travel" data-he="טיולים">Travel</div>
+        <div class="chip" id="chipBooks" data-en="Books" data-he="ספרים">Books</div>
+        <div class="chip" data-en="Restaurants" data-he="מסעדות">Restaurants</div>
+      </div>
+      <div class="send anim" id="h2" data-en="Send to 4 people" data-he="שלחו ל-4 אנשים">Send to 4 people</div>
+    </div>
+  </section>
+
+  <!-- ══ 5 · and they ask you · 20–24.5s ══════════════════════════ -->
+  <section class="beat" id="b5">
+    <div class="anim" id="f0">
+      <div class="line" data-en="And when they ask you…" data-he="וכשפונים אליכם…">And when they ask you…</div>
+      <div class="sub" data-en="…it is already in your library." data-he="…זה כבר בספרייה שלכם.">…it is already in your library.</div>
+    </div>
+    <div class="card anim" id="f1" style="margin-top:16px;">
+      <div class="by" data-en="Tom asked · today" data-he="תום שאל · היום">Tom asked · today</div>
+      <div class="q" style="margin-top:2px;" data-en="Need recommendations for my Puglia trip"
+           data-he="צריך המלצות לטיול שלי בפוליה">Need recommendations for my Puglia trip</div>
+      <div class="row anim" id="f2" style="margin-top:4px;"><div class="tick">✓</div><div class="tile">M</div>
+        <div><div class="nm">Masseria Moroseta</div>
+        <div class="by" data-en="from Tal" data-he="מטל">from Tal</div></div></div>
+      <div class="row anim" id="f3"><div class="tick">✓</div><div class="tile g">P</div>
+        <div><div class="nm">Polignano a Mare</div>
+        <div class="by" data-en="from Rany" data-he="מרני">from Rany</div></div></div>
+      <div class="send anim" id="f4" data-en="Send 2 from your library" data-he="שלחו 2 מהספרייה שלכם">Send 2 from your library</div>
+    </div>
+  </section>
+
+  <!-- ══ 6 · the end · 24.5–26s ═══════════════════════════════════ -->
+  <section class="beat" id="b6">
+    <div class="anim" id="g1">
+      <div class="icon">T</div>
+      <div class="wordmark">trustnet</div>
+      <div class="sub" style="margin-top:9px;" data-en="Recommendations from the people you trust."
+           data-he="המלצות מהאנשים שאתם סומכים עליהם.">Recommendations from the people you trust.</div>
+      <button type="button" class="tn-replay" id="replay"
+              data-en="Watch again" data-he="לצפייה שוב">Watch again</button>
+    </div>
+  </section>
+
+</div>
+
+<script>
+// ── THE CUE SHEET, IN SECONDS ──────────────────────────────────────────────
+// [when, what, which]. Driven here rather than in CSS keyframes because every
+// note dan has given on this film has been about TIMING, and a cue sheet
+// retimes in one line where twenty keyframe blocks do not.
+var TOTAL = 29.5;
+var CUES = [
+  // 1 · no more of this — 6s. The heading first, so nothing is unexplained.
+  [0.15, 'beat', 'b1'],
+  [0.35, 'in',   'a0'],
+  [1.10, 'in',   'a1'],
+  [2.60, 'in',   'a2'],
+  [4.20, 'in',   'a3'],
+  [4.90, 'in',   'a4'],
+
+  // 2 · ask, and they answer — 5.5s. One story, one card.
+  [6.00, 'beat', 'b2'],
+  [6.25, 'in',   'c0'],
+  [7.00, 'in',   'c1'],
+  [7.10, 'in',   'c2'],
+  [7.60, 'chip', 'chipTravel'],
+  [8.10, 'in',   'c3'],
+  [9.10, 'out',  'c3'],
+  [9.15, 'out',  'c2'],
+  [9.30, 'in',   'c4'],
+  [10.10, 'in',  'c5'],
+
+  // 3 · everything in one place — 6s (dan). The search result now holds for
+  //     a second and a half instead of being swept away by the next beat.
+  [11.50, 'beat', 'b3'],
+  [11.75, 'in',   'e0'],
+  [12.45, 'in',   'e1'],
+  [12.95, 'in',   'e2'],
+  [13.45, 'in',   'e3'],
+  [14.40, 'in',   'e4'],
+  [14.70, 'type', 'Puglia'],
+  [16.00, 'out',  'e2'],
+  [16.10, 'in',   'e5'],
+
+  // 4 · pass it on — 4.5s (dan). The button holds, rather than flashing past.
+  [17.50, 'beat', 'b4'],
+  [17.75, 'in',   'h0'],
+  [18.70, 'in',   'h1'],
+  [19.60, 'chip', 'chipBooks'],
+  [20.20, 'in',   'h2'],
+
+  // 5 · and when they ask you — 5.5s (dan). Four things, and time to read
+  //     each: the question, two ticks, the button, and Sent.
+  [22.00, 'beat', 'b5'],
+  [22.25, 'in',   'f0'],
+  [23.00, 'in',   'f1'],
+  [23.70, 'in',   'f2'],
+  [24.20, 'in',   'f3'],
+  [24.80, 'in',   'f4'],
+  [25.90, 'sent', 'f4'],
+
+  // 6 · the end — 2s
+  [27.50, 'beat', 'b6'],
+  [27.75, 'in',   'g1']
+];
+
+var SENT = { en: 'Sent to Tom ✓', he: 'נשלח לתום ✓' };
+var lang = 'en';
+
+function reset() {
+  var i, els = document.querySelectorAll('.anim');
+  for (i = 0; i < els.length; i++) {
+    els[i].classList.remove('in');
+    els[i].classList.remove('out');
+    els[i].style.cssText = els[i].getAttribute('data-style') || '';
+  }
+  els = document.querySelectorAll('.beat');
+  for (i = 0; i < els.length; i++) els[i].classList.remove('on');
+  var t = document.getElementById('chipTravel'); if (t) t.classList.remove('on');
+  var b = document.getElementById('chipBooks'); if (b) b.classList.remove('on');
+  document.getElementById('typed').textContent = '';
+  var send = document.getElementById('f4');
+  send.classList.remove('done');
+  send.textContent = send.dataset[lang];
+}
+
+// A cue is [seconds, action, target]. Reading cue[0] as the action — which is
+// the TIME — once made every cue a no-op and the whole film a blank screen.
+function apply(cue, frozen) {
+  var action = cue[1], target = cue[2];
+  var el = document.getElementById(target);
+  if (action === 'beat') {
+    var bs = document.querySelectorAll('.beat');
+    for (var i = 0; i < bs.length; i++) bs[i].classList.remove('on');
+    el.classList.add('on');
+    return;
+  }
+  if (action === 'in') { el.classList.remove('out'); el.classList.add('in'); return; }
+  if (action === 'out') { el.classList.add('out'); return; }
+  if (action === 'chip') { el.classList.add('on'); return; }
+  if (action === 'sent') { el.classList.add('done'); el.textContent = SENT[lang]; return; }
+  if (action === 'type') {
+    var word = target, box = document.getElementById('typed');
+    if (frozen) { box.textContent = word; return; }
+    var n = 0;
+    var tick = setInterval(function () {
+      n++; box.textContent = word.slice(0, n);
+      if (n >= word.length) clearInterval(tick);
+    }, 95);
+    return;
+  }
+}
+
+(function () {
+  var els = document.querySelectorAll('.anim');
+  for (var i = 0; i < els.length; i++) els[i].setAttribute('data-style', els[i].style.cssText);
+
+  var p = new URLSearchParams(location.search);
+  if (p.get('lang') === 'he') {
+    lang = 'he';
+    document.documentElement.lang = 'he';
+    document.documentElement.dir = 'rtl';
+    var hs = document.querySelectorAll('[data-he]');
+    for (var j = 0; j < hs.length; j++) hs[j].textContent = hs[j].dataset.he;
+  }
+
+  // A STILL CANNOT WAIT FOR A TRANSITION: headless Chrome's virtual clock does
+  // not run them, and a frozen frame came out blank. The end state is written
+  // straight onto the elements instead.
+  var freeze = p.get('t');
+  if (freeze !== null) {
+    var at = parseFloat(freeze);
+    reset();
+    for (var k = 0; k < CUES.length; k++) if (CUES[k][0] <= at) apply(CUES[k], true);
+    var all = document.querySelectorAll('.anim'), e;
+    for (var m = 0; m < all.length; m++) {
+      e = all[m];
+      e.style.transition = 'none';
+      if (e.classList.contains('out')) { e.style.opacity = '0'; e.style.height = '0'; e.style.margin = '0'; }
+      else if (e.classList.contains('in')) { e.style.opacity = '1'; e.style.transform = 'none'; }
+    }
+    var bs = document.querySelectorAll('.beat');
+    for (var n = 0; n < bs.length; n++) {
+      bs[n].style.transition = 'none';
+      bs[n].style.opacity = bs[n].classList.contains('on') ? '1' : '0';
+    }
+    return;
+  }
+
+  // ?once=1  play through and hold on the end card. That is how the app's own
+  //          player loads it: someone watching inside Trustnet has finished,
+  //          and a loop would drop them back into "No more of this" a beat
+  //          after the payoff. On /film itself it keeps looping, because that
+  //          page exists to be screen-recorded and a loop makes a take easy.
+  // ?speed=N run the clock N times faster. Only so a test can watch the whole
+  //          film in a couple of seconds and see what it does at the end.
+  var ONCE = p.get('once') === '1';
+  var SPEED = parseFloat(p.get('speed')) || 1;
+  if (!(SPEED > 0)) SPEED = 1;
+
+  var start = Date.now(), next = 0, timer = null;
+  function run() {
+    document.body.classList.remove('ended');
+    start = Date.now(); next = 0;
+    reset();
+    if (timer) clearInterval(timer);
+    timer = setInterval(function () {
+      var t = (Date.now() - start) / 1000 * SPEED;
+      if (t >= TOTAL) {
+        if (ONCE) {
+          clearInterval(timer);
+          timer = null;
+          document.body.classList.add('ended');
+          return;
+        }
+        start = Date.now(); next = 0; reset(); return;
+      }
+      while (next < CUES.length && CUES[next][0] <= t) { apply(CUES[next]); next++; }
+    }, 60);
+  }
+  var again = document.getElementById('replay');
+  if (again) again.addEventListener('click', run);
+  run();
+})();
+</script>
+</body>
+</html>

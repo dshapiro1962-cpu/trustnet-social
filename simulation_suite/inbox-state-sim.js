@@ -152,7 +152,7 @@ const ck = (n, c, x) => {
      /data-action="save-to-library" data-resp-id="r-unsaved"/.test(html2));
   ck('a saved answer does NOT',
      html2.indexOf('data-resp-id="r-saved"') < 0);
-  ck('...it says it is in your library instead', /In your library/.test(html2));
+  ck('...it says it is saved instead', /tn-done">✓ Saved</.test(html2));
 
   console.log('\n-- marking an answer saved goes through the RPC --\n');
   rpcCalls = []; updateCalls = []; ctx.__warn.length = 0;

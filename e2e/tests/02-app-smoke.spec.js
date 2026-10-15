@@ -11,7 +11,7 @@ test.describe('smoke — logged-in shell', () => {
   test('library and circles views open', async ({ page }) => {
     await waitLoggedInShell(page);
     await goView(page, 'library');
-    await expect(page.getByText('My Library').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Saved').first()).toBeVisible({ timeout: 10000 });
     await goView(page, 'circles');
     await expect(page.locator('[data-modal="add-circle"]').first()).toBeAttached({ timeout: 10000 });
   });
