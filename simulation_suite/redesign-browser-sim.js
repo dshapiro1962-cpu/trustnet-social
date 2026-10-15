@@ -181,7 +181,7 @@ const SCREENS = [
   { n: 'sheet', setup: 'full', go: "AppState._sheet = __sheet(); showView('sheet',{queryId:'q1'})",
     probe: "({ q: (document.querySelector('.tn-sheet-q') || {}).textContent || '', items: " + Q('.tn-sheet-it') + ", save: " + Q('[data-action=save-from-sheet]') + " })" },
   { n: 'login', setup: 'login', go: "__showLogin()",
-    probe: "({ h: (document.querySelector('.tn-login-h') || {}).textContent || '', alt: " + Q('#login-to-email') + " })" },
+    probe: "({ h: (document.querySelector('.tn-login-h') || {}).textContent || '', alt: " + Q('#login-send') + " })" },
   { n: 'login-invite', setup: 'invite', go: "__stubInvite(); __showLogin()",
     probe: "({ h: (document.querySelector('.tn-inv-h') || {}).textContent || '', btn: " + Q('#login [data-action=codeless-join]') + ", form: (document.getElementById('login-methods') || { style: {} }).style.display })" },
   { n: 'history', setup: 'full', go: "showView('history')", probe: "({})" },
@@ -343,9 +343,9 @@ ck('the Save sheet offers every circle and none', P('add-rec').opts === 5, Strin
 ck('...picking a circle and switching send on says who it goes to', P('add-rec').chosen === 'c1' && /Save and send to 4/.test(P('add-rec').label || ''), JSON.stringify(P('add-rec')));
 ck('the answer sheet leads with the question', /Apulia/.test(P('sheet').q || ''), P('sheet').q);
 ck('...one row per thing, Save on the ones not yet yours', P('sheet').items === 4 && P('sheet').save === 3, JSON.stringify(P('sheet')));
-ck('sign in is one page, email one line under it', /Sign in/.test(P('login').h || '') && P('login').alt === 1, JSON.stringify(P('login')));
+ck('sign in is one page, email first and WhatsApp under it (v0.99.14)', /Sign in/.test(P('login').h || '') && P('login').alt === 1, JSON.stringify(P('login')));
 ck('an invitation is the page: who asked, which circle', /Tom is inviting you to their Travel circle/.test(P('login-invite').h || ''), P('login-invite').h);
-ck('...one button, and no sign-in form', P('login-invite').btn === 1 && P('login-invite').form === 'none', JSON.stringify(P('login-invite')));
+ck('...its WhatsApp button joins, with the sign-in form under it (v0.99.14)', P('login-invite').btn === 1 && P('login-invite').form !== 'none', JSON.stringify(P('login-invite')));
 
 console.log('\n== 9. v0.95.1: buttons that look like buttons, actions you can reach ==\n');
 ck('Home: "Ask your circles" is a button that sets Ask', (P('home').verbs || []).indexOf('Ask your circles|ask') > -1, JSON.stringify(P('home').verbs));

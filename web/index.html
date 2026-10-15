@@ -1155,6 +1155,8 @@ body {
 .tn-inv-steps li { display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 600; color: #161E1A; }
 .tn-inv-steps b { width: 26px; height: 26px; border-radius: 50%; background: #fff; color: #1D5A45; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; flex: none; box-shadow: inset 0 0 0 1.5px #CFDBD4; }
 .tn-inv-n { margin-top: 12px; font-size: 13.5px; color: #77837D; }
+.tn-inviting .tn-login-h, .tn-inviting .tn-login-sub { display: none; }
+.tn-inviting { margin-top: 22px; }
 /* the Ask screen */
 .tn-seg { display: inline-flex; background: #F1F3F2; border-radius: 22px; padding: 3px; margin: 4px 0 6px; }
 .tn-seg .btn { min-height: 36px; padding: 0 20px; border-radius: 18px; background: transparent; color: #56625C; font-size: 15px; }
@@ -1365,16 +1367,19 @@ body {
            send, and the fact that it arrives FROM YOUR NUMBER is the proof.
            Nothing to type, and no number to enter - WhatsApp already knows
            which phone it is. -->
-      <div id="login-wa-pane">
-        <button class="btn btn-primary" id="login-wa-go" style="width:100%;">Continue with WhatsApp</button>
-        <p style="font-size:12.5px;color:#7A9086;line-height:1.6;margin-top:10px;text-align:center;">WhatsApp opens with a message ready. Press send, come back, and you&rsquo;re in.</p>
-        <a href="#" class="tn-login-alt" id="login-to-email">Use email instead</a>
+      <!-- EMAIL FIRST (v0.99.14). dan, 13 Oct: "continue with email should be
+           the main option ... 'continue with WhatsApp' should replace 'use
+           email instead' with the instructions below". Email is only how you
+           sign in: what reaches you afterwards - questions, invitations,
+           recommendations - still travels on WhatsApp (dan, 15 Oct). -->
+      <div id="login-email-pane">
+        <input class="field-input" id="login-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" style="width:100%;margin-bottom:12px;">
+        <button class="btn btn-primary" id="login-send" style="width:100%;">Continue with email</button>
       </div>
 
-      <div id="login-email-pane" style="display:none;">
-        <input class="field-input" id="login-email" type="email" placeholder="you@example.com" style="width:100%;margin-bottom:14px;">
-        <button class="btn btn-primary" id="login-send" style="width:100%;">Send sign-in link</button>
-        <a href="#" class="tn-login-alt" id="login-to-wa">Use WhatsApp instead</a>
+      <div id="login-wa-pane" style="margin-top:22px;">
+        <button class="btn btn-secondary" id="login-wa-go" style="width:100%;justify-content:center;">Continue with WhatsApp</button>
+        <p style="font-size:12.5px;color:#7A9086;line-height:1.6;margin-top:10px;text-align:center;">WhatsApp opens with a message ready. Press send, come back, and you&rsquo;re in.</p>
       </div>
 
       <p class="tn-legal">By continuing you agree to our <a href="privacy.html" target="_blank" rel="noopener">Terms and Privacy Policy</a>.</p>
@@ -2519,7 +2524,7 @@ const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
 // The Trustnet business number, in one place: the invite join and the
 // sign-in both open WhatsApp with it.
 const TN_WA_NUMBER = '972587786049';
-const APP_VERSION = 'v0.99.14 · live';
+const APP_VERSION = 'v0.99.15 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -11488,18 +11493,6 @@ function wireWhatsAppLogin() {
   // device, and the two links that swap the panes were wired inside the code
   // path this replaced - deleting that left "Use email instead" dead, which
   // would have stranded exactly the people who need it.
-  const paneWa = document.getElementById('login-wa-pane');
-  const paneEm = document.getElementById('login-email-pane');
-  const show = function(which) {
-    if (paneWa) paneWa.style.display = which === 'wa' ? '' : 'none';
-    if (paneEm) paneEm.style.display = which === 'wa' ? 'none' : '';
-    const e = document.getElementById('login-err');
-    if (e) e.style.display = 'none';
-  };
-  const toEm = document.getElementById('login-to-email');
-  const toWa = document.getElementById('login-to-wa');
-  if (toEm) toEm.addEventListener('click', function(ev) { ev.preventDefault(); show('email'); });
-  if (toWa) toWa.addEventListener('click', function(ev) { ev.preventDefault(); show('wa'); });
   goBtn.addEventListener('click', async function() {
     const err = document.getElementById('login-err');
     goBtn.disabled = true;
@@ -11523,7 +11516,7 @@ function wireWhatsAppLogin() {
       goBtn.textContent = 'Continue with WhatsApp';
       if (err) {
         err.textContent = 'Could not start the sign-in: ' + (e.message || 'network error')
-          + '. You can use email instead.';
+          + '. You can continue with email instead.';
         err.style.display = 'block';
       }
     }
@@ -11570,6 +11563,11 @@ function startCodelessJoin(token, waNumber) {
   const host = document.getElementById('login-invite');
   // Open WhatsApp with the message PREFILLED. She only presses send.
   const text = encodeURIComponent('Join Trustnet: ' + token);
+  // Both doors end here, so the sign-in form goes here too: an invited
+  // person sees it under the invitation (v0.99.14) and must not be left
+  // looking at an email box while WhatsApp waits for them.
+  const methods = document.getElementById('login-methods');
+  if (methods) methods.style.display = 'none';
   window.open('https://wa.me/' + String(waNumber).replace(/\D/g, '') + '?text=' + text, 'tn_wa');
 
   if (host) {
@@ -11799,18 +11797,22 @@ async function showInviteBannerIfPending() {
       + '<span class="tn-inv-c" style="background:#DCE8F1;color:#2C5877;">' + esc(String(d.circle || '?').trim().charAt(0).toUpperCase()) + '</span></div>'
       + '<p class="tn-inv-h" dir="auto">' + esc(d.inviter) + ' is inviting you to their ' + esc(d.circle) + ' circle</p>'
       + '<p class="tn-inv-s">They value your recommendations.</p>'
-      + '<ol class="tn-inv-steps"><li><b>1</b>WhatsApp opens with a message ready</li><li><b>2</b>Press send</li>'
-      + '<li><b>3</b>Come back here \u2014 you\u2019re in</li></ol>'
-      + '<button class="btn btn-primary" data-action="codeless-join" data-token="' + esc(tok) + '"'
-      + ' style="width:100%;">Continue with WhatsApp</button>'
-      + '<p class="tn-inv-n">No code to type \u2014 just press send in WhatsApp.</p>'
       + '</div>';
     host.style.display = 'block';
-    // The email/phone form is not what an invited person needs. Hide it so the
-    // one button is the only thing on screen; "other ways to sign in" restores
-    // it for anyone who wants them.
+    // EMAIL FIRST HERE TOO (v0.99.14). dan, 13 Oct: "add continue with email
+    // as the main option, continue with WhatsApp secondery". The sign-in form
+    // stays under the invitation, without its own heading, and its WhatsApp
+    // button is swapped for the one that JOINS this circle (codeless-join,
+    // mint_join_token) - a plain WhatsApp sign-in would not. An email sign-in
+    // joins too: tn_join_token rides the link and boot() spends it.
     const formEl = document.getElementById('login-methods');
-    if (formEl) formEl.style.display = 'none';
+    if (formEl) formEl.classList.add('tn-inviting');
+    const waGo = document.getElementById('login-wa-go');
+    if (waGo && !document.getElementById('login-join-wa')) {
+      waGo.insertAdjacentHTML('beforebegin', '<button class="btn btn-secondary" id="login-join-wa"'
+        + ' data-action="codeless-join" data-token="' + esc(tok) + '" style="width:100%;justify-content:center;">Continue with WhatsApp</button>');
+      waGo.style.display = 'none';
+    }
   } catch (e) {
     // Never block sign-in because the banner failed.
     console.error('invite_preview failed:', e);
@@ -11853,7 +11855,7 @@ function showLoginScreen() {
       const pj = localStorage.getItem('tn_join_token');
       const redirectTo = pj ? (location.origin + '/?join=' + encodeURIComponent(pj)) : location.origin;
       const r = await sb.auth.signInWithOtp({ email: email, options: { emailRedirectTo: redirectTo } });
-      btn.disabled = false; btn.textContent = 'Send sign-in link';
+      btn.disabled = false; btn.textContent = 'Continue with email';
       if (r.error) { errEl.textContent = r.error.message; errEl.style.display = 'block'; return; }
       document.getElementById('login-sent-addr').textContent = email;
       document.getElementById('login-form').style.display = 'none';

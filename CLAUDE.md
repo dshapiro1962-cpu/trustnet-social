@@ -287,6 +287,16 @@ unsatisfactory"; dan marked 28 screens on the screen map, see the handover):
   wrong reason (the sim counts reloads instead); and after a send everyone
   it reached is UNTICKED, so a "second press" is a disabled button until the
   test ticks them again
+- `signin-email-first-sim.js` — Release 2 (v0.99.15): on every signed-out
+  screen that offers a sign-in, the one green button is Continue with email,
+  its box already showing, and Continue with WhatsApp is second with its
+  instructions under it. What must NOT change: a circle invitation's
+  WhatsApp button still JOINS (mint_join_token, never mint_signin_token) and
+  its email link carries `?join=`; your own invitation (0059) keeps name,
+  location, Sign in. Baseline `pre-v0.99.15/`; control fails 29 of 52 — its
+  first control stopped at step one (the old email box was hidden) and so
+  exercised almost nothing; every interaction now records a failure and
+  carries on
 
 Added 6 Oct:
 

@@ -179,12 +179,11 @@ window.addEventListener('load', function () {
       out.digitInputs = login.querySelectorAll('#login-wa-code, #login-phone, #login-wa-sent, #login-country').length
         + document.querySelectorAll('#login-wa-pane input').length;
       out.oneButton = !!document.getElementById('login-wa-go');
-      out.emailDoor = !!document.getElementById('login-to-email');
-      // USE the email link: it was wired inside the code path that went.
-      document.getElementById('login-to-email').dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      out.emailPaneShown = document.getElementById('login-email-pane').style.display !== 'none'
-        && document.getElementById('login-wa-pane').style.display === 'none';
-      document.getElementById('login-to-wa').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      // EMAIL FIRST (v0.99.14): both doors are on one screen, email the green
+      // one, so there is no switching between them left to test.
+      var send = document.getElementById('login-send');
+      out.emailDoor = !!send && /Continue with email/.test(send.textContent);
+      out.emailPaneShown = document.getElementById('login-email-pane').style.display !== 'none';
       out.backToWa = document.getElementById('login-wa-pane').style.display !== 'none';
       // Press the one button. The RPC and window.open are both stubbed so the
       // test can read what WOULD be sent.
@@ -234,7 +233,7 @@ window.addEventListener('load', function () {
     ck('one button does it', r.oneButton === true);
     ck('it says what pressing it will do', /WhatsApp opens with a message ready/.test(r.text || ''), (r.text || '').slice(0, 160));
     ck('email is still a door', r.emailDoor === true && r.emailPaneShown === true, r);
-    ck('...and you can come back from it', r.backToWa === true);
+    ck('...on the same screen as WhatsApp', r.backToWa === true);
     ck('pressing it asks the server for a token', r.rpc === 'mint_signin_token', r.rpc);
     ck('...then opens WhatsApp, to the Trustnet number', /wa\.me\/972587786049/.test(r.opened || ''), r.opened);
     ck('...with the message already written', /Join%20Trustnet%3A%20tok0123/.test(r.opened || ''), r.opened);
