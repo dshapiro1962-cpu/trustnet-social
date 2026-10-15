@@ -25,17 +25,23 @@ test.describe('public — login screen and respond page', () => {
   test('login card offers both sign-in paths', async ({ page }) => {
     await page.goto('/');
 
-    // WHAT A SIGNED-OUT PERSON ACTUALLY SEES (v0.97.0): one button.
-    await expect(page.locator('#login-wa-go')).toBeVisible({ timeout: 15000 });
+    // EMAIL FIRST (v0.99.15). dan, 13 Oct: "continue with email should be
+    // the main option ... 'continue with WhatsApp' should replace 'use email
+    // instead'". This spec still described v0.97.0 - WhatsApp the one button,
+    // email behind a link - and failed on the push that changed it (15 Oct),
+    // because the pre-push check read this file for text assertions only.
+    await expect(page.locator('#login-email')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#login-send')).toBeVisible();
+    await expect(page.locator('#login-send')).toHaveText(/Continue with email/i);
+    await expect(page.locator('#login-send')).toHaveClass(/btn-primary/);
+
+    // WhatsApp is the second way in, on the same screen - not green.
+    await expect(page.locator('#login-wa-go')).toBeVisible();
     await expect(page.locator('#login-wa-go')).toHaveText(/WhatsApp/i);
+    await expect(page.locator('#login-wa-go')).not.toHaveClass(/btn-primary/);
 
-    // And one way out of it, for someone whose WhatsApp is on another phone.
-    await expect(page.locator('#login-to-email')).toBeVisible();
-
-    // The email path exists but is not shown until it is asked for.
-    await expect(page.locator('#login-email')).toBeAttached();
-    await expect(page.locator('#login-send')).toBeAttached();
-    await expect(page.locator('#login-email-pane')).toBeHidden();
+    // Nothing to switch between any more.
+    await expect(page.locator('#login-to-email')).toHaveCount(0);
 
     // THE DIGIT PATH IS GONE AND MUST STAY GONE. It never worked once: nine
     // codes requested since 10 August, none ever consumed, because the message

@@ -54,7 +54,13 @@ finish its own work.
   the failure. A push touching `web/**` or `e2e/**` runs the public E2E spec
   against the live site; when it fails, the only other signal is a mail on
   dan's phone. Check it after such a push. On 10 Oct respond r2.6 broke it by
-  changing the stamp's shape (`a0cc563` fixed the spec).
+  changing the stamp's shape (`a0cc563` fixed the spec); on 15 Oct v0.99.15
+  broke it by changing the sign-in screen it describes. **Run it BEFORE such
+  a push**, and run it the way CI does — `cd e2e`, then
+  `CI=1 BASE_URL=https://trustnetsocial.com npx playwright test --project=public`
+  (point BASE_URL at a local server to test unpushed pages). WITHOUT `CI=1`
+  its global setup signs in for real and emails a code to dan's test account,
+  then waits for it to be typed.
 
 Never end a piece of work with a deploy block as though the change were live.
 And when a client change
