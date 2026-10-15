@@ -162,7 +162,8 @@ if (typeof ctx.qItemResultsHtml === 'function') {
   const one = ctx.qItemResultsHtml('xing');
   ck('a search narrows it', /Xing Wong BBQ/.test(one) && !/Gal the Exterminator/.test(one));
   ck('searching a place works too', /Xing Wong BBQ/.test(ctx.qItemResultsHtml('ramat')));
-  ck('nothing matching says so', /Nothing you’ve saved matches/.test(ctx.qItemResultsHtml('zzzz')));
+  // v0.99.14: what you typed is something new, and Send saves it - not a dead end.
+ck('nothing matching says so, and that sending saves it', /Not in Saved yet/.test(ctx.qItemResultsHtml('zzzz')) && /saves it too/.test(ctx.qItemResultsHtml('zzzz')));
   ck('each result can be picked', /data-action="q-pick-item"/.test(all));
 } else { ck('the item picker exists', false); }
 

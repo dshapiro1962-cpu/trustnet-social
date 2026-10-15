@@ -2519,7 +2519,7 @@ const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
 // The Trustnet business number, in one place: the invite join and the
 // sign-in both open WhatsApp with it.
 const TN_WA_NUMBER = '972587786049';
-const APP_VERSION = 'v0.99.13 · live';
+const APP_VERSION = 'v0.99.14 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -3499,8 +3499,9 @@ function qItemResultsHtml(term) {
     return (x.can.name || '').toLowerCase().indexOf(q) > -1
       || (x.can.location || '').toLowerCase().indexOf(q) > -1;
   }).slice(0, 40);
-  if (!rows.length) return '<div style="padding:10px;font-size:12px;color:#7A9086;">Nothing you\u2019ve saved matches.</div>';
-  return rows.map(function(x) {
+  // Not a dead end: what you typed is something new, and Send saves it.
+  if (!rows.length) return '<div style="padding:10px 4px;font-size:12.5px;color:#56695F;">Not in Saved yet \u2014 sending it saves it too.</div>';
+  return '<div class="tn-sl" style="margin:8px 0 2px;">From Saved</div>' + rows.map(function(x) {
     return '<div style="display:flex;align-items:center;gap:9px;padding:7px 4px;border-bottom:1px solid #F0F5F1;cursor:pointer;"'
       + ' data-action="q-pick-item" data-rec-id="' + esc(x.rec.id) + '">'
       + '<span style="font-size:16px;flex:none;">' + esc(x.can.imageEmoji || '\ud83d\udccc') + '</span>'
@@ -3508,6 +3509,38 @@ function qItemResultsHtml(term) {
       + (x.can.location ? '<span style="font-size:10.5px;color:#7A9086;flex:none;" dir="auto">' + esc(x.can.location) + '</span>' : '')
       + '</div>';
   }).join('');
+}
+
+// Something typed, not picked: where it is and why, before it is sent.
+function qShowNewFields(v) {
+  const more = document.getElementById('q-new-more');
+  if (more) more.style.display = (v && !looksLikeLink(v) && !AppState.queryItemId) ? 'block' : 'none';
+  const msg = document.getElementById('q-item-link');
+  if (msg && !looksLikeLink(v)) msg.style.display = 'none';
+}
+
+// A link pasted into Recommend: read it, and put its name where the link was.
+let Q_LINK_READ = '';
+async function qReadLink() {
+  const box = document.getElementById('q-item-search');
+  const msg = document.getElementById('q-item-link');
+  const url = box ? box.value.trim() : '';
+  if (!looksLikeLink(url) || url === Q_LINK_READ) return;
+  Q_LINK_READ = url;
+  const say = function(t, isBad) { if (msg) { msg.textContent = t; msg.style.color = isBad ? '#B3261E' : '#2A7258'; msg.style.display = 'block'; } };
+  say('Reading the link\u2026');
+  const r = await readPastedLink(url);
+  if (!box || box.value.trim() !== url) return;
+  if (r.error) { Q_LINK_READ = ''; say('Could not read that link \u2014 type the name instead.', true); return; }
+  box.value = r.name || r.source_title || url;
+  const loc = document.getElementById('q-new-loc');
+  if (loc && r.location && !loc.value.trim()) loc.value = r.location;
+  const note = document.getElementById('q-new-note');
+  if (note && r.note && !note.value.trim()) note.value = r.note;
+  const res = document.getElementById('q-item-results');
+  if (res) { res.innerHTML = qItemResultsHtml(box.value); res.style.display = 'block'; }
+  qShowNewFields(box.value);
+  say(r.needs_review ? 'Filled what I could \u2014 check the name.' : 'Got it \u2014 check it over and send.');
 }
 
 function qShowPickedItem() {
@@ -3581,9 +3614,18 @@ function renderQuery() {
 
     + '<div class="field" id="q-rec-block"' + (mode === 'recommend' ? '' : ' style="display:none;"') + '>'
     + '<div class="tn-sl" style="margin-top:18px;">What are you recommending</div>'
-    + '<input class="field-input" type="search" id="q-item-search" dir="auto" placeholder="Search saved\u2026" style="width:100%;">'
+    // SOMETHING NEW, OR SOMETHING SAVED (v0.99.14). dan, 13-15 Oct: "should
+    // give the option to recommend things that are not in saved as well as
+    // the option to retrieve from the library". Type a name or paste a link;
+    // what you have saved that matches is offered underneath.
+    + '<input class="field-input" type="text" id="q-item-search" dir="auto" autocomplete="off" placeholder="Type a name or paste a link" style="width:100%;">'
+    + '<div id="q-item-link" style="font-size:12px;margin-top:6px;display:none;"></div>'
     + '<div id="q-item-results" style="max-height:190px;overflow-y:auto;border:1px solid #E5EDE8;border-radius:10px;padding:2px 8px;margin-top:8px;display:none;"></div>'
     + '<div id="q-item-picked" style="margin-top:8px;"></div>'
+    + '<div id="q-new-more" style="display:none;margin-top:10px;">'
+    + '<input class="field-input" id="q-new-loc" dir="auto" placeholder="Where? (optional) \u2014 e.g. Lecce" maxlength="80" style="width:100%;margin-bottom:8px;">'
+    + '<textarea class="field-input field-textarea" id="q-new-note" dir="auto" placeholder="Why do you recommend it? (optional)" style="min-height:70px;"></textarea>'
+    + '</div>'
     + '<input type="hidden" id="q-item">'
     + '</div>'
 
@@ -3880,9 +3922,11 @@ function initQueryView() {
 // RECOMMEND, FROM THE CIRCLE SIDE. Same sending as the library dialog - one
 // implementation, shared - only the list of who comes from this screen.
 async function handleSendRecFromCircle(btn) {
-  const rec = (AppState.userRecs || []).find(function(r) { return r.id === AppState.queryItemId; });
-  const can = rec ? AppState.canonicalById(rec.canonicalId) : null;
-  if (!rec || !can) { toast('Pick something you\u2019ve saved first.', 'warn'); return; }
+  let rec = (AppState.userRecs || []).find(function(r) { return r.id === AppState.queryItemId; });
+  let can = rec ? AppState.canonicalById(rec.canonicalId) : null;
+  const typed = ((document.getElementById('q-item-search') || {}).value || '').trim();
+  if (!rec && !typed) { toast('Type what you\u2019re recommending, or pick something you\u2019ve saved.', 'warn'); return; }
+  if (!rec && looksLikeLink(typed)) { toast('Still reading the link \u2014 one moment.', 'warn'); return; }
   const targets = qChosen();
   if (!targets.length) { toast('Nobody is ticked.', 'warn'); return; }
   if (AppState.isDemoMode) { toast('Switch back to your account to send.', 'warn'); return; }
@@ -3890,6 +3934,28 @@ async function handleSendRecFromCircle(btn) {
   const out = document.getElementById('q-result');
   btn.disabled = true;
   const label = btn.textContent;
+
+  // SOMETHING NEW IS SAVED FIRST (v0.99.14), into this circle, through the
+  // same code the Save sheet uses - and only then sent. The Save sheet's
+  // order, for its reason: a failed send leaves it saved, never the reverse.
+  if (!rec) {
+    btn.textContent = 'Saving\u2026';
+    const circleEl = document.getElementById('q-circle');
+    const saved = await saveRecommendation({ name: typed,
+      loc: ((document.getElementById('q-new-loc') || {}).value || '').trim(),
+      note: ((document.getElementById('q-new-note') || {}).value || '').trim(),
+      circleId: circleEl ? circleEl.value : '' });
+    if (!saved) { btn.disabled = false; btn.textContent = label; return; }
+    rec = saved.rec;
+    can = saved.can;
+    // From here it IS saved: a second press sends this one, not a copy.
+    AppState.queryItemId = rec.id;
+    const box = document.getElementById('q-item-search');
+    if (box) box.value = '';
+    const res = document.getElementById('q-item-results');
+    if (res) res.style.display = 'none';
+    qShowNewFields('');
+  }
   btn.textContent = 'Sending\u2026';
 
   const r = await sendRecToMany(rec, can, targets);
@@ -3904,7 +3970,7 @@ async function handleSendRecFromCircle(btn) {
   if (out) out.innerHTML = sendResultHtml(r);
   btn.disabled = false;
   btn.textContent = label;
-  qUpdateSendLabel();
+  qShowPickedItem();
   if (r.sent.length) { try { await loadUserData(); } catch (e) { /* view only */ } }
 }
 
@@ -8002,6 +8068,11 @@ function modalAddMember(params) {
 }
 
 function modalAddRec() {
+  // A fresh sheet starts with no link read, and none left over from a sheet
+  // that was closed without saving.
+  AR_LINK_READ = '';
+  AppState._ingestUrl = null;
+  AppState._ingestImage = null;
   const allCircles = AppState.userCircles.concat(AppState.synCircles);
 
   const circlePickerHtml = allCircles.length === 0
@@ -8019,10 +8090,9 @@ function modalAddRec() {
   return '<div class="modal"><div class="modal-header"><div class="modal-title">Save a recommendation</div><button class="btn btn-ghost btn-icon" data-action="close-modal">✕</button></div>'
     + '<div class="modal-body">'
     + '<div class="field"><div class="field-label">HAVE A LINK? <span style="font-weight:400;color:#A8BDAF;">(TikTok, Booking, Maps, any page — optional)</span></div>'
-    + '<div style="display:flex;gap:8px;">'
-    + '<input class="field-input" id="ar-url" placeholder="Paste a link and let AI fill this form" style="flex:1;">'
-    + '<button class="btn btn-secondary" data-action="ingest-link" id="ar-url-btn" style="flex-shrink:0;">Fetch</button>'
-    + '</div></div>'
+    + '<input class="field-input" id="ar-url" type="url" inputmode="url" autocomplete="off" placeholder="Paste a link and we fill in the rest" style="width:100%;">'
+    + '<div id="ar-url-msg" style="font-size:12px;margin-top:6px;min-height:1em;color:#2A7258;"></div>'
+    + '</div>'
     + '<div class="field"><div class="field-label">WHAT ARE YOU RECOMMENDING?</div><input class="field-input" id="ar-name" placeholder="Restaurant, book, hotel, place…" maxlength="80"></div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
     + '<div class="field"><div class="field-label">CATEGORY</div><input class="field-input" id="ar-cat" placeholder="e.g. Restaurant, Book"></div>'
@@ -8742,7 +8812,7 @@ function modalFabMenu() {
   return '<div class="modal" style="max-width:420px;">'
     + '<div class="modal-body" style="padding-top:10px;gap:0;">'
     + opt('data-action="fab-save"', 'bmplus', 'Save recommendation', '')
-    + opt('data-action="fab-recommend"', 'send', 'Recommend to a circle', 'Something you\u2019ve saved')
+    + opt('data-action="fab-recommend"', 'send', 'Recommend to a circle', 'Something new, or from Saved')
     + '</div>'
     + '<div class="modal-footer"><button type="button" class="btn btn-secondary" data-action="close-modal" style="flex:1 1 auto;">Cancel</button></div>'
     + '</div>';
@@ -9971,20 +10041,14 @@ async function handleSaveMember() {
   renderApp();
 }
 
-async function handleSaveRec() {
-  const name = (document.getElementById('ar-name') || {}).value.trim();
-  const cat = (document.getElementById('ar-cat') || {}).value.trim();
-  const loc = (document.getElementById('ar-location') || {}).value.trim();
-  const note = (document.getElementById('ar-note') || {}).value.trim();
-  const tagsRaw = (document.getElementById('ar-tags') || {}).value || '';
-  const tags = tagsRaw.split(',').map(function(t) { return t.trim().toLowerCase().replace(/\s+/g,'-'); }).filter(Boolean);
-  const starsEl = document.getElementById('ar-stars');
-  const rating = starsEl ? (parseInt(starsEl.dataset.rating) || 5) : 5;
-  const circleEl = document.getElementById('ar-circle');
-  const circleId = circleEl ? circleEl.value : '';
-
-  if (!name) { toast('Please name what you\'re recommending.', 'warn'); return; }
-
+// ONE WAY TO SAVE (v0.99.14). The Save sheet and Recommend both put a new
+// thing into Saved, and two copies of "saved" would drift: this is the Save
+// sheet's own code, lifted out unchanged. Returns {rec, can, updated} -
+// updated when it was already saved - or null when the write failed, which
+// saveRecs has already told the person about.
+async function saveRecommendation(f) {
+  const name = f.name, cat = f.cat || '', loc = f.loc || '', note = f.note || '';
+  const tags = f.tags || [], rating = f.rating || 5, circleId = f.circleId || '';
   const emojiMap = { restaurant:'🍽️', book:'📖', film:'🎬', hotel:'🏨', doctor:'👩‍⚕️', wine:'🍷', bar:'🍷', place:'📍', museum:'🏛️' };
   const catLow = (cat || '').toLowerCase();
   const emoji = Object.keys(emojiMap).find(function(k){ return catLow.includes(k); });
@@ -10003,19 +10067,79 @@ async function handleSaveRec() {
     if (tags.length) dupRec.tags = tags;
     // saveRecs THROWS on failure now, so the success message below cannot
     // fire over a rejected write. It has already told the user why.
-    try { await saveRecs([dupRec.id]); } catch (e) { return; }
-    closeModal();
-    toast('"' + name + '" is already saved — updated it.');
-    renderApp();
-    return;
+    try { await saveRecs([dupRec.id]); } catch (e) { return null; }
+    return { rec: dupRec, can: AppState.canonicalById(canId), updated: true };
   }
   const newRec = { id: uid(), canonicalId: canId, circleId: circleId || '', recommendedBy: AppState.userProfile ? AppState.userProfile.id : 'user', note: note, rating: Math.min(5,Math.max(1,rating)), tags: tags, date: new Date().toISOString().split('T')[0], status: 'saved', degree: 1, isAnonymous: false, sharedToNetwork: shareDefault() };
   AppState.userRecs.push(newRec);
   await saveCanonicals(canId);
   // saveRecs THROWS on failure now, so the success message below cannot
   // fire over a rejected write. It has already told the user why.
-  try { await saveRecs([newRec.id]); } catch (e) { return; }
+  try { await saveRecs([newRec.id]); } catch (e) { return null; }
   requestClassify(canId, note);
+  return { rec: newRec, can: AppState.canonicalById(canId), updated: false };
+}
+
+// A PASTED LINK FILLS THE FORM (v0.99.14), in the Save sheet and on
+// Recommend, as on the answer page since r2.8 - dan, 13 Oct: "fetch is not a
+// good term". The same server call the Fetch button made.
+function looksLikeLink(v) { return /^https?:\/\/\S+\.\S+/i.test(String(v || '').trim()); }
+async function readPastedLink(url) {
+  let r;
+  try { r = await fnPost('ingest-link', { url: url }); }
+  catch (e) { r = { error: 'network' }; }
+  if (!r || r.error) return { error: (r && r.error) || 'unknown' };
+  AppState._ingestUrl = r.url || url;
+  AppState._ingestImage = (r.image_url && /^https?:\/\//i.test(r.image_url)) ? r.image_url : null;
+  return r;
+}
+let AR_LINK_READ = '';
+async function arReadLink(quiet) {
+  const urlEl = document.getElementById('ar-url');
+  const msg = document.getElementById('ar-url-msg');
+  const url = urlEl ? urlEl.value.trim() : '';
+  const say = function(t, isBad) { if (msg) { msg.textContent = t; msg.style.color = isBad ? '#B3261E' : '#2A7258'; } };
+  if (!url) { say(''); return; }
+  if (!looksLikeLink(url)) { if (!quiet) say('Paste a full link starting with http\u2026', true); return; }
+  if (url === AR_LINK_READ) return;
+  AR_LINK_READ = url;
+  say('Reading the link\u2026');
+  const r = await readPastedLink(url);
+  const now = document.getElementById('ar-url');
+  if (!now || now.value.trim() !== url) return;
+  if (r.error) { AR_LINK_READ = ''; say('Could not read that link (' + r.error + ') \u2014 fill it in yourself.', true); return; }
+  const setV = function(id, v) { const el = document.getElementById(id); if (el && v) el.value = v; };
+  setV('ar-name', r.name || r.source_title || '');
+  setV('ar-cat', r.category ? domainLabel(r.category) : '');
+  setV('ar-location', r.location || '');
+  setV('ar-note', r.note || '');
+  setV('ar-tags', (r.tags || []).join(', '));
+  say(r.needs_review ? 'Filled what I could \u2014 check the name before saving.' : 'Got it \u2014 check it over and save.');
+}
+
+async function handleSaveRec() {
+  const name = (document.getElementById('ar-name') || {}).value.trim();
+  const cat = (document.getElementById('ar-cat') || {}).value.trim();
+  const loc = (document.getElementById('ar-location') || {}).value.trim();
+  const note = (document.getElementById('ar-note') || {}).value.trim();
+  const tagsRaw = (document.getElementById('ar-tags') || {}).value || '';
+  const tags = tagsRaw.split(',').map(function(t) { return t.trim().toLowerCase().replace(/\s+/g,'-'); }).filter(Boolean);
+  const starsEl = document.getElementById('ar-stars');
+  const rating = starsEl ? (parseInt(starsEl.dataset.rating) || 5) : 5;
+  const circleEl = document.getElementById('ar-circle');
+  const circleId = circleEl ? circleEl.value : '';
+
+  if (!name) { toast('Please name what you\'re recommending.', 'warn'); return; }
+
+  const saved = await saveRecommendation({ name: name, cat: cat, loc: loc, note: note, tags: tags, rating: rating, circleId: circleId });
+  if (!saved) return;
+  if (saved.updated) {
+    closeModal();
+    toast('"' + name + '" is already saved — updated it.');
+    renderApp();
+    return;
+  }
+  const newRec = saved.rec;
 
   // ── AND SEND IT, IF THAT WAS ASKED FOR (v0.94.0) ──────────────────────
   // THE SAVE HAS ALREADY SUCCEEDED by this point, and that ordering is the
@@ -10024,7 +10148,7 @@ async function handleSaveRec() {
   // recommendation in someone's inbox for a row that was never written.
   const targets = arSendTargets();
   if (targets.length) {
-    const can = AppState.canonicalById(canId);
+    const can = saved.can;
     const r = await sendRecToMany(newRec, can, targets);
     closeModal();
     renderApp();
@@ -10588,31 +10712,6 @@ document.addEventListener('click', function(e) {
   else if (action === 'save-from-sheet') {
     handleSaveFromSheet(parseInt(target.dataset.sheetIdx, 10));
   }
-  else if (action === 'ingest-link') {
-    (async function() {
-      const urlEl = document.getElementById('ar-url');
-      const btn = document.getElementById('ar-url-btn');
-      const url = urlEl ? urlEl.value.trim() : '';
-      if (!/^https?:\/\/.+/i.test(url)) { toast('Paste a full link starting with http…', 'warn'); return; }
-      if (btn) { btn.disabled = true; btn.textContent = 'Reading…'; }
-      let r;
-      try { r = await fnPost('ingest-link', { url: url }); }
-      catch (e) { r = { error: 'network' }; }
-      if (btn) { btn.disabled = false; btn.textContent = 'Fetch'; }
-      if (!r || r.error) { toast('Could not read that link' + (r && r.error ? ' (' + r.error + ')' : '') + ' — fill it in manually.', 'warn'); return; }
-      const setV = function(id, v) { const el = document.getElementById(id); if (el && v) el.value = v; };
-      setV('ar-name', r.name || r.source_title || '');
-      setV('ar-cat', r.category ? domainLabel(r.category) : '');
-      setV('ar-location', r.location || '');
-      setV('ar-note', r.note || '');
-      setV('ar-tags', (r.tags || []).join(', '));
-      AppState._ingestUrl = r.url || url;
-      AppState._ingestImage = (r.image_url && /^https?:\/\//i.test(r.image_url)) ? r.image_url : null;
-      toast(r.needs_review
-        ? 'Filled what I could — please check the name before saving.'
-        : 'Got it — review and save.');
-    })();
-  }
   else if (action === 'retry-classify') {
     const rc = AppState.canonicalById(target.dataset.canId);
     if (rc) { rc._classifyFailed = null; AppState._classErrToasted = false; requestClassify(rc.id, ''); renderApp(); }
@@ -10946,6 +11045,10 @@ document.addEventListener('click', function(e) {
     const box = document.getElementById('q-item-search');
     if (res) res.style.display = 'none';
     if (box) box.value = '';
+    // It is already saved: a link read for something new no longer applies.
+    AppState._ingestUrl = null;
+    AppState._ingestImage = null;
+    qShowNewFields('');
     qShowPickedItem();
   }
   else if (action === 'q-clear-item') {
@@ -11133,6 +11236,14 @@ document.addEventListener('click', function(e) {
 });
 
 // Library search — update only the results, never re-render the whole view
+document.addEventListener('paste', function(e) {
+  const id = e.target && e.target.id;
+  if (id === 'ar-url') setTimeout(function() { arReadLink(true); }, 0);
+  if (id === 'q-item-search') setTimeout(function() { const b = document.getElementById('q-item-search'); if (b && looksLikeLink(b.value)) { qShowNewFields(b.value); qReadLink(); } }, 0);
+});
+document.addEventListener('change', function(e) {
+  if (e.target && e.target.id === 'ar-url') { clearTimeout(window._arLinkT); arReadLink(false); }
+});
 document.addEventListener('input', function(e) {
   if (e.target && e.target.id === 'nm-phone' && /[\u200e\u200f\u202a-\u202e\u2066-\u2069]/.test(e.target.value)) {
     e.target.value = e.target.value.replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '').trim();
@@ -11151,12 +11262,21 @@ document.addEventListener('input', function(e) {
     return;
   }
   if (e.target && e.target.id === 'q-item-search') {
+    // Typing again means something else: drop what was picked.
+    if (AppState.queryItemId) { AppState.queryItemId = null; qShowPickedItem(); }
+    const v = (e.target.value || '').trim();
     const res = document.getElementById('q-item-results');
     if (res) {
-      const v = (e.target.value || '').trim();
-      res.innerHTML = qItemResultsHtml(v);
-      res.style.display = v ? 'block' : 'none';
+      res.innerHTML = looksLikeLink(v) ? '' : qItemResultsHtml(v);
+      res.style.display = v && !looksLikeLink(v) ? 'block' : 'none';
     }
+    qShowNewFields(v);
+    if (looksLikeLink(v)) { clearTimeout(window._qLinkT); window._qLinkT = setTimeout(qReadLink, 500); }
+    return;
+  }
+  if (e.target && e.target.id === 'ar-url') {
+    clearTimeout(window._arLinkT);
+    window._arLinkT = setTimeout(function() { arReadLink(true); }, 600);
     return;
   }
   if (e.target && e.target.id === 'sr-search') {

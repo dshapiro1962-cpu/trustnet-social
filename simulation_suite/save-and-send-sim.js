@@ -220,8 +220,11 @@ console.log('\n== the edges ==\n');
 
 // ── 7. THE SAVE HAPPENS FIRST ───────────────────────────────────────────
 console.log('\n== save first, then send ==\n');
+// v0.99.14: the save is saveRecommendation, shared with Recommend. It returns
+// null when saveRecs fails, and handleSaveRec stops there - before any send.
 ck('the send runs only after saveRecs has succeeded',
-   /await saveRecs\(\[newRec\.id\]\)[\s\S]{0,900}arSendTargets\(\)/.test(live),
+   /try \{ await saveRecs\(\[newRec\.id\]\); \} catch \(e\) \{ return null; \}/.test(live)
+   && /const saved = await saveRecommendation\([\s\S]{0,160}if \(!saved\) return;[\s\S]{0,600}arSendTargets\(\)/.test(live),
    'sending first could put an item in an inbox for a row never written');
 ck('and it reuses sendRecToMany rather than a second implementation',
    /arSendTargets\(\)[\s\S]{0,400}sendRecToMany\(newRec/.test(live));

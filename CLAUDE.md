@@ -276,6 +276,17 @@ unsatisfactory"; dan marked 28 screens on the screen map, see the handover):
   signed in, so a stubbed visitor saw nothing to fail on. Those three are now
   also read from the file. A drawn-text guard must first prove the words it
   looks for are ON the screen it draws
+- `recommend-new-sim.js` — Recommend takes something NEW as well as
+  something from Saved (v0.99.14). Something typed is saved first - into the
+  circle on screen, through `saveRecommendation`, the Save sheet's own code
+  lifted into one function - and only then sent; the order is read off the
+  recorded wire. A pasted link fills Recommend and the Save sheet (no Fetch
+  left anywhere). Baseline `pre-recommend-new/`; control fails 24 of 31.
+  Two traps on the way: the app RELOADS FROM THE DATABASE after a send, so a
+  stub that answers `[]` wipes the screen and a later step fails for the
+  wrong reason (the sim counts reloads instead); and after a send everyone
+  it reached is UNTICKED, so a "second press" is a disabled button until the
+  test ticks them again
 
 Added 6 Oct:
 
