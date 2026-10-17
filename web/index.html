@@ -1076,6 +1076,19 @@ body {
 .tn-step.done .tn-step-t small { color: #77837D; }
 .tn-step-two { flex-basis: 100%; display: flex; gap: 8px; }
 .tn-step-two button { flex: 1; min-height: 40px; border-radius: 20px; background: #fff; color: #1D5A45; font-weight: 700; font-size: 15px; }
+/* A step not reached yet (v0.99.16): open to tap, nothing locked, quieter than the one you are on. */
+.tn-step.todo { background: #fff; box-shadow: inset 0 0 0 1.5px #D9E2DC; cursor: pointer; }
+.tn-step.todo .tn-step-i { background: #E6EFEA; color: #1D5A45; }
+.tn-step.todo .tn-step-t b { color: #161E1A; }
+.tn-step.todo .tn-step-t small { color: #77837D; }
+.tn-step.todo .tn-step-two button { background: #E6EFEA; color: #1D5A45; }
+/* The arrow between steps: one thing after another, like checking in for a flight. */
+.tn-step-arrow { display: flex; justify-content: center; height: 16px; margin: -6px 0; color: #A9BDB2; }
+.tn-step-arrow svg { width: 18px; height: 18px; transform: rotate(90deg); }
+/* Colour as colour, not as a code (dan, 13 Oct). */
+.tn-swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+.tn-swatch { width: 34px; height: 34px; border-radius: 50%; border: 0; cursor: pointer; box-shadow: inset 0 0 0 2px rgba(0,0,0,0.06); }
+.tn-swatch.on { box-shadow: 0 0 0 3px #fff, 0 0 0 5px #161E1A; }
 
 /* ═══ the menu: everything a phone could not reach ═══ */
 #tn-menu { position: fixed; inset: 0; z-index: 1050; }
@@ -2524,7 +2537,7 @@ const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
 // The Trustnet business number, in one place: the invite join and the
 // sign-in both open WhatsApp with it.
 const TN_WA_NUMBER = '972587786049';
-const APP_VERSION = 'v0.99.15 · live';
+const APP_VERSION = 'v0.99.16 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -2818,15 +2831,25 @@ function renderOnboarding(withIntro) {
   if (AppState.isDemoMode || !AppState.userProfile) return '';
   const st = onboardingSteps();
   if (st.allDone) return '';
+  // THREE STEPS, IN ORDER, NONE LOCKED (v0.99.16). dan, 13 Oct: "change the
+  // order 1. create your first circle ... 2. put trusnet on your home screen
+  // 3. ask or reccomend. should put arrows between the stages to make clear
+  // they are steps in a process"; 15 Oct: "for now no lock". Adding friends
+  // is part of the first step now, not a step of its own. The home-screen
+  // step is only offered on a phone, so a computer sees two.
   const fc = st.firstCircle;
   const homeStep = st.wantsHome || st.onHomeScreen;
-  const stepNo = (st.wantsHome ? 1 : (!st.hasCircle ? 1 : (!st.hasPeople ? 2 : 3)) + (homeStep ? 1 : 0));
-  const stepTotal = homeStep ? 4 : 3;
-  const on = function(tag, icon, title, sub, attrs) {
-    return '<button type="button" class="tn-step on" ' + attrs + '>'
-      + '<span class="tn-step-tag">' + tag + '</span>'
+  const people = AppState.userMembers.filter(function(m) { return !m.isExternalSource; });
+  const c1done = st.hasCircle && st.hasPeople;
+  const cur = !c1done ? 1 : ((homeStep && !st.onHomeScreen) ? 2 : 3);
+  const stepTotal = homeStep ? 3 : 2;
+  const stepNo = homeStep ? cur : (cur === 1 ? 1 : 2);
+  const cls = function(n) { return n === cur ? 'on' : 'todo'; };
+  const tagFor = function(n) { return n === cur ? '<span class="tn-step-tag">' + (n === 1 ? 'Start here' : 'Next') + '</span>' : ''; };
+  const card = function(n, icon, title, sub, attrs) {
+    return '<button type="button" class="tn-step ' + cls(n) + '" ' + attrs + '>' + tagFor(n)
       + '<span class="tn-step-i">' + tnIcon(icon, 2.2) + '</span>'
-      + '<span class="tn-step-t"><b>' + title + '</b><small>' + sub + '</small></span>'
+      + '<span class="tn-step-t"><b dir="auto">' + title + '</b><small>' + sub + '</small></span>'
       + tnIcon('chev', 2) + '</button>';
   };
   const done = function(title, sub, attrs) {
@@ -2836,63 +2859,41 @@ function renderOnboarding(withIntro) {
       + (attrs ? '<button type="button" class="btn btn-ghost btn-sm" ' + attrs + '>Open</button>' : '')
       + '</div>';
   };
-  // A LOCKED STEP THAT TEACHES. While the home screen is outstanding the rest
-  // are locked - dan: "like with a real app it should gate" - but tapping one
-  // opens the sheet that explains how to pass it, rather than doing nothing.
-  const locked = function(title, sub, gated) {
-    const attrs = gated ? ' data-action="open-modal" data-modal="home-screen"' : '';
-    return '<' + (gated ? 'button type="button"' : 'div') + ' class="tn-step"' + attrs + '>'
-      + '<span class="tn-step-i">' + tnIcon('lock', 1.9) + '</span>'
-      + '<span class="tn-step-t"><b>' + title + '</b><small>' + sub + '</small></span>'
-      + '</' + (gated ? 'button' : 'div') + '>';
-  };
-  const gate = st.wantsHome;
-  const s0 = st.onHomeScreen
-    ? done('On your home screen', 'Opens like an app')
-    : (st.wantsHome
-        ? on('Start here', 'bmplus',
-             st.platform.inWhatsApp ? 'Open Trustnet in your browser' : 'Put Trustnet on your home screen',
-             st.platform.inWhatsApp ? 'WhatsApp cannot keep it \u2014 your browser can'
-                                    : 'Two taps \u2014 it then opens like an app',
-             'data-action="open-modal" data-modal="home-screen"')
-        : '');
 
-  const s1 = gate
-    ? locked('Create your first circle', 'Once Trustnet is on your home screen', true)
-    : !st.hasCircle
-    ? on('Start here', 'plus', 'Create your first circle', 'Name it for what you\u2019d ask about',
-         'data-action="open-modal" data-modal="add-circle"')
-    : done(esc(fc.name), 'Your first circle',
-           'data-action="nav" data-view="circle-detail" data-circle-id="' + esc(fc.id) + '"');
-  const people = AppState.userMembers.filter(function(m) { return !m.isExternalSource; });
-  const s2 = gate
-    ? locked('Add friends', 'Once Trustnet is on your home screen', true)
-    : !st.hasCircle
-    ? locked('Add friends', 'Opens once your circle exists')
-    : (!st.hasPeople
-        ? on('Next', 'userplus', 'Add friends', 'People you\u2019d trust with ' + esc(fc.name),
-             'data-action="open-modal" data-modal="add-member" data-circle-id="' + esc(fc.id) + '"')
-        : done(people.length === 1 ? esc(people[0].name) : people.length + ' people in your circles',
-               'Added', ''));
-  const s3 = gate
-    ? locked('Ask or recommend', 'Once Trustnet is on your home screen', true)
-    : !(st.hasCircle && st.hasPeople)
-    ? locked('Ask or recommend', 'Opens once someone\u2019s in your circle')
-    : '<div class="tn-step on"><span class="tn-step-tag">Next</span>'
+  const s1 = c1done
+    ? done(esc(fc.name), (people.length === 1 ? esc(people[0].name) : people.length + ' people') + ' \u00b7 your first circle',
+           'data-action="nav" data-view="circle-detail" data-circle-id="' + esc(fc.id) + '"')
+    : (st.hasCircle
+        ? card(1, 'userplus', 'Add friends to ' + esc(fc.name), 'Your circle is ready \u2014 add the people you\u2019d ask',
+               'data-action="open-modal" data-modal="add-member" data-circle-id="' + esc(fc.id) + '" data-flow="new-circle"')
+        : card(1, 'plus', 'Create your first circle', 'Name it, then add the friends you\u2019d ask',
+               'data-action="open-modal" data-modal="add-circle"'));
+  const s2 = !homeStep ? '' : (st.onHomeScreen
+    ? done('On your home screen', 'Opens like an app', '')
+    : card(2, 'bmplus',
+           st.platform.inWhatsApp ? 'Open Trustnet in your browser' : 'Put Trustnet on your home screen',
+           st.platform.inWhatsApp ? 'WhatsApp cannot keep it \u2014 your browser can' : 'Two taps \u2014 it then opens like an app',
+           'data-action="open-modal" data-modal="home-screen"'));
+  const cAttr = fc ? ' data-circle-id="' + esc(fc.id) + '"' : '';
+  const s3 = st.hasActed ? done('Asked or recommended', 'Done', '')
+    : '<div class="tn-step ' + cls(3) + '">' + tagFor(3)
       + '<span class="tn-step-i">' + tnIcon('chat', 2) + '</span>'
       + '<span class="tn-step-t"><b>Ask or recommend</b><small>A first question, or something you love</small></span>'
       + '<span class="tn-step-two">'
-      + '<button type="button" data-action="tn-go-query" data-mode="ask" data-circle-id="' + esc(fc.id) + '">Ask</button>'
-      + '<button type="button" data-action="tn-go-query" data-mode="recommend" data-circle-id="' + esc(fc.id) + '">Recommend</button>'
+      + '<button type="button" data-action="tn-go-query" data-mode="ask"' + cAttr + '>Ask</button>'
+      + '<button type="button" data-action="tn-go-query" data-mode="recommend"' + cAttr + '>Recommend</button>'
       + '</span></div>';
+  const arrow = '<div class="tn-step-arrow" aria-hidden="true">' + tnIcon('chev', 2.4) + '</div>';
 
   return (withIntro
       ? '<div class="tn-intro"><div class="tn-intro-big">Ask &amp; share</div>'
         + '<p class="tn-intro-sub">recommendations with the people you trust.</p></div>'
       : '')
-    + filmCardHtml()
+    // The film is for someone who has not started: once a circle exists it
+    // goes (dan, 13 Oct: "we dont need the reel on home"). /film keeps it.
+    + (st.hasCircle ? '' : filmCardHtml())
     + '<div class="tn-sl tn-steps-h" id="onboarding-card">Let\u2019s get started <span>Step ' + stepNo + ' of ' + stepTotal + '</span></div>'
-    + '<div class="tn-steps">' + s0 + s1 + s2 + s3 + '</div>';
+    + '<div class="tn-steps">' + [s1, s2, s3].filter(Boolean).join(arrow) + '</div>';
 }
 
 function renderHome() {
@@ -6286,8 +6287,7 @@ function modalEditCircle(params) {
   if (!c) return '<div class="modal"><div class="modal-body">Circle not found.</div></div>';
   const domainOptions = ['dining','travel','healthcare','home','culture','hobbies','professional','other']
     .map(function(d) { return '<option value="' + d + '"' + (c.domain === d ? ' selected' : '') + '>' + domainLabel(d) + '</option>'; }).join('');
-  const colorOptions = ['#1D5A45','#1A6FA8','#C0392B','#E8A020','#8B2FC9','#2D6A8A','#3D4F46','#E67E22']
-    .map(function(col) { return '<option value="' + col + '"' + (c.color === col ? ' selected' : '') + '>' + col + '</option>'; }).join('');
+  const colorOptions = colourSwatchesHtml('ec-color', c.color || '#1D5A45');
   return '<div class="modal" style="max-width:440px;">'
     + '<div class="modal-header"><div class="modal-title">Edit \u201c' + esc(c.name) + '\u201d</div>'
     + '<button class="modal-close" data-action="close-modal">\u00d7</button></div>'
@@ -6304,7 +6304,7 @@ function modalEditCircle(params) {
     + '<div style="font-size:11px;color:#7A9086;margin-top:4px;line-height:1.4;">'
     + 'The circle will only receive suggestions from there. Clear it to accept '
     + 'them from anywhere.</div></details>'
-    + '<div class="field"><div class="field-label">COLOUR</div><select class="field-input field-select" id="ec-color" style="width:100%;">' + colorOptions + '</select></div>'
+    + '<div class="field"><div class="field-label">COLOUR</div>' + colorOptions + '</div>'
     + '<button class="btn btn-primary" data-action="save-edit-circle" data-circle-id="' + esc(c.id) + '" style="width:100%;justify-content:center;">Save changes</button>'
     + '</div></div>';
 }
@@ -7707,13 +7707,28 @@ function modalFileSuggestion(params) {
     + '</div></div>';
 }
 
+// COLOUR AS COLOUR (v0.99.16). dan, 13 Oct: "colour should show actual
+// colours not a code". The same eight; a hidden input keeps the id the save
+// code has always read.
+const CIRCLE_COLOURS = ['#1D5A45','#1A6FA8','#C0392B','#E8A020','#8B2FC9','#2D6A8A','#3D4F46','#E67E22'];
+function colourSwatchesHtml(inputId, current) {
+  const cur = CIRCLE_COLOURS.indexOf(current) > -1 ? current : CIRCLE_COLOURS[0];
+  return '<div class="tn-swatches" role="radiogroup" aria-label="Colour">'
+    + CIRCLE_COLOURS.map(function(c) {
+        return '<button type="button" class="tn-swatch' + (c === cur ? ' on' : '') + '" role="radio"'
+          + ' aria-checked="' + (c === cur ? 'true' : 'false') + '" aria-label="Colour ' + c + '"'
+          + ' data-action="pick-colour" data-target="' + inputId + '" data-colour="' + c + '"'
+          + ' style="background:' + c + ';"></button>';
+      }).join('')
+    + '</div><input type="hidden" id="' + inputId + '" value="' + cur + '">';
+}
+
 function modalAddCircle() {
   const domainOptions = ['dining','travel','healthcare','home','culture','hobbies','professional','other']
     .map(function(d) { return '<option value="' + d + '">' + domainLabel(d) + '</option>'; }).join('');
-  const colorOptions = ['#1D5A45','#1A6FA8','#C0392B','#E8A020','#8B2FC9','#2D6A8A','#3D4F46','#E67E22']
-    .map(function(c) { return '<option value="' + c + '">' + c + '</option>'; }).join('');
+  const colorOptions = colourSwatchesHtml('nc-color', '#1D5A45');
 
-  return '<div class="modal"><div class="modal-header"><div class="modal-title">New Circle</div><button class="btn btn-ghost btn-icon" data-action="close-modal">✕</button></div>'
+  return '<div class="modal"><div class="modal-header"><div class="modal-title">New circle</div><button class="btn btn-ghost btn-icon" data-action="close-modal">✕</button></div>'
     + '<div class="modal-body">'
     + '<div class="field"><div class="field-label">NAME</div><input class="field-input" id="nc-name" placeholder="e.g. Dining" maxlength="40"></div>'
     + '<div class="field"><div class="field-label">TOPIC</div><select class="field-input field-select" id="nc-domain">' + domainOptions + '</select></div>'
@@ -7734,9 +7749,9 @@ function modalAddCircle() {
     + '<div style="font-size:11px;color:#7A9086;margin-top:4px;line-height:1.4;">'
     + 'The circle will only receive suggestions from there. Leave this closed '
     + 'and it accepts them from anywhere.</div></details>'
-    + '<div class="field"><div class="field-label">COLOUR</div><select class="field-input field-select" id="nc-color">' + colorOptions + '</select></div>'
+    + '<div class="field"><div class="field-label">COLOUR</div>' + colorOptions + '</div>'
     + '</div>'
-    + '<div class="modal-footer"><button class="btn btn-secondary" data-action="close-modal">Cancel</button><button class="btn btn-primary" data-action="save-circle">Create Circle</button></div>'
+    + '<div class="modal-footer"><button class="btn btn-secondary" data-action="close-modal">Cancel</button><button class="btn btn-primary" data-action="save-circle">Create circle</button></div>'
     + '</div>';
 }
 
@@ -7805,8 +7820,11 @@ function personResultHtml(p, circleId) {
 async function refreshPeopleSearch() {
   const box = document.getElementById('nm-search-results');
   if (!box) return;
-  const q = (document.getElementById('nm-search') || {}).value || '';
+  const q = ((document.getElementById('nm-search') || document.getElementById('nm-name') || {}).value || '').trim();
   const circleId = (document.querySelector('.modal-body') || { dataset: {} }).dataset.circleId || '';
+  // Under the name it waits for two letters, and says nothing when there is
+  // no one: typing someone new is the ordinary case, not a miss.
+  if (!document.getElementById('nm-search') && q.length < 2) { box.innerHTML = ''; return; }
   try {
     const people = await searchMyPeople(q);
     const note = document.getElementById('nm-search-note');
@@ -7815,7 +7833,7 @@ async function refreshPeopleSearch() {
       // AND IT POINTS SOMEWHERE. "Nobody of yours matches" was a dead end: it
       // named the failure and stopped, while the two things you actually do
       // next sat directly underneath it unmentioned.
-      if (note) {
+      if (note && document.getElementById('nm-search')) {
         note.innerHTML = q
           ? 'No one of yours is called \u201c' + esc(q) + '\u201d yet. Add them below.'
           : 'You have not added anyone yet.';
@@ -7824,7 +7842,9 @@ async function refreshPeopleSearch() {
       return;
     }
     if (note) note.style.display = 'none';
-    box.innerHTML = people.map(function(p) { return personResultHtml(p, circleId); }).join('');
+    box.innerHTML = (document.getElementById('nm-search') ? ''
+        : '<div class="tn-sl" style="margin:4px 0 6px;">Already in your circles</div>')
+      + people.map(function(p) { return personResultHtml(p, circleId); }).join('');
   } catch (e) {
     // NEVER silently show an empty list on failure — that is how a crash came
     // to look identical to "this person is not on Trustnet".
@@ -7836,76 +7856,17 @@ async function refreshPeopleSearch() {
   }
 }
 
-// ═══ PASTE A NUMBER (v0.95.0) ═══════════════════════════════════════════════
-// dan: "add the paste function for people who never join". A web page on an
-// iPhone cannot open your contacts - Apple keeps the picker switched off - and
-// nobody here uses Safari anyway. The clipboard is the shortcut: copy the
-// number in Contacts or WhatsApp, one tap here.
-//
-// It FEEDS THE SAME FORM "+ Add someone new" opens, and saves through the same
-// handler. Who this person is gets decided exactly as before, by the number,
-// on the server - this only saves the typing.
-function pastedPhone(raw) {
-  // Hebrew phones wrap a copied number in invisible direction marks; they are
-  // not digits and would stop the number parsing.
-  const t = String(raw || '').replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, ' ');
-  const m = t.match(/\+?\d[\d\s\-().\/]{6,}\d/);
-  if (!m) return null;
-  const r = toE164(m[0], 'IL');
-  if (!r.ok || !r.e164 || r.e164.charAt(0) !== '+') return null;
-  let iso = 'IL', national = r.e164;
-  const L = phoneLib();
-  if (L) {
-    try {
-      const p = L.parsePhoneNumber(r.e164);
-      if (p) { iso = p.country || 'IL'; national = String(p.nationalNumber || national); }
-    } catch (e) { /* keep the E.164; the save path re-parses it */ }
-  }
-  return { e164: r.e164, iso: iso, national: national, display: phoneNational(r.e164) };
-}
-
-async function handlePasteNumber() {
-  let text = '';
-  // Reading the clipboard needs this tap. Some in-app browsers refuse it;
-  // then the number box opens instead, and a long-press pastes into it.
-  try {
-    if (navigator.clipboard && navigator.clipboard.readText) text = await navigator.clipboard.readText();
-  } catch (e) { text = ''; }
-  const sp = document.getElementById('nm-search-pane');
-  const fp = document.getElementById('nm-form-pane');
-  const saveBtn = document.getElementById('nm-save-btn');
-  if (sp) sp.style.display = 'none';
-  if (fp) fp.style.display = 'block';
-  if (saveBtn) saveBtn.style.display = 'inline-flex';
-  // A number is reached on WhatsApp. Pressing the real segment runs the real
-  // handler, so the form shows exactly what it shows when you pick it by hand.
-  const wa = document.querySelector('[data-action="pick-segment"][data-picker-id="nm-method"][data-value="whatsapp"]');
-  if (wa) wa.click();
-  const note = document.getElementById('nm-paste-note');
-  const phoneEl = document.getElementById('nm-phone');
-  const countryEl = document.getElementById('nm-country');
-  const nojoin = '<div class="tn-nojoin">' + tnIcon('chat') + '<span>They never have to join. When you ask this circle, they get it on WhatsApp and answer from the link.</span></div>';
-  const got = pastedPhone(text);
-  if (got) {
-    if (countryEl) countryEl.value = got.iso;
-    if (phoneEl) phoneEl.value = got.national;
-    if (note) note.innerHTML = '<div class="tn-pasted">' + tnIcon('check', 2.4) + 'Pasted ' + esc(got.display) + '</div>' + nojoin;
-    const nameEl = document.getElementById('nm-name');
-    if (nameEl) nameEl.focus();
-  } else {
-    if (note) note.innerHTML = '<div class="tn-pasted warn">'
-      + (text ? 'What you copied isn\u2019t a phone number. ' : '')
-      + 'Press and hold the number box below, then Paste.</div>' + nojoin;
-    if (phoneEl) phoneEl.focus();
-  }
-}
 
 function modalAddMember(params) {
   const circleId = params && params.circleId ? params.circleId : (AppState.viewParams.circleId || '');
   const circle = AppState.circleById(circleId);
   const editId = params && params.editMemberId ? params.editMemberId : '';
   const em = editId ? AppState.userMembers.find(function(x) { return x.id === editId; }) : null;
-  const emMethod = em ? (em.contactMethod || '') : '';
+  // Someone new starts on WhatsApp, the picker's own default - so the box
+  // under it must be the number box. It was the EMAIL box (found 17 Oct): the
+  // picker said WhatsApp, the field said THEIR EMAIL, and a number typed there
+  // was refused with "Please enter their WhatsApp number".
+  const emMethod = em ? (em.contactMethod || '') : 'whatsapp';
   // Always visible: every person MUST have a contact, because the contact IS
   // the identity. A member with none can never be matched or invited.
   const emContactVisible = !em || !em.isExternalSource;
@@ -7957,12 +7918,6 @@ function modalAddMember(params) {
     { value: 'linkedin',  icon: '🔗', label: 'LinkedIn'  }
   ], (em && !em.isExternalSource && emMethod) ? emMethod : 'whatsapp');
 
-  const ratePicker = segmentedPicker('nm-rate', [
-    { value: 'high',   label: '🟢 High'   },
-    { value: 'medium', label: '🟡 Medium' },
-    { value: 'low',    label: '🔴 Low'    }
-  ], (em && ['high','medium','low'].indexOf(em.responseRate) >= 0) ? em.responseRate : 'high');
-
   const sourceTypePicker = segmentedPicker('nm-srctype', [
     { value: 'critic',      label: '✍️ Critic'      },
     { value: 'publication', label: '📰 Publication' },
@@ -7983,13 +7938,17 @@ function modalAddMember(params) {
   // Person fields
   const isSourceEdit = !!(em && em.isExternalSource);
   const personFields = '<div id="nm-person-fields" style="display:' + (isSourceEdit ? 'none' : 'flex') + ';flex-direction:column;gap:14px;">'
-    + '<div id="nm-paste-note"></div>'
     + ((!editId && typeof navigator !== 'undefined' && navigator.contacts && navigator.contacts.select)
         ? '<div style="margin-bottom:10px;"><button type="button" class="btn btn-secondary btn-sm" data-action="pick-contacts">Pick from contacts</button>'
           + '<span style="font-size:11px;color:#7A9086;margin-inline-start:8px;">choose one or many \u2014 Trustnet only sees who you pick</span>'
           + '<div id="pc-review"></div></div>'
         : '')
-    + '<div class="field"><div class="field-label">FULL NAME</div><input class="field-input" id="nm-name" placeholder="e.g. Yael Ben-David" maxlength="60" value="' + esc(em && !isSourceEdit ? em.name : '') + '"></div>'
+    // TYPING A NAME FINDS YOUR PEOPLE (v0.99.16). dan, 13 Oct: "when you start
+    // typing name should show list like was in 'who do you want to add'".
+    // The search that had a screen of its own now sits under the name.
+    + '<div class="field"><div class="field-label">FULL NAME</div><input class="field-input" id="nm-name" placeholder="e.g. Yael Ben-David" maxlength="60" autocomplete="off" value="' + esc(em && !isSourceEdit ? em.name : '') + '">'
+    + (editId ? '' : '<div id="nm-search-results" style="margin-top:8px;max-height:min(40vh,260px);overflow-y:auto;-webkit-overflow-scrolling:touch;"></div>')
+    + '</div>'
     + '<div class="field"><div class="field-label">NOTES</div><textarea class="field-input field-textarea" id="nm-trust" placeholder="e.g. Food journalist, same taste in wine. Or: Managed her team for 3 years." style="min-height:60px;">' + esc(em && !isSourceEdit ? (em.trustBasis || '') : '') + '</textarea></div>'
     + '<div class="field"><div class="field-label">HOW TO REACH THEM</div>' + methodPicker + '</div>'
     + '<div class="field" id="nm-contact-wrap" style="display:' + (emContactVisible ? 'block' : 'none') + ';">'
@@ -8005,7 +7964,9 @@ function modalAddMember(params) {
       + '<input class="field-input" id="nm-contact" placeholder="' + emContactPh + '" maxlength="80" style="display:' + (emIsPhone ? 'none' : 'block') + ';" value="' + esc(em && !isSourceEdit ? (em.contactValue || '') : '') + '">'
       + '<div id="nm-phone-hint" style="font-size:11px;color:#7A9086;margin-top:5px;">Queries you send will be delivered here.</div>'
       + '</div>'
-    + '<div class="field"><div class="field-label">RESPONSE RATE</div>' + ratePicker + '</div>'
+    // No RESPONSE RATE (dan, 13 Oct: "unnecessary"). The value a member already
+    // has is kept, so editing someone does not quietly change it.
+    + '<input type="hidden" id="nm-rate" value="' + esc((em && ['high','medium','low'].indexOf(em.responseRate) >= 0) ? em.responseRate : 'high') + '">'
     + '</div>';
 
   // External source fields
@@ -8025,35 +7986,22 @@ function modalAddMember(params) {
   // save — and only THEN discover the person was already known. dan's flow is
   // search-first: type a name, see every match WITH contacts and status, choose.
   // The name only helps you FIND; the contact decides identity.
-  const searchPane = editId ? '' : ('<div id="nm-search-pane" style="display:flex;flex-direction:column;gap:10px;">'
-    + '<div class="field"><div class="field-label">WHO DO YOU WANT TO ADD?</div>'
-    + '<input class="field-input" id="nm-search" data-action="search-people" placeholder="Start typing a name\u2026" autocomplete="off">'
-    // THE REPLY TO WHAT YOU TYPED, under what you typed (v0.99.3).
-    + '<div id="nm-search-note" style="display:none;font-size:13.5px;color:#46564E;margin-top:8px;" dir="auto"></div></div>'
-    // PASTE A NUMBER (v0.95.0) - for someone who will never join.
-    + '<button type="button" class="tn-paste" data-action="paste-number">'
-    + '<span class="tn-paste-i">' + tnIcon('clip', 2) + '</span>'
-    + '<span class="tn-row-b"><span class="tn-t1" style="display:block;">Paste a number</span>'
-    + '<span class="tn-t2" style="display:block;white-space:normal;">Copied from Contacts or WhatsApp</span></span>'
-    + tnIcon('chev', 2) + '</button>'
-    // Capped and scrollable. It had NO height limit, so an unfiltered list grew
-    // past the modal's overflow:hidden and pushed the footer — and the tab bar
-    // — out of view. With the search bound correctly this is usually one or two
-    // rows, but a guard costs nothing.
-    + '<div id="nm-search-results" style="max-height:min(46vh,300px);overflow-y:auto;'
-    + '-webkit-overflow-scrolling:touch;"></div>'
-    + '<button type="button" class="btn btn-secondary btn-sm" data-action="add-new-person" style="align-self:flex-start;">'
-    + '+ Add someone new</button>'
-    + '</div>');
+  // STRAIGHT TO THE FORM (v0.99.16). dan, 13 Oct: "this stage is very
+  // confusing and not necessary when the user toggles add freind should go
+  // straight to s26". The new-circle flow keeps the sheet open after each
+  // person, so a circle can be filled without starting over each time.
+  const flow = !editId && params && params.flow === 'new-circle';
+  AppState._friendsFlow = flow ? circleId : null;
+  const justAdded = flow && params.justAdded ? String(params.justAdded) : '';
 
   return '<div class="modal"><div class="modal-header">'
-    + '<div><div class="modal-title">' + (em ? 'Edit ' + esc(em.name) : 'Add to ' + esc(circle ? circle.name : 'Circle')) + '</div>'
-    + '<div style="font-size:11px;color:#7A9086;margin-top:2px;">' + (em ? 'Update their details' : 'A trusted contact or an external source you rely on') + '</div></div>'
+    + '<div><div class="modal-title" dir="auto">' + (em ? 'Edit ' + esc(em.name) : (flow ? 'Add friends to ' : 'Add to ') + esc(circle ? circle.name : 'Circle')) + '</div>'
+    + '<div style="font-size:11px;color:#7A9086;margin-top:2px;">' + (em ? 'Update their details' : (flow ? 'Your circle is ready \u2014 add the people you\u2019d ask' : 'A trusted contact or an external source you rely on')) + '</div></div>'
     + '<button class="btn btn-ghost btn-icon" data-action="close-modal">✕</button>'
     + '</div>'
     + '<div class="modal-body" data-circle-id="' + esc(circleId) + '" data-edit-id="' + esc(editId) + '">'
-    + searchPane
-    + '<div id="nm-form-pane" style="display:' + (editId ? 'block' : 'none') + ';">'
+    + (justAdded ? '<div class="tn-nojoin" style="margin-bottom:12px;" dir="auto">' + tnIcon('check', 2.4) + '<span>' + esc(justAdded) + ' added. Add someone else, or tap Done.</span></div>' : '')
+    + '<div id="nm-form-pane" style="display:block;">'
     + (em ? typeToggleFinal : '<div class="field"><div class="field-label">TYPE</div>' + typeToggleFinal + '</div>')
     + personFields
     // The same picker the invite dialog uses. Adding someone should let you
@@ -8067,8 +8015,8 @@ function modalAddMember(params) {
     + '<div class="modal-footer">'
     // Remove lives here since the circle page became a row of faces (v0.95.0).
     + (em ? '<button class="btn btn-ghost" data-action="remove-member" data-member-id="' + esc(em.id) + '" style="color:#B3261E;margin-right:auto;">Remove</button>' : '')
-    + '<button class="btn btn-secondary" data-action="close-modal">Cancel</button>'
-    + '<button class="btn btn-primary" id="nm-save-btn" data-action="save-member" style="display:' + (editId ? 'inline-flex' : 'none') + ';">' + (em ? 'Save changes' : 'Add') + '</button></div>'
+    + '<button class="btn btn-secondary" data-action="close-modal">' + (flow ? (justAdded ? 'Done' : 'Skip for now') : 'Cancel') + '</button>'
+    + '<button class="btn btn-primary" id="nm-save-btn" data-action="save-member" style="display:inline-flex;">' + (em ? 'Save changes' : 'Add') + '</button></div>'
     + '</div>';
 }
 
@@ -9066,9 +9014,13 @@ async function handleSaveCircle() {
   // The circle is about what its owner just called it. Doing this here rather
   // than only on the next load means it works from the moment it is created.
   try { await seedCircleInterestsFromNames(); } catch (e) { console.error('seed on create', e); }
-  closeModal();
-  toast('Circle "' + name + '" created!');
-  showView('circle-detail', { circleId: newCircle.id });
+  // NEW CIRCLE, THEN ITS FRIENDS, IN ONE SHEET (v0.99.16). dan, 13 Oct: "we
+  // have to change the creat circle stage to include adding a freind". From
+  // Home the steps stay behind it, so they show what is next once it closes;
+  // from anywhere else it is the circle's own page, as before.
+  if (AppState.currentView !== 'home') showView('circle-detail', { circleId: newCircle.id });
+  else renderApp();
+  openModal('add-member', { circleId: newCircle.id, flow: 'new-circle' });
 }
 
 // Adding someone you ALREADY KNOW to another circle: no form, no retyping, no
@@ -9181,6 +9133,11 @@ async function handleAddExistingPerson(btn) {
     await saveMembers([built.member.id]);
     await linkMemberOnServer(built.member.id);
     await loadUserData();
+    if (AppState._friendsFlow && AppState._friendsFlow === circleId) {
+      renderApp();
+      openModal('add-member', { circleId: circleId, flow: 'new-circle', justAdded: person.data.name || '' });
+      return;
+    }
     closeModal();
     renderApp();
     toast('Added to this circle.');
@@ -10042,6 +9999,11 @@ async function handleSaveMember() {
     console.error('link readback threw:', e);
   }
 
+  if (!editId && AppState._friendsFlow && AppState._friendsFlow === circleId) {
+    renderApp();
+    openModal('add-member', { circleId: circleId, flow: 'new-circle', justAdded: (newMember && newMember.name) || '' });
+    return;
+  }
   closeModal();
   renderApp();
 }
@@ -10608,6 +10570,16 @@ document.addEventListener('click', function(e) {
   else if (action === 'save-circle') {
     handleSaveCircle();
   }
+  else if (action === 'pick-colour') {
+    const inp = document.getElementById(target.dataset.target);
+    if (inp) inp.value = target.dataset.colour;
+    const group = target.parentElement;
+    if (group) group.querySelectorAll('.tn-swatch').forEach(function(b) {
+      const on = b === target;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+  }
   else if (action === 'open-fab') {
     openModal('fab-menu');
   }
@@ -10889,25 +10861,6 @@ document.addEventListener('click', function(e) {
   }
   else if (action === 'edit-interests') {
     openModal('interests', { circleId: target.dataset.circleId });
-  }
-  else if (action === 'search-people') {
-    refreshPeopleSearch();
-  }
-  else if (action === 'add-new-person') {
-    const sp = document.getElementById('nm-search-pane');
-    const fp = document.getElementById('nm-form-pane');
-    const sb2 = document.getElementById('nm-save-btn');
-    if (sp) sp.style.display = 'none';
-    if (fp) fp.style.display = 'block';
-    if (sb2) sb2.style.display = 'inline-flex';
-    // carry whatever they typed into the name field — they already typed it once
-    const typed = (document.getElementById('nm-search') || {}).value || '';
-    const nameEl = document.getElementById('nm-name');
-    if (nameEl && typed && !nameEl.value) nameEl.value = typed;
-    if (nameEl) nameEl.focus();
-  }
-  else if (action === 'paste-number') {
-    handlePasteNumber();
   }
   else if (action === 'pick-person') {
     handleAddExistingPerson(target);
@@ -11262,6 +11215,11 @@ document.addEventListener('input', function(e) {
   // seven cards overflowed the modal and pushed the footer and the tab bar off
   // screen. One binding, four symptoms.
   if (e.target && e.target.id === 'nm-search') {
+    clearTimeout(window._nmSearchDebounce);
+    window._nmSearchDebounce = setTimeout(refreshPeopleSearch, 180);
+    return;
+  }
+  if (e.target && e.target.id === 'nm-name' && document.getElementById('nm-search-results')) {
     clearTimeout(window._nmSearchDebounce);
     window._nmSearchDebounce = setTimeout(refreshPeopleSearch, 180);
     return;

@@ -303,6 +303,16 @@ unsatisfactory"; dan marked 28 screens on the screen map, see the handover):
   first control stopped at step one (the old email box was hidden) and so
   exercised almost nothing; every interaction now records a failure and
   carries on
+- `first-run-sim.js` — Release 3 (v0.99.16): three steps in dan's order
+  (circle, home screen, ask), arrows between, none locked, two on a computer;
+  the film only until a circle exists; colour as dots; New circle goes
+  straight on to Add friends in the same sheet, which stays open after each
+  friend; Add friends is the form at once (no paste box, no Response rate) and
+  typing a name offers your people. It found a fault that predated it: for
+  someone NEW, WhatsApp was picked but the EMAIL box showed, and a number
+  typed there was refused. Baseline `pre-v0.99.16/`; control fails 14.
+  home-screen-step-sim, redesign-browser-sim and answer-words-sim were
+  rewritten where they encoded the gate and the paste box dan removed
 
 Added 6 Oct:
 
@@ -559,8 +569,9 @@ fixed on 24 Aug, guarded by `unchecked-writes-sim.js`. What remains:
 12. **Inside WhatsApp's in-app browser, the home-screen sheet says "you stay
    signed in"** before sending people to Chrome. They do not — Chrome is a
    separate app with its own storage. Elsewhere it is now TRUE (v0.99.11: the
-   icon sees the cookie). Not reproduced on the one Android tested; fixing it
-   reverses the 27 Sep decision that the step gates — dan's call.
+   icon sees the cookie). Not reproduced on the one Android tested. The gate
+   itself is gone (v0.99.16, dan: "for now no lock"), so the step no longer
+   holds anyone up; the sentence is still untrue inside WhatsApp.
 13. **An account made from a personal link (0059) has no phone**, so a later
    WhatsApp sign-in on ANOTHER device makes a separate account. Deliberate:
    the inviter typed that number and the person never proved it. The answer

@@ -147,8 +147,9 @@ const Q = (sel) => "document.querySelectorAll('" + sel + "').length";
 // of the screen - below the top, above the tab bar.
 const SEEN = (sel) => "(function () { var e = document.querySelector('" + sel + "'); if (!e) return false; var r = e.getBoundingClientRect(); var tb = document.getElementById('mobile-tabbar'); var floor = tb && tb.getBoundingClientRect().height ? tb.getBoundingClientRect().top : window.innerHeight; return r.height > 0 && r.top >= 0 && r.bottom <= floor + 1; })()";
 const SCREENS = [
+  // v0.99.16: nothing is locked, so "locked" counts the words a lock used to say.
   { n: 'home-new', setup: 'fresh', go: "showView('home')",
-    probe: "({ steps: " + Q('.tn-step') + ", on: [].map.call(document.querySelectorAll('.tn-step.on b'), function (b) { return b.textContent; }), locked: " + Q('.tn-step:not(.on):not(.done)') + " })" },
+    probe: "({ steps: " + Q('.tn-step') + ", on: [].map.call(document.querySelectorAll('.tn-step.on b'), function (b) { return b.textContent; }), locked: (document.getElementById('view-body').textContent.match(/Once Trustnet is on your home screen|Opens once/g) || []).length })" },
   { n: 'home-circle', setup: 'circleOnly', go: "showView('home')",
     probe: "({ done: " + Q('.tn-step.done') + ", on: [].map.call(document.querySelectorAll('.tn-step.on b'), function (b) { return b.textContent; }) })" },
   { n: 'home', setup: 'full', go: "showView('home')",
@@ -157,12 +158,10 @@ const SCREENS = [
     probe: "({ views: [].map.call(document.querySelectorAll('#tn-menu [data-view]'), function (e) { return e.dataset.view; }), signout: " + Q('#tn-menu [data-action=menu-signout]') + " })" },
   { n: 'fab', setup: 'full', go: "showView('home'); openModal('fab-menu')",
     probe: "({ save: " + Q('[data-action=fab-save]') + ", rec: " + Q('[data-action=fab-recommend]') + ", ask: " + Q('[data-action=fab-ask]') + " })" },
+  // v0.99.16: Paste a number went (dan, 13 Oct: "dont need the place for
+  // pasted numbers"), and the form opens at once - first-run-sim.js uses it.
   { n: 'add-member', setup: 'full', go: "showView('circle-detail',{circleId:'c1'}); openModal('add-member',{circleId:'c1'})",
-    probe: "({ paste: " + Q('[data-action=paste-number]') + " })" },
-  { n: 'paste-ok', setup: 'full', go: "showView('circle-detail',{circleId:'c1'}); openModal('add-member',{circleId:'c1'}); __clip(String.fromCharCode(0x202a) + '+972 52-811-4460' + String.fromCharCode(0x202c)); document.querySelector('[data-action=paste-number]').click()",
-    probe: "({ phone: (document.getElementById('nm-phone') || {}).value, country: (document.getElementById('nm-country') || {}).value, note: (document.getElementById('nm-paste-note') || {}).textContent, focus: document.activeElement && document.activeElement.id, form: (document.getElementById('nm-form-pane') || { style: {} }).style.display })" },
-  { n: 'paste-refused', setup: 'full', go: "showView('circle-detail',{circleId:'c1'}); openModal('add-member',{circleId:'c1'}); __clip(null); document.querySelector('[data-action=paste-number]').click()",
-    probe: "({ note: (document.getElementById('nm-paste-note') || {}).textContent, focus: document.activeElement && document.activeElement.id })" },
+    probe: "({ paste: " + Q('[data-action=paste-number]') + ", form: (document.getElementById('nm-form-pane') || { style: {} }).style.display })" },
   { n: 'query', setup: 'full', go: "AppState.queryMode='ask'; showView('query',{circleId:'c1'})",
     probe: "(function () { var d2 = document.getElementById('q-deg-2'); if (d2) d2.click(); var w = document.getElementById('q-who'); return { degree: AppState.queryDegree, who: w ? w.style.pointerEvents : null, title: document.getElementById('topbar-title').textContent, send: " + SEEN('#q-send') + " }; })()" },
   { n: 'query-draft', setup: 'full', go: "AppState.queryMode='ask'; AppState.queryDegree=1; showView('query',{circleId:'c1'})",
@@ -288,12 +287,15 @@ SCREENS.forEach((s) => {
 const P = (n) => (R[n] && R[n].p) || {};
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-console.log('\n== 2. first time in: three steps, each opening the next ==\n');
-ck('a new account sees exactly three steps', P('home-new').steps === 3, JSON.stringify(P('home-new')));
+// v0.99.16 (17 Oct): adding friends is part of step one, the home-screen step
+// is offered only on a phone (this draws as a computer, so two steps), and
+// nothing is locked. first-run-sim.js draws the phone's three.
+console.log('\n== 2. first time in: the steps, none locked ==\n');
+ck('a new account on a computer sees two steps', P('home-new').steps === 2, JSON.stringify(P('home-new')));
 ck('...only "Create your first circle" is live', eq(P('home-new').on, ['Create your first circle']), JSON.stringify(P('home-new').on));
-ck('...and the other two are locked', P('home-new').locked === 2);
-ck('with a circle, step one is done and "Add friends" is live',
-   P('home-circle').done === 1 && eq(P('home-circle').on, ['Add friends']), JSON.stringify(P('home-circle')));
+ck('...and nothing is locked', P('home-new').locked === 0, P('home-new').locked);
+ck('with a circle and nobody in it, step one asks for its friends',
+   P('home-circle').done === 0 && eq(P('home-circle').on, ['Add friends to Travel']), JSON.stringify(P('home-circle')));
 ck('with people and a question asked, the steps are gone for good', P('home').steps === 0, String(P('home').steps));
 
 console.log('\n== 3. Home: ask, circles, what is waiting, your questions, what was shared ==\n');
@@ -312,17 +314,9 @@ console.log('\n== 4. the menu reaches what a phone could not ==\n');
 ck('...and signs out', P('menu').signout === 1);
 ck('the plus offers save and recommend, not ask', P('fab').save === 1 && P('fab').rec === 1 && P('fab').ask === 0, JSON.stringify(P('fab')));
 
-console.log('\n== 5. paste a number, for someone who will never join ==\n');
-ck('Add friends offers Paste a number', P('add-member').paste === 1);
-const digits = String(P('paste-ok').phone || '').replace(/\D/g, '');
-ck('a pasted number, invisible marks and all, lands in the number box', digits.slice(-9) === '528114460', JSON.stringify(P('paste-ok').phone));
-ck('...with the country it belongs to', P('paste-ok').country === 'IL', P('paste-ok').country);
-ck('...said back to you the way you would write it', /052-811-4460/.test(P('paste-ok').note || ''), P('paste-ok').note);
-ck('...with why they never have to join', /never have to join/.test(P('paste-ok').note || ''));
-ck('...and the cursor waiting in the name', P('paste-ok').focus === 'nm-name', P('paste-ok').focus);
-ck('it opens the SAME form as adding someone new', P('paste-ok').form === 'block', P('paste-ok').form);
-ck('if the phone will not share the clipboard, it says how to paste by hand', /Press and hold/.test(P('paste-refused').note || ''), P('paste-refused').note);
-ck('...and puts the cursor in the number box', P('paste-refused').focus === 'nm-phone', P('paste-refused').focus);
+console.log('\n== 5. Add friends: the form at once (v0.99.16) ==\n');
+ck('no Paste a number box', P('add-member').paste === 0, P('add-member').paste);
+ck('...the form is open from the start', P('add-member').form === 'block', P('add-member').form);
 
 console.log('\n== 6. the Ask screen works, not just draws ==\n');
 ck('Degree 2 can be chosen - the listener is attached', P('query').degree === 2, String(P('query').degree));

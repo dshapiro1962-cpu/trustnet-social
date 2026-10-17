@@ -80,23 +80,19 @@ ck('...and the fallback beside it still agrees',
 // ── 2 · the reply sits under the question ──────────────────────────────────
 console.log('\n  the people search:');
 
-ck('there is a note element of its own',
-   /id="nm-search-note"/.test(web));
-ck('...directly after the name field, not after Paste a number',
-   /id="nm-search"[\s\S]{0,260}?id="nm-search-note"/.test(web)
-   && web.indexOf('id="nm-search-note"') < web.indexOf('data-action="paste-number"'));
-ck('...in readable text, not the grey used for passive hints',
-   /id="nm-search-note"[^>]*font-size:13\.5px;color:#46564E/.test(web));
+// RETIRED 17 Oct (v0.99.16). The search had a screen of its own - "Who do
+// you want to add?", S25 on the screen map - with a no-match note above Paste
+// a number. dan, 13 Oct, asked for that screen and the paste box to go: the
+// search now sits under the name in the form itself, and says nothing when
+// nobody matches, because typing someone new is the ordinary case there, not
+// a dead end. first-run-sim.js holds the new behaviour; what stays true here
+// is that the dead end never comes back.
 ck('the dead-end wording is gone',
    !/Nobody of yours matches/.test(webCode));
-ck('...replaced by something that points at what to do next',
-   /is called \\u201c' \+ esc\(q\) \+ '\\u201d yet\. Add them below\./.test(web)
-   || /yet\. Add them below\./.test(web));
-ck('the results list is NOT moved above the fallback buttons',
-   web.indexOf('data-action="paste-number"') < web.indexOf('id="nm-search-results"'),
-   'moving it would push the bottom actions off a phone');
-ck('a failed search clears the note rather than leaving it stale',
-   /const note = document\.getElementById\('nm-search-note'\);\s*\n\s*if \(note\) note\.style\.display = 'none';[\s\S]{0,200}?Could not search your people/.test(web));
+ck('the search has no screen of its own any more - it sits under the name (v0.99.16)',
+   !/id="nm-search"/.test(webCode) && /id="nm-search-results"/.test(webCode) && !/data-action="paste-number"/.test(webCode));
+ck('a failed search still says so, never an empty list',
+   /Could not search your people/.test(webCode));
 // THE VERSION MOVED, not "the version is v0.99.3". Pinning the literal meant
 // the next unrelated bump - the move to trustnetsocial.com - broke this guard
 // against perfectly correct code. The invariant is that live differs from the
@@ -154,7 +150,7 @@ window.addEventListener('load', function () {
     var out = { card: card ? card.textContent : null };
     openModal('add-member', { circleId:'c1', circleName:'test' });
     setTimeout(function () {
-      var f = document.getElementById('nm-search');
+      var f = document.getElementById('nm-search') || document.getElementById('nm-name');
       if (f) { f.value = 'zzz'; refreshPeopleSearch(); }
       setTimeout(function () {
         var note = document.getElementById('nm-search-note');
@@ -198,13 +194,10 @@ if (out) {
   ck('the waiting card says "waiting for your answer"',
      /waiting for your answer/.test(out.card || ''), JSON.stringify(out.card));
   ck('...and never "waiting on"', !/waiting on/.test(out.card || ''));
-  ck('the no-match note is VISIBLE on screen', !!out.note, JSON.stringify(out.note));
-  ck('...and says what to do next',
-     /Add them below/.test(out.note || ''), JSON.stringify(out.note));
-  ck('...and sits ABOVE Paste a number in the document',
-     out.noteAbovePaste === true, String(out.noteAbovePaste));
-  ck('...while the results list is left empty, so nothing is pushed down',
-     (out.results || '').trim() === '', (out.results || '').slice(0, 40));
+  // v0.99.16: typed under the name, a name nobody matches is someone new -
+  // nothing is shown and nothing is pushed down the form.
+  ck('a name nobody matches leaves nothing under it - no dead end, nothing pushed down',
+     !out.note && (out.results || '').trim() === '', JSON.stringify({ note: out.note, results: (out.results || '').slice(0, 40) }));
 }
 
 try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) {}

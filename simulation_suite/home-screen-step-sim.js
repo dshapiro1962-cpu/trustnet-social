@@ -1,4 +1,13 @@
-// home-screen-step-sim.js — step 1: put Trustnet on your home screen (v0.98.0).
+// home-screen-step-sim.js — put Trustnet on your home screen (v0.98.0,
+// re-ordered v0.99.16).
+//
+// v0.99.16 (17 Oct): dan reversed the gate. 13 Oct: "1. create your first
+// circle ... 2. put trusnet on your home screen 3. ask or reccomend"; 15 Oct:
+// "for now no lock". So this now finds the home-screen step wherever it sits,
+// and asserts it is SECOND and that nothing is locked. What it always checked
+// about the sheet, the tick, WhatsApp, the escape and Android is unchanged.
+// first-run-sim.js holds the rest of the new first run. The history below is
+// kept as it was written.
 //
 // dan, 22 Sep: "i think like with a real app it should gate". So the first
 // thing a new member does is put Trustnet on their home screen, and the three
@@ -109,7 +118,9 @@ window.addEventListener('load', function () {
   var VB = function () { return document.getElementById('view-body'); };
   var MR = function () { return document.getElementById('modal-root'); };
   var click = function (el) { el.dispatchEvent(new MouseEvent('click', { bubbles: true })); };
-  var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  // The home-screen step, wherever it sits (second since v0.99.16).
+  var HS = function () { return VB().querySelector('.tn-step[data-modal=home-screen]'); };
+  var wait =function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
   var UAS = ${JSON.stringify(UAS)};
   var fake = function (ua, standalone) {
     Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true });
@@ -136,13 +147,12 @@ window.addEventListener('load', function () {
       out.stepCount = steps.length;
       out.first = steps[0] ? steps[0].textContent.replace(/\\s+/g, ' ').trim() : '';
       out.firstIsOn = steps[0] ? steps[0].classList.contains('on') : false;
-      out.lockedAfter = [].filter.call(steps, function (s, i) {
-        return i > 0 && !s.classList.contains('on') && !s.classList.contains('done'); }).length;
-      out.lockedAreButtons = [].every.call([].slice.call(steps, 1), function (s) {
-        return s.tagName === 'BUTTON' && s.dataset.modal === 'home-screen'; });
+      out.homeIdx = [].indexOf.call(steps, HS());
+      out.locks = [].filter.call(steps, function (s) {
+        return /Once Trustnet is on your home screen|Opens once/.test(s.textContent); }).length;
 
-      // Tapping a LOCKED step must teach, not refuse.
-      click(steps[1]);
+      // The home-screen step opens its sheet.
+      click(HS());
       await wait(40);
       out.sheetFromLocked = !!MR().querySelector('.modal');
       var sheet = MR().querySelector('.modal');
@@ -155,15 +165,16 @@ window.addEventListener('load', function () {
       fake(UAS['Chrome on an iPhone'], true);
       renderApp();
       var st2 = VB().querySelectorAll('.tn-step');
-      out.doneFirst = st2[0] ? st2[0].classList.contains('done') : false;
-      out.doneText = st2[0] ? st2[0].textContent.replace(/\\s+/g, ' ').trim() : '';
+      var hsDone = [].filter.call(st2, function (s) { return /On your home screen/.test(s.textContent); })[0];
+      out.doneFirst = hsDone ? hsDone.classList.contains('done') : false;
+      out.doneText = hsDone ? hsDone.textContent.replace(/\\s+/g, ' ').trim() : '';
       out.unlockedNow = [].filter.call(st2, function (s) { return s.classList.contains('on'); }).length;
 
       // ── inside WhatsApp, where it cannot be done ────────────────────
       fake(UAS["WhatsApp's browser on an iPhone"], false);
       renderApp();
-      out.waFirst = (VB().querySelector('.tn-step') || {}).textContent || '';
-      click(VB().querySelector('.tn-step'));
+      out.waFirst = (HS() || {}).textContent || '';
+      click(HS());
       await wait(40);
       var waSheet = MR().querySelector('.modal');
       out.waSheet = waSheet ? waSheet.textContent.replace(/\\s+/g, ' ').trim() : '';
@@ -189,7 +200,7 @@ window.addEventListener('load', function () {
       // ── Android says Android's menu ─────────────────────────────────
       fake(UAS['Chrome on Android'], false);
       renderApp();
-      click(VB().querySelector('.tn-step'));
+      click(HS());
       await wait(40);
       var aSheet = MR().querySelector('.modal');
       out.androidSheet = aSheet ? aSheet.textContent.replace(/\\s+/g, ' ').trim() : '';
@@ -221,11 +232,11 @@ window.addEventListener('load', function () {
 
   ck('the app runs and the probe finishes', !r.threw, r.threw);
   console.log('  -- on a phone, in a tab --');
-  ck('the home screen is the FIRST step', /Put Trustnet on your home screen/.test(r.first || ''), r.first);
-  ck('...and it is the live one', r.firstIsOn === true);
-  ck('...of four', /Step 1 of 4/.test(r.head || ''), r.head);
-  ck('the three that follow are locked behind it', r.lockedAfter === 3, r.lockedAfter);
-  ck('...and tapping one teaches instead of refusing', r.sheetFromLocked === true && r.lockedAreButtons === true, r);
+  ck('the home screen is the SECOND step, after the circle (v0.99.16)', r.homeIdx === 1 && /Create your first circle/.test(r.first || ''), r.homeIdx + ' / ' + r.first);
+  ck('...the circle is the live one', r.firstIsOn === true);
+  ck('...of three', /Step 1 of 3/.test(r.head || ''), r.head);
+  ck('nothing is locked (v0.99.16: "for now no lock")', r.locks === 0, r.locks);
+  ck('...and tapping the home-screen step opens its sheet', r.sheetFromLocked === true, r.sheetFromLocked);
 
   console.log('  -- the sheet --');
   ck('it gives Chrome first, as dan used', r.chromeFirst === true, r.routes);
@@ -248,9 +259,9 @@ window.addEventListener('load', function () {
   console.log('  -- nobody is trapped --');
   ck('"I can\u2019t do this" lets them carry on', r.afterSkipLocked === 0, r.afterSkipLocked);
   ck('...with a live step to get on with', r.afterSkipOn >= 1, r.afterSkipOn);
-  ck('...and the count back to three', /of 3/.test(r.afterSkipHead || ''), r.afterSkipHead);
+  ck('...and the count down to two', /of 2/.test(r.afterSkipHead || ''), r.afterSkipHead);
   ck('a laptop is never gated at all',
-     /of 3/.test(r.laptopHead || '') && !/home screen/i.test(r.laptopFirst || ''), r.laptopHead + ' / ' + r.laptopFirst);
+     /of 2/.test(r.laptopHead || '') && !/home screen/i.test(r.laptopFirst || ''), r.laptopHead + ' / ' + r.laptopFirst);
   ck('...and its first step is live', r.laptopOn >= 1, r.laptopOn);
 
   console.log('  -- Android --');
