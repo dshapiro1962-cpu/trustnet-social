@@ -154,7 +154,12 @@ function seed(kind) {
   AppState.isDemoMode = false;
   AppState.userProfile = { id: 'u0', name: 'Dan Shapiro', avatar: 'DS', avatarColor: col('#1D5A45'), bio: '', location: 'Tel Aviv', shareByDefault: true, email: 'dan@example.com', joinedDate: iso(now - 60 * d) };
   AppState._feedFetched = true; AppState._notifFetched = true; AppState._notifSeeded = true; AppState._answeredFetched = true;
-  AppState._tmFetched = true; AppState._tmData = []; AppState._answered = []; AppState._feed = [];
+  AppState._tmFetched = true; AppState._tmData = []; AppState._answered = [];
+  AppState._feed = [
+    { canonical_id: 'kf1', recommender_name: 'May Shapiro', can_name: 'Trattoria Nonna Nietta', can_category: 'restaurant', can_location: 'Ostuni', note: 'Order whatever the nonna is cooking that day.' },
+    { canonical_id: 'kf2', recommender_name: 'Rany Levi', can_name: 'Demon Copperhead', can_category: 'book', can_location: '', note: '' },
+    { canonical_id: 'k1', recommender_name: 'Tal Shapiro', can_name: 'Masseria Moroseta', can_category: 'hotel', can_location: 'Ostuni, Puglia', note: '' },
+    { canonical_id: 'kf3', recommender_name: 'Tom Shapiro', can_name: 'Shabbat at Noa’s', can_category: 'shabbat dinner', can_location: '', note: '' }];
   AppState.userCollections = []; AppState.people = []; AppState.circleInterests = [];
   AppState.userCircles = [{ id: 'c1', ownerId: 'me', name: 'Travel', domain: 'travel', description: '', color: col('#1D5A45'), location: '', isOwn: true, createdAt: iso(now - 90 * d), memberIds: ['m1', 'm2'] },
     { id: 'c2', ownerId: 'me', name: 'Italy trip', domain: 'travel', description: '', color: col('#C0392B'), location: '', isOwn: true, createdAt: iso(now - 80 * d), memberIds: [] }];
@@ -238,6 +243,9 @@ const PICKED = SCREENS.filter((x) => !process.env.PICK || process.env.PICK.split
   ck('index.html writes no colour outside it, except fallbacks beside a var()', !li.length, li.length + ': ' + li.slice(0, 8).join(' | '));
   const defined = new Set(Object.keys(tokensOf(code(index).match(/:root\s*\{[^}]*\}/g) ? code(index).match(/:root\s*\{[\s\S]*?\}/g).join('\n') : '')));
   const used = new Set((code(index).match(/var\((--[a-z0-9-]+)\)/g) || []).map((v) => v.slice(4, -1)));
+  // A property set where it is used (style="--cc:..." on a circle's disc) is
+  // defined too: what this hunts is a name that is defined nowhere.
+  (code(index).match(/(--[a-z0-9-]+)\s*:/g) || []).forEach((d) => defined.add(d.replace(/\s*:$/, '')));
   const undef = [...used].filter((v) => !defined.has(v));
   ck('every var() it uses is defined', !undef.length, undef.join(' '));
   if (at) {

@@ -349,6 +349,17 @@ on top, "built so that we can change it later easily"):
   (`.view-body::after`), the check uses a circle of sixteen, and six
   sabotages each break it
 
+- `home-circles-sim.js` — step 2 (v0.101.0, dan: "go with step 2"). Every
+  circle is a DISC of its own colour (`tnDisc`, through `tnColour`), on
+  Home's band with a New disc, on the Circles screen and beside the name on
+  a circle's page; the waiting card leads with who, then the question,
+  large; "From your circles" is a row per thing led by a tile saying what
+  KIND of thing it is (`tnKindIcon` / `tnKindType`: a restaurant is food
+  whatever the word, a word of your own keeps its letter); the film is a
+  real frame, the width of the screen. Drawn day and night and USED (discs
+  tapped, New opens New circle). Baseline `pre-step2/`; control fails 32 of
+  40, and the 8 it passes are what must not change (Answer still works)
+
 Added 6 Oct:
 
 - `version-check-sim.js` — the app notices when it is out of date and replaces

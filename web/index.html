@@ -125,6 +125,16 @@
   --card-3: #5F45B8;
   --card-4: #0E7489;
 
+  /* the tile beside a thing: what KIND of thing it is (food, a stay, a book...) */
+  --tile-1: #C9442A;
+  --tile-2: #2470CC;
+  --tile-3: #0B7A8C;
+  --tile-4: #9E6512;
+  --tile-5: #7A55D8;
+  --tile-6: #C23B6E;
+  --tile-7: #4A5FA8;
+  --tile-8: #7C6A58;
+
   /* the small coloured labels: words and their backgrounds */
   --tag-1: #97472A; --tag-1-soft: #F5E2D6;
   --tag-2: #1F4E8C; --tag-2-soft: #DCE8F8;
@@ -202,6 +212,14 @@
     --card-2: #C2462B;
     --card-3: #5F45B8;
     --card-4: #0E7489;
+    --tile-1: #C9442A;
+    --tile-2: #2470CC;
+    --tile-3: #0B7A8C;
+    --tile-4: #9E6512;
+    --tile-5: #7A55D8;
+    --tile-6: #C23B6E;
+    --tile-7: #4A5FA8;
+    --tile-8: #7C6A58;
 
     --tag-1: #FFB596; --tag-1-soft: #4A2517;
     --tag-2: #A9CAFF; --tag-2-soft: #16305F;
@@ -1592,6 +1610,78 @@ button, input, textarea, select { color: inherit; }
   .tn-band { margin: -2px -20px 18px; padding: 4px 20px 20px; border-radius: 0 0 32px 32px; }
   .tn-band .tn-circlechips { margin-left: -20px; margin-right: -20px; padding-left: 20px; padding-right: 20px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   HOME AND CIRCLES (v0.101.0). Step 2 of 4 of the redesign (dan, 2 Nov: "go
+   with step 2"): circles as discs in their own colour; the waiting card led
+   by who is asking and then the question, large; rows that lead with a tile
+   saying what KIND of thing it is; the first steps and the film as cards of
+   their own. No colour is written here: they all come from THE THEME.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── a circle is a disc of its own colour ── */
+.tn-disc { width: 60px; height: 60px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center;
+  color: var(--on-colour); font-weight: 700; font-size: 21px; line-height: 1;
+  background: var(--cc);
+  background: radial-gradient(circle at 32% 28%, color-mix(in srgb, var(--cc) 62%, var(--on-colour)), var(--cc) 62%);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,0.45), 0 8px 16px -10px rgba(0,0,0,0.45); }
+.tn-disc.md { width: 46px; height: 46px; font-size: 17px; }
+.tn-disc.lg { width: 60px; height: 60px; font-size: 24px; }
+.tn-disc-new { background: transparent; box-shadow: none; border: 1.5px dashed currentColor; color: inherit; }
+.tn-disc-new svg { width: 22px; height: 22px; }
+.tn-discs { gap: 14px; }
+.tn-disc-b { flex: none; width: 64px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 600; color: var(--ink); text-align: center; cursor: pointer; }
+.tn-disc-n { display: block; max-width: 64px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tn-band .tn-disc-b { color: var(--on-band); }
+.tn-band .tn-disc { box-shadow: 0 0 0 2px var(--band-fill), 0 8px 16px -10px rgba(0,0,0,0.45); }
+.tn-band .tn-disc-new { box-shadow: none; }
+.tn-band .tn-verbs + .tn-discs { margin-top: 16px; }
+.tn-band .tn-discs { margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px; }
+@media (max-width: 768px) { .tn-band .tn-discs { margin-left: -20px; margin-right: -20px; padding-left: 20px; padding-right: 20px; } }
+.tn-crows > .tn-row + .tn-row::before { left: 59px; }
+.tn-chd-id { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.tn-chd-id .tn-chd-big { font-size: 32px; min-width: 0; overflow-wrap: anywhere; }
+
+/* ── the tile beside a thing: what kind of thing it is ── */
+.tn-tile { border-radius: 13px; }
+.tn-tile.has-i svg { width: 52%; height: 52%; }
+
+/* ── who is waiting, then their question ── */
+.tn-wait { padding: 16px; }
+.tn-wait-h { display: flex; align-items: center; gap: 12px; }
+.tn-wait-h .tn-wcard-t { font-size: 16px; font-weight: 700; color: var(--ink); letter-spacing: 0; }
+.tn-wait-h .tn-t2 { display: block; }
+.tn-wait-q { margin: 12px 0 16px; font-size: 19px; font-weight: 700; line-height: 1.28; letter-spacing: -0.01em; color: var(--ink); }
+
+/* ── what your circles shared, a row each ── */
+.tn-feed .tn-fe { display: flex; align-items: flex-start; gap: 13px; padding: 11px 0; border-top: 0; }
+.tn-feed .tn-fe + .tn-fe { padding-top: 11px; }
+.tn-feed .tn-fe-a { flex: none; align-self: center; margin: 0; }
+.tn-feed .tn-quote { margin-top: 4px; font-size: 14px; color: var(--ink-2); white-space: normal;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* ── the first steps ── */
+.tn-steps { gap: 10px; }
+.tn-step.todo, .tn-step.done { background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+.tn-step.todo .tn-step-i, .tn-step.done .tn-step-i { background: var(--accent-soft); color: var(--accent-soft-fg); }
+.tn-step.on { box-shadow: 0 16px 28px -18px var(--accent-shadow); }
+.tn-step-arrow { color: var(--faint); }
+
+/* ── the film: a real frame of it, the whole width, with the play on it ── */
+.tn-film { position: relative; display: block; height: 168px; padding: 0; border: 0; border-radius: 24px; overflow: hidden;
+  background: var(--sidebar); box-shadow: 0 18px 30px -22px var(--shadow); margin: 6px 0 22px; }
+.tn-film::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(rgba(0,0,0,0) 30%, rgba(0,0,0,0.68)); }
+.tn-film-th { position: absolute; inset: 0; width: auto; height: auto; border-radius: 0; background: transparent; }
+.tn-film-th img { width: 100%; height: 100%; object-fit: cover; object-position: center 46%; }
+.tn-film-play { inset: auto auto 16px 16px; width: 48px; height: 48px; z-index: 2; }
+.tn-film-play i { width: 48px; height: 48px; font-size: 15px; padding-left: 3px; color: var(--on-colour);
+  background: rgba(255,255,255,0.2); border: 0.5px solid rgba(255,255,255,0.45);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.tn-film-t { position: absolute; left: 76px; right: 16px; bottom: 19px; z-index: 2; }
+.tn-film-t b { color: var(--on-colour); font-size: 17px; }
+.tn-film-t small { color: var(--on-colour); }
+.tn-film > svg { display: none; }
 </style>
 </head>
 <body>
@@ -2762,7 +2852,18 @@ const TN_ICON_PATHS = {
   wa: '<path d="M4 20l1.3-3.9A8 8 0 1 1 8 18.8z"/>',
   more: '<circle cx="5.5" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="18.5" cy="12" r="1.4" fill="currentColor"/>',
   pencil: '<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>',
-  trash: '<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/>'
+  trash: '<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/>',
+  fork: '<path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M16 3c-2 1-3 4-3 7h3v11"/>',
+  bed: '<path d="M3 18V8M3 14h18v4M21 14v-2a3 3 0 0 0-3-3h-7v5"/><circle cx="7" cy="11.5" r="1.8"/>',
+  book: '<path d="M5 4.5h9.5A2.5 2.5 0 0 1 17 7v12.5H7.5A2.5 2.5 0 0 1 5 17zM5 17a2.5 2.5 0 0 1 2.5-2.5H17"/>',
+  house: '<path d="M4 10.5 12 4l8 6.5V20h-5v-6H9v6H4z"/>',
+  heart: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
+  star: '<path d="m12 4 2.4 5 5.4.6-4 3.7 1.1 5.4L12 16l-4.9 2.7 1.1-5.4-4-3.7 5.4-.6z"/>',
+  case: '<path d="M4 8h16v11H4zM9 8V6a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 6v2M4 13h16"/>',
+  cup: '<path d="M5 8h11v5a5 5 0 0 1-10 0zM16 9.5h1.5a2.5 2.5 0 0 1 0 5H16M8.5 3.5v2M11.5 3.5v2"/>',
+  glass: '<path d="M6 4h12l-6 8zM12 12v7M8.5 19.5h7"/>',
+  pin: '<path d="M12 21s-6.5-6.2-6.5-11a6.5 6.5 0 0 1 13 0c0 4.8-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
+  bag: '<path d="M5 8h14l-1 12H6zM9 8V6.5a3 3 0 0 1 6 0V8"/>'
 };
 function tnIcon(name, w) {
   // width/height attributes are only the fallback: any CSS size wins over them.
@@ -2816,7 +2917,7 @@ const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
 // The Trustnet business number, in one place: the invite join and the
 // sign-in both open WhatsApp with it.
 const TN_WA_NUMBER = '972587786049';
-const APP_VERSION = 'v0.100.0 · live';
+const APP_VERSION = 'v0.101.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -3214,14 +3315,27 @@ function renderHome() {
     + '</div>';
 }
 
+// THE CIRCLES ARE DISCS (v0.101.0, step 2 of the redesign): each in its own
+// colour, its name under it, and a New one at the end - the way a phone shows
+// the people you message most. Tapping one opens that circle.
 function homeCircleChipsHtml() {
   const cs = AppState.userCircles;
   if (!cs.length) return '';
-  return '<div class="tn-hscroll tn-circlechips" role="list">' + cs.map(function(c) {
-    const n = AppState.membersOfCircle(c.id).filter(function(m) { return !m.isExternalSource; }).length;
-    return '<button type="button" class="tn-chip" role="listitem" data-action="nav" data-view="circle-detail" data-circle-id="' + esc(c.id) + '">'
-      + '<bdi>' + esc(c.name) + '</bdi>' + (n ? ' <small>' + n + '</small>' : '') + '</button>';
-  }).join('') + '</div>';
+  return '<div class="tn-hscroll tn-discs" role="list">' + cs.map(function(c) {
+    return '<button type="button" class="tn-disc-b" role="listitem" data-action="nav" data-view="circle-detail" data-circle-id="' + esc(c.id) + '">'
+      + tnDisc(c) + '<bdi class="tn-disc-n">' + esc(c.name) + '</bdi></button>';
+  }).join('')
+    + '<button type="button" class="tn-disc-b" data-action="open-modal" data-modal="add-circle">'
+    + '<span class="tn-disc tn-disc-new">' + tnIcon('plus', 2.2) + '</span><span class="tn-disc-n">New</span></button>'
+    + '</div>';
+}
+
+// A circle as a disc of its own colour with its initial. The colour goes
+// through tnColour, so an old stored colour still lands on a slot of the theme.
+function tnDisc(c, size) {
+  const col = tnColour(c && c.color) || 'var(--circle-1)';
+  return '<span class="tn-disc' + (size ? ' ' + size : '') + '" style="--cc:' + esc(col) + ';">'
+    + esc(String((c && c.name) || '?').trim().charAt(0).toUpperCase() || '?') + '</span>';
 }
 
 // Questions other people asked YOU that are still open. The notification row
@@ -3240,10 +3354,14 @@ function homeWaitingHtml(list) {
   const n = list[0];
   const who = n.actor_name || '';
   const first = who ? String(who).split(/\s+/)[0] : '';
-  return '<div class="tn-wcard" style="margin-top:18px;">'
-    + '<b class="tn-wcard-t" dir="auto">' + (first ? esc(first) + ' is waiting for your answer' : 'A question is waiting for you') + '</b>'
-    + '<p class="tn-t2">asked ' + esc(String(relDate(n.created_at)).toLowerCase()) + '</p>'
-    + (n.body ? '<div class="tn-wq">' + tnAvatar(who || '?', 'sm') + '<p class="tn-quote" dir="auto">\u201c' + esc(n.body) + '\u201d</p></div>' : '<div style="height:12px;"></div>')
+  // WHO, THEN THE QUESTION ITSELF, LARGE (v0.101.0): the person and when sit on
+  // one line beside their face, and the question is the biggest thing on the
+  // card - it is what they need from you.
+  return '<div class="tn-wcard tn-wait" style="margin-top:18px;">'
+    + '<div class="tn-wait-h">' + tnAvatar(who || '?', 'md')
+    + '<span class="tn-row-b"><b class="tn-wcard-t" dir="auto">' + (first ? esc(first) + ' is waiting for your answer' : 'A question is waiting for you') + '</b>'
+    + '<span class="tn-t2">asked ' + esc(String(relDate(n.created_at)).toLowerCase()) + '</span></span></div>'
+    + (n.body ? '<p class="tn-wait-q" dir="auto">\u201c' + esc(n.body) + '\u201d</p>' : '<div style="height:12px;"></div>')
     + '<a class="tn-bigbtn" href="respond.html?t=' + esc(n.response_token) + '" target="_blank" rel="noopener">Answer' + (first ? ' ' + esc(first) : '') + '</a>'
     // YOU MAY ALREADY HAVE THE ANSWER (v0.96.0). Typing out a place you
     // already keep, to someone who asked you for exactly that, was the whole
@@ -3292,21 +3410,25 @@ function homeFeedHtml() {
   }
   const items = (AppState._feed || []).slice(0, 10);
   if (!items.length) return '';
-  return '<div class="tn-sl">From your circles</div>'
+  // THE THING FIRST, THEN WHO (v0.101.0): each row leads with a tile that says
+  // what kind of thing it is, then its name, then where and who shared it.
+  return '<div class="tn-sl">From your circles</div><div class="tn-rows tn-feed">'
     + items.map(function(f, i) {
       const inLib = AppState.userRecs.some(function(r) { return r.canonicalId === f.canonical_id; });
-      const facts = [f.can_category || '', f.can_location || ''].filter(Boolean).join(' \u00b7 ');
-      return '<div class="tn-fe">'
-        + tnAvatar(f.recommender_name || '?', 'md')
+      const facts = [f.can_category || '', f.can_location || ''].filter(Boolean)
+        .concat(['from ' + String(f.recommender_name || 'someone').split(/\s+/)[0]]).join(' \u00b7 ');
+      return '<div class="tn-row tn-fe">'
+        + tnTile(f.can_name, f.can_category || '', '', 46)
         + '<div class="tn-row-b">'
-        + '<p class="tn-fe-l1" dir="auto"><b>' + esc(f.recommender_name || 'Someone') + '</b> shared <b><bdi>' + esc(f.can_name || '') + '</bdi></b></p>'
-        + (facts ? '<p class="tn-t2" dir="auto">' + esc(facts) + '</p>' : '')
+        + '<p class="tn-t1" dir="auto"><bdi>' + esc(f.can_name || '') + '</bdi></p>'
+        + '<p class="tn-t2" dir="auto">' + esc(facts) + '</p>'
         + (f.note ? '<p class="tn-quote" dir="auto">\u201c' + esc(f.note) + '\u201d</p>' : '')
+        + '</div>'
         + '<div class="tn-fe-a">' + (inLib
             ? '<span class="tn-done">\u2713 Saved</span>'
             : '<button class="btn btn-secondary btn-sm" data-action="save-from-feed" data-feed-idx="' + i + '">Save</button>')
-        + '</div></div></div>';
-    }).join('');
+        + '</div></div>';
+    }).join('') + '</div>';
 }
 
 /* ═══════════════════════════════════════════════
@@ -3336,10 +3458,10 @@ function renderCircles() {
 function circleCardHtml(c, isDemo) {
   const members = AppState.membersOfCircle(c.id).filter(function(m) { return !m.isExternalSource; });
   const recs = AppState.allRecs().filter(function(r) { return r.circleId === c.id; });
-  const hue = catHue(c.domain);
   const last = circleLastActivity(c.id);
+  // The circle's own colour, as on Home (v0.101.0) - not its topic's.
   return '<div class="tn-row tn-crow" data-action="nav" data-view="circle-detail" data-circle-id="' + esc(c.id) + '">'
-    + '<span class="tn-ctile" style="background:' + hue.bg + ';color:' + hue.fg + ';">' + esc(String(c.name || '?').trim().charAt(0).toUpperCase()) + '</span>'
+    + tnDisc(c, 'md')
     + '<div class="tn-row-b">'
     + '<p class="tn-t1" dir="auto">' + esc(c.name) + '</p>'
     + '<p class="tn-t2">' + members.length + (members.length === 1 ? ' person' : ' people') + ' \u00b7 ' + recs.length + ' saved</p>'
@@ -3649,7 +3771,7 @@ function renderCircleDetail() {
     // of the page, under every saved item, so on a busy circle nobody could
     // find them without scrolling to the end. dan: at the bottom "only if they
     // are permanently visible".
-    + '<div class="tn-chd-row"><div class="tn-chd-big" dir="auto">' + esc(circle.name) + '</div>'
+    + '<div class="tn-chd-row"><div class="tn-chd-id">' + tnDisc(circle, 'lg') + '<div class="tn-chd-big" dir="auto">' + esc(circle.name) + '</div></div>'
     + '<button type="button" class="tn-more" data-action="open-modal" data-modal="circle-more" data-circle-id="' + esc(cid) + '" aria-label="Invite, edit or delete this circle">'
     + tnIcon('more') + '</button></div>'
     + '<p class="tn-t2" style="margin-top:5px;white-space:normal;">' + esc(domainLabel(circle.domain))
@@ -5528,23 +5650,52 @@ function renderHistoryDetail() {
    ═══════════════════════════════════════════════ */
 
 const CAT_HUES = {
-  dining:      { fg:'var(--tag-1)', bg:'var(--tag-1-soft)' },
-  travel:      { fg:'var(--tag-2)', bg:'var(--tag-2-soft)' },
-  healthcare:  { fg:'var(--tag-3)', bg:'var(--tag-3-soft)' },
-  home:        { fg:'var(--tag-4)', bg:'var(--tag-4-soft)' },
-  culture:     { fg:'var(--tag-5)', bg:'var(--tag-5-soft)' },
-  hobbies:     { fg:'var(--tag-6)', bg:'var(--tag-6-soft)' },
-  professional:{ fg:'var(--tag-7)', bg:'var(--tag-7-soft)' },
-  other:       { fg:'var(--tag-8)', bg:'var(--tag-8-soft)' }
+  dining:      { fg:'var(--tag-1)', bg:'var(--tag-1-soft)', solid:'var(--tile-1)' },
+  travel:      { fg:'var(--tag-2)', bg:'var(--tag-2-soft)', solid:'var(--tile-2)' },
+  healthcare:  { fg:'var(--tag-3)', bg:'var(--tag-3-soft)', solid:'var(--tile-3)' },
+  home:        { fg:'var(--tag-4)', bg:'var(--tag-4-soft)', solid:'var(--tile-4)' },
+  culture:     { fg:'var(--tag-5)', bg:'var(--tag-5-soft)', solid:'var(--tile-5)' },
+  hobbies:     { fg:'var(--tag-6)', bg:'var(--tag-6-soft)', solid:'var(--tile-6)' },
+  professional:{ fg:'var(--tag-7)', bg:'var(--tag-7-soft)', solid:'var(--tile-7)' },
+  other:       { fg:'var(--tag-8)', bg:'var(--tag-8-soft)', solid:'var(--tile-8)' }
 };
+// WHAT KIND OF THING, AS A PICTURE (v0.101.0). One of the eight shared types,
+// or a word the interest vocabulary knows (restaurant, hotel, book...), gets a
+// drawing; anything else keeps its first letter. '' when there is no drawing.
+const TN_TYPE_ICON = { dining: 'fork', travel: 'bed', culture: 'book', home: 'house', healthcare: 'heart', hobbies: 'star', professional: 'case' };
+const TN_INTEREST_ICON = { restaurant: 'fork', cafe: 'cup', bar: 'glass', hotel: 'bed', destination: 'pin', ski: 'pin',
+  book: 'book', shop: 'bag', product: 'bag', service: 'case', tradesperson: 'case', doctor: 'heart' };
+function tnKindIcon(cat) {
+  const c = String(cat || '').toLowerCase().trim();
+  if (!c) return '';
+  if (TN_TYPE_ICON[c]) return TN_TYPE_ICON[c];
+  const hits = interestsForKind(c);
+  for (let i = 0; i < hits.length; i++) if (TN_INTEREST_ICON[hits[i]]) return TN_INTEREST_ICON[hits[i]];
+  return '';
+}
+// ...and its colour follows the same reading: a restaurant is food, whatever
+// the word, so it is food's colour. A word of your own keeps a colour of its own.
+const TN_INTEREST_TYPE = { restaurant: 'dining', cafe: 'dining', bar: 'dining', hotel: 'travel', destination: 'travel', ski: 'travel',
+  book: 'culture', shop: 'home', product: 'home', service: 'professional', tradesperson: 'professional', doctor: 'healthcare' };
+function tnKindType(cat) {
+  const c = String(cat || '').toLowerCase().trim();
+  if (!c || CAT_HUES[c]) return c;
+  const hits = interestsForKind(c);
+  for (let i = 0; i < hits.length; i++) if (TN_INTEREST_TYPE[hits[i]]) return TN_INTEREST_TYPE[hits[i]];
+  return cat;
+}
+// The tile beside a thing: its picture if it has one, else a solid tile in the
+// colour of its kind with a drawing of that kind (or its first letter) in white.
 function tnTile(name, cat, imageUrl, px) {
   const size = px || 44;
   if (imageUrl && /^https?:\/\//i.test(imageUrl)) {
     return '<div class="tn-tile" style="width:' + size + 'px;height:' + size + 'px;background-image:url(&quot;' + esc(imageUrl) + '&quot;);"></div>';
   }
-  const h = catHue(cat);
+  const h = catHue(tnKindType(cat));
+  const icon = tnKindIcon(cat);
   const letter = String(name || '?').trim().charAt(0).toUpperCase() || '?';
-  return '<div class="tn-tile" style="width:' + size + 'px;height:' + size + 'px;background:' + h.bg + ';color:' + h.fg + ';font-size:' + Math.round(size * 0.44) + 'px;">' + esc(letter) + '</div>';
+  return '<div class="tn-tile' + (icon ? ' has-i' : '') + '" style="width:' + size + 'px;height:' + size + 'px;background:' + (h.solid || 'var(--tile-8)') + ';color:var(--on-colour);font-size:' + Math.round(size * 0.44) + 'px;">'
+    + (icon ? tnIcon(icon, 1.9) : esc(letter)) + '</div>';
 }
 
 // ═══ THE FIELD CONTRACT ═════════════════════════════════════════════════════
@@ -5772,10 +5923,10 @@ async function applyLearnedCategories() {
 // A category you invented still needs a colour, and it must be the SAME colour
 // on every render or the library flickers. Hashed, never random.
 const CAT_HUE_POOL = [
-  { fg:'var(--tag-1)', bg:'var(--tag-1-soft)' }, { fg:'var(--tag-2)', bg:'var(--tag-2-soft)' },
-  { fg:'var(--tag-6)', bg:'var(--tag-6-soft)' }, { fg:'var(--tag-5)', bg:'var(--tag-5-soft)' },
-  { fg:'var(--tag-4)', bg:'var(--tag-4-soft)' }, { fg:'var(--tag-3)', bg:'var(--tag-3-soft)' },
-  { fg:'var(--tag-8)', bg:'var(--tag-8-soft)' }, { fg:'var(--tag-7)', bg:'var(--tag-7-soft)' }
+  { fg:'var(--tag-1)', bg:'var(--tag-1-soft)', solid:'var(--tile-1)' }, { fg:'var(--tag-2)', bg:'var(--tag-2-soft)', solid:'var(--tile-2)' },
+  { fg:'var(--tag-6)', bg:'var(--tag-6-soft)', solid:'var(--tile-6)' }, { fg:'var(--tag-5)', bg:'var(--tag-5-soft)', solid:'var(--tile-5)' },
+  { fg:'var(--tag-4)', bg:'var(--tag-4-soft)', solid:'var(--tile-4)' }, { fg:'var(--tag-3)', bg:'var(--tag-3-soft)', solid:'var(--tile-3)' },
+  { fg:'var(--tag-8)', bg:'var(--tag-8-soft)', solid:'var(--tile-8)' }, { fg:'var(--tag-7)', bg:'var(--tag-7-soft)', solid:'var(--tile-7)' }
 ];
 function catHue(cat) {
   if (CAT_HUES[cat]) return CAT_HUES[cat];

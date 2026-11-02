@@ -153,7 +153,7 @@ const SCREENS = [
   { n: 'home-circle', setup: 'circleOnly', go: "showView('home')",
     probe: "({ done: " + Q('.tn-step.done') + ", on: [].map.call(document.querySelectorAll('.tn-step.on b'), function (b) { return b.textContent; }) })" },
   { n: 'home', setup: 'full', go: "showView('home')",
-    probe: "({ steps: " + Q('.tn-step') + ", ask: " + Q('.tn-askbox') + ", verbs: [].map.call(document.querySelectorAll('.tn-verbs .btn'), function (b) { return b.textContent + '|' + b.dataset.mode; }), chipBg: (function () { var c = document.querySelector('.tn-circlechips .tn-chip'); return c ? getComputedStyle(c).backgroundColor : ''; })(), chips: " + Q('.tn-chip') + ", answer: (document.querySelector('a.tn-bigbtn') || {}).href || '', qcards: " + Q('.tn-qc') + ", stats: " + Q('.stat-row') + ", taste: document.getElementById('view-body').textContent.indexOf('Taste Match is available') > -1, feed: " + Q('.tn-fe') + " })" },
+    probe: "({ steps: " + Q('.tn-step') + ", ask: " + Q('.tn-askbox') + ", verbs: [].map.call(document.querySelectorAll('.tn-verbs .btn'), function (b) { return b.textContent + '|' + b.dataset.mode; }), chipBg: (function () { var c = document.querySelector('.tn-discs .tn-disc-b'); return c ? getComputedStyle(c).backgroundColor : ''; })(), chips: " + Q('.tn-disc-b[data-circle-id]') + ", answer: (document.querySelector('a.tn-bigbtn') || {}).href || '', qcards: " + Q('.tn-qc') + ", stats: " + Q('.stat-row') + ", taste: document.getElementById('view-body').textContent.indexOf('Taste Match is available') > -1, feed: " + Q('.tn-fe') + " })" },
   { n: 'menu', setup: 'full', go: "showView('home'); openMenu()",
     probe: "({ views: [].map.call(document.querySelectorAll('#tn-menu [data-view]'), function (e) { return e.dataset.view; }), signout: " + Q('#tn-menu [data-action=menu-signout]') + " })" },
   { n: 'fab', setup: 'full', go: "showView('home'); openModal('fab-menu')",
@@ -300,6 +300,7 @@ ck('with people and a question asked, the steps are gone for good', P('home').st
 
 console.log('\n== 3. Home: ask, circles, what is waiting, your questions, what was shared ==\n');
 ck('Home opens with a way to ask', (P('home').verbs || []).length === 2 || P('home').ask === 1, JSON.stringify(P('home').verbs));
+// v0.101.0 (step 2): the circles are discs now, each in its own colour (home-circles-sim.js).
 ck('every circle is a chip', P('home').chips === 4, String(P('home').chips));
 ck('the question waiting for YOUR answer links to its own token', /respond\.html\?t=tok1$/.test(P('home').answer || ''), P('home').answer);
 ck('your three open questions are cards', P('home').qcards === 3, String(P('home').qcards));
