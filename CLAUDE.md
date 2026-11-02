@@ -369,7 +369,7 @@ on top, "built so that we can change it later easily"):
   down and opens on a scroll up or a tap, which goes nowhere; the + never
   folds. Saved is one card of rows; an item wears its picture, pills, and
   where it stands as ONE switch with the true one lit. Baseline
-  `pre-step3/`; control fails 24. **ITS FIRST CONTROL FAILED FOR THE WRONG
+  `pre-step3/`; control fails 26 of 30. **ITS FIRST CONTROL FAILED FOR THE WRONG
   REASON**: the old page read the live `/version.json`, found itself out of
   date and RELOADED mid-run (the update check working as designed). A sim
   that serves an OLD page must serve a version.json that matches it; this
