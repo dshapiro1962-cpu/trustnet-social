@@ -393,6 +393,18 @@ on top, "built so that we can change it later easily"):
   above the keyboard is iOS's AutoFill: the fields now ask for none
   (`autocomplete="off"`); whether iOS 26 hides the bar is for a real phone
 
+- `night-sky-sim.js` — step 4 (v0.103.0 / respond r2.9, dan: "lets go to
+  4"). Sign in opens on the NIGHT SKY (`--night`, your circle as a ring of
+  friends among the stars, `aria-hidden`), the name and what Trustnet is
+  for in white over it (`.tn-sky-words`), and the sign-in on a sheet below
+  (`.tn-login-card`): email box, Continue with email, WhatsApp second, all
+  on screen. The answer page wears the same sky with the question IN it,
+  large and white; with nothing to show, the sky holds just the name.
+  Baseline `pre-step4/`; control fails 22 of 26 (the 4 it passes are what
+  must not change). Its first draft of "the line is not said twice" passed
+  on the OLD page because the old page had no sheet to look in; it now
+  also requires the line in the sky. Six sabotages, each caught
+
 Added 6 Oct:
 
 - `version-check-sim.js` — the app notices when it is out of date and replaces

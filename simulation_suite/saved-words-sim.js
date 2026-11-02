@@ -247,7 +247,10 @@ function readScreen() {
       .filter((s) => LIB.test(s) && !/^["'][A-Za-z_]+["']$/.test(s));
     ck('the answer page, signed in or not: no "library"', !shown.length, shown.join(' / ').slice(0, 200));
     const stamp = (src.match(/margin-top:10px;">(r[0-9.]+)<\/div>/) || [])[1];
-    ck('the stamp moved to r2.8 and matches RESPOND_VERSION', stamp === 'r2.8' && src.indexOf('const RESPOND_VERSION = "r2.8"') > -1, stamp);
+    // r2.8 or later: the night sky (step 4 of the redesign) is r2.9. What this
+    // guards is that the stamp moved past r2.7 and says what RESPOND_VERSION says.
+    const sv = (stamp.match(/^r(\d+)\.(\d+)$/) || []).slice(1).map(Number);
+    ck('the stamp moved to r2.8 and matches RESPOND_VERSION', sv.length === 2 && (sv[0] > 2 || (sv[0] === 2 && sv[1] >= 8)) && src.indexOf('const RESPOND_VERSION = "' + stamp + '"') > -1, stamp);
     await ctx.close();
 
     // ── 3 · the other pages ──────────────────────────────────────────────────

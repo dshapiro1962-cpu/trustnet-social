@@ -103,6 +103,15 @@
   --card-4: #0E7489;
 
   /* the tile beside a thing: what KIND of thing it is (food, a stay, a book...) */
+  /* the night sky behind sign in and the answer page */
+  --night: #0F1B2D;
+  --on-night: #FFFFFF;
+  --on-night-2: #C5D3EC;
+  --star: rgba(255,255,255,0.6);
+  --star-line: rgba(255,255,255,0.16);
+  --sky-ring: #7FB0FF;
+  --sky-you: #FF8A6B;
+
   --tile-1: #C9442A;
   --tile-2: #2470CC;
   --tile-3: #0B7A8C;
@@ -189,6 +198,13 @@
     --card-2: #C2462B;
     --card-3: #5F45B8;
     --card-4: #0E7489;
+    --night: #0C1A38;
+    --on-night: #FFFFFF;
+    --on-night-2: #C5D3EC;
+    --star: rgba(255,255,255,0.6);
+    --star-line: rgba(255,255,255,0.16);
+    --sky-ring: #7FB0FF;
+    --sky-you: #FF8A6B;
     --tile-1: #C9442A;
     --tile-2: #2470CC;
     --tile-3: #0B7A8C;
@@ -216,13 +232,26 @@ button { color: inherit; }
 
     * { box-sizing:border-box; margin:0; padding:0; }
   body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:var(--ground); color:var(--ink-2); min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
-  .card { background:var(--surface); border-radius:16px; max-width:480px; width:100%; box-shadow:0 8px 32px rgba(0,0,0,0.1); overflow:hidden; }
-  .hero { background:var(--band); padding:24px; }
-  .brand { color:var(--on-band); font-weight:800; font-size:18px; }
+  .card { background:var(--surface); border-radius:24px; max-width:480px; width:100%; box-shadow:0 8px 32px rgba(0,0,0,0.1); overflow:hidden; }
+  /* THE NIGHT SKY (r2.9, step 4 of the redesign): the question sits in the sky,
+     large and white, under the name - the same sky as the app's sign in. The
+     question block is the first thing in the form and continues the sky down,
+     so while the page is loading or saying something went wrong the sky holds
+     just the name. */
+  .hero { background:var(--night); padding:22px 24px 16px; position:relative; overflow:hidden; }
+  .hero svg { position:absolute; right:-70px; top:-34px; width:320px; height:230px; pointer-events:none; fill:none; }
+  .brand { position:relative; color:var(--on-night); font-weight:800; font-size:18px; }
   .body { padding:28px 24px; }
-  .ask { background:var(--ground); border-left:3px solid var(--accent); border-radius:8px; padding:14px 16px; margin-bottom:24px; }
-  .ask-from { font-size:13px; color:var(--muted); margin-bottom:6px; }
-  .ask-text { font-size:16px; font-style:italic; color:var(--ink-2); }
+  .ask { position:relative; background:var(--night); border-radius:0 0 28px 28px; margin:-28px -24px 24px; padding:8px 24px 26px; }
+  .ask-from { font-size:14px; color:var(--on-night-2); margin-bottom:8px; }
+  .ask-text { font-size:24px; font-weight:800; line-height:1.18; letter-spacing:-0.02em; color:var(--on-night); }
+  .sk-l path { fill:none; stroke:var(--star-line); stroke-width:1; }
+  .sk-rl path { fill:none; stroke:var(--sky-ring); stroke-opacity:0.6; stroke-width:1.2; }
+  .sk-ring { fill:none; stroke:var(--sky-ring); stroke-opacity:0.55; stroke-width:1.5; stroke-dasharray:3 6; }
+  .sk-s circle { fill:var(--star); }
+  .sk-f1 { fill:var(--circle-6); } .sk-f2 { fill:var(--circle-1); } .sk-f3 { fill:var(--circle-5); } .sk-f4 { fill:var(--circle-3); }
+  .sk-you { fill:var(--sky-you); }
+  .sk-halo { fill:none; stroke:var(--sky-you); stroke-opacity:0.35; stroke-width:6; }
   label { display:block; font-size:12px; font-weight:600; color:var(--muted); letter-spacing:0.3px; margin-bottom:6px; text-transform:uppercase; }
   input, textarea { width:100%; padding:12px 14px; border:1.5px solid var(--line-strong); border-radius:8px; font-size:15px; font-family:inherit; margin-bottom:18px; }
   /* THE RULE ABOVE APPLIES TO CHECKBOXES TOO, AND ALWAYS DID (fixed 13 Sep).
@@ -271,7 +300,7 @@ button { color: inherit; }
 </head>
 <body>
 <div class="card">
-  <div class="hero"><span class="brand">Trustnet</span></div>
+  <div class="hero"><svg viewBox="0 0 390 440" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><g class="sk-l"><path d="M40 130 L96 92 L150 150 L210 118 L262 176 L330 132 L366 196"/><path d="M96 92 L120 40 M150 150 L118 222 L60 250 M262 176 L300 262 L250 318 M330 132 L352 70"/><path d="M118 222 L196 246 L250 318 M196 246 L210 118"/></g><circle class="sk-ring" cx="196" cy="226" r="92"/><g class="sk-rl"><path d="M196 246 L150 190 M196 246 L250 200 M196 246 L172 296 M196 246 L236 282"/></g><g class="sk-s"><circle cx="40" cy="130" r="3"/><circle cx="96" cy="92" r="4"/><circle cx="120" cy="40" r="2.5"/><circle cx="210" cy="118" r="3.5"/><circle cx="262" cy="176" r="3"/><circle cx="330" cy="132" r="4"/><circle cx="352" cy="70" r="2.5"/><circle cx="366" cy="196" r="3"/><circle cx="118" cy="222" r="3"/><circle cx="60" cy="250" r="2.5"/><circle cx="300" cy="262" r="3"/><circle cx="250" cy="318" r="3.5"/></g><circle class="sk-f1" cx="150" cy="190" r="9"/><circle class="sk-f2" cx="250" cy="200" r="9"/><circle class="sk-f3" cx="172" cy="296" r="9"/><circle class="sk-f4" cx="236" cy="282" r="9"/><circle class="sk-halo" cx="196" cy="246" r="20"/><circle class="sk-you" cx="196" cy="246" r="14"/></svg><span class="brand">Trustnet</span></div>
   <div id="lib-debug" style="display:none;background:var(--field);border-bottom:1px dashed var(--line-strong);padding:8px 12px;font-size:10.5px;color:var(--ink-2);font-family:monospace;white-space:pre-wrap;direction:ltr;text-align:left;"></div>
 
   <div id="loading" class="state">
@@ -317,7 +346,7 @@ button { color: inherit; }
       </span>
     </label>
     <button id="submit-btn">Send recommendation</button>
-    <div style="font-size:9px;color:var(--muted);text-align:center;margin-top:10px;">r2.8</div>
+    <div style="font-size:9px;color:var(--muted);text-align:center;margin-top:10px;">r2.9</div>
   </div>
 
   <!-- Rich thank-you + conversion -->
@@ -364,7 +393,7 @@ window.TRUSTNET_CONFIG = {
 const CFG = window.TRUSTNET_CONFIG || {};
 const SUPABASE_FUNCTIONS_URL = CFG.FUNCTIONS_URL || window.TRUSTNET_FUNCTIONS_URL || "https://YOUR_PROJECT.supabase.co/functions/v1";
 const APP_URL = CFG.APP_URL || "https://trustnetsocial.com";
-const RESPOND_VERSION = "r2.8";
+const RESPOND_VERSION = "r2.9";
 const LIB_DEBUG = new URLSearchParams(location.search).get("debug") === "1";
 function dbg(line) {
   if (!LIB_DEBUG) return;

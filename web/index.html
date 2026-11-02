@@ -126,6 +126,15 @@
   --card-4: #0E7489;
 
   /* the tile beside a thing: what KIND of thing it is (food, a stay, a book...) */
+  /* the night sky behind sign in and the answer page */
+  --night: #0F1B2D;
+  --on-night: #FFFFFF;
+  --on-night-2: #C5D3EC;
+  --star: rgba(255,255,255,0.6);
+  --star-line: rgba(255,255,255,0.16);
+  --sky-ring: #7FB0FF;
+  --sky-you: #FF8A6B;
+
   --tile-1: #C9442A;
   --tile-2: #2470CC;
   --tile-3: #0B7A8C;
@@ -212,6 +221,13 @@
     --card-2: #C2462B;
     --card-3: #5F45B8;
     --card-4: #0E7489;
+    --night: #0C1A38;
+    --on-night: #FFFFFF;
+    --on-night-2: #C5D3EC;
+    --star: rgba(255,255,255,0.6);
+    --star-line: rgba(255,255,255,0.16);
+    --sky-ring: #7FB0FF;
+    --sky-you: #FF8A6B;
     --tile-1: #C9442A;
     --tile-2: #2470CC;
     --tile-3: #0B7A8C;
@@ -1744,6 +1760,33 @@ button, input, textarea, select { color: inherit; }
 .tn-item-recs .tn-row { align-items: flex-start; }
 .tn-item-who { font-size: 15px; font-weight: 700; color: var(--ink); }
 .tn-item-note { margin-top: 5px; font-size: 15px; line-height: 1.45; color: var(--ink-2); white-space: normal; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   THE NIGHT SKY (v0.103.0). Step 4 of 4 of the redesign (dan, 2 Nov: "lets go
+   to 4"): sign in opens on the night sky - your circle as a ring of friends
+   among the stars - with the name and what Trustnet is for in white, and the
+   sign-in on a sheet below. The answer page wears the same sky, with the
+   question in it. No colour is written here: they all come from THE THEME.
+   ═══════════════════════════════════════════════════════════════════════ */
+#login { background: var(--night) !important; flex-direction: column; align-items: stretch !important; justify-content: flex-end !important; }
+#login > .tn-sky { position: absolute; left: 0; right: 0; top: 0; height: 58%; margin: 0 !important; overflow: hidden; pointer-events: none; }
+.tn-sky svg { display: block; width: 100%; height: 100%; fill: none; }
+.sk-l path { fill: none; stroke: var(--star-line); stroke-width: 1; }
+.sk-rl path { fill: none; stroke: var(--sky-ring); stroke-opacity: 0.6; stroke-width: 1.2; }
+.sk-ring { fill: none; stroke: var(--sky-ring); stroke-opacity: 0.55; stroke-width: 1.5; stroke-dasharray: 3 6; }
+.sk-s circle { fill: var(--star); }
+.sk-f1 { fill: var(--circle-6); } .sk-f2 { fill: var(--circle-1); } .sk-f3 { fill: var(--circle-5); } .sk-f4 { fill: var(--circle-3); }
+.sk-you { fill: var(--sky-you); }
+.sk-halo { fill: none; stroke: var(--sky-you); stroke-opacity: 0.35; stroke-width: 6; }
+#login > .tn-sky-words { position: relative; z-index: 1; flex: 1 0 auto; display: flex; flex-direction: column; justify-content: space-between;
+  width: 100%; max-width: 440px; margin: 0 auto !important; box-sizing: border-box; min-height: 200px;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) 26px 24px; }
+.tn-sky-words .tn-login-wm { color: var(--on-night); margin: 0; font-size: 26px; }
+.tn-sky-line { margin: 0; color: var(--on-night); font-weight: 800; font-size: 30px; line-height: 1.08; letter-spacing: -0.025em; max-width: 340px; }
+#login > .tn-login-card { position: relative; z-index: 1; flex: none; margin: 0 auto !important; border-radius: 32px 32px 0 0 !important;
+  box-shadow: 0 -12px 32px -16px rgba(0,0,0,0.55) !important; padding-top: 26px !important; }
+.tn-login-card .tn-login-sub { display: none; }
+.tn-login-card .tn-login-h { font-size: 28px; margin-bottom: 18px; color: var(--ink); }
 </style>
 </head>
 <body>
@@ -1765,8 +1808,22 @@ button, input, textarea, select { color: inherit; }
 
 <!-- Onboarding (shown on first run) -->
 <div id="login" style="display:none;position:fixed;inset:0;z-index:1200;background:var(--surface);align-items:center;justify-content:center;">
-  <div style="background:var(--surface);padding:calc(28px + env(safe-area-inset-top, 0px)) 26px calc(28px + env(safe-area-inset-bottom, 0px));max-width:440px;width:100%;">
-    <div class="tn-login-wm">trustnet</div>
+  <!-- THE NIGHT SKY (v0.103.0, step 4 of the redesign). Your circle drawn as a
+       ring of friends among the stars, the name and what it is for in white
+       over it, and the sign-in itself on a sheet below. The sky is decoration
+       only: everything a person reads or presses is in the words or the sheet. -->
+  <div class="tn-sky" aria-hidden="true">
+    <svg viewBox="0 0 390 440" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <g class="sk-l"><path d="M40 130 L96 92 L150 150 L210 118 L262 176 L330 132 L366 196"/><path d="M96 92 L120 40 M150 150 L118 222 L60 250 M262 176 L300 262 L250 318 M330 132 L352 70"/><path d="M118 222 L196 246 L250 318 M196 246 L210 118"/></g>
+      <circle class="sk-ring" cx="196" cy="226" r="92"/>
+      <g class="sk-rl"><path d="M196 246 L150 190 M196 246 L250 200 M196 246 L172 296 M196 246 L236 282"/></g>
+      <g class="sk-s"><circle cx="40" cy="130" r="3"/><circle cx="96" cy="92" r="4"/><circle cx="120" cy="40" r="2.5"/><circle cx="210" cy="118" r="3.5"/><circle cx="262" cy="176" r="3"/><circle cx="330" cy="132" r="4"/><circle cx="352" cy="70" r="2.5"/><circle cx="366" cy="196" r="3"/><circle cx="118" cy="222" r="3"/><circle cx="60" cy="250" r="2.5"/><circle cx="300" cy="262" r="3"/><circle cx="250" cy="318" r="3.5"/></g>
+      <circle class="sk-f1" cx="150" cy="190" r="9"/><circle class="sk-f2" cx="250" cy="200" r="9"/><circle class="sk-f3" cx="172" cy="296" r="9"/><circle class="sk-f4" cx="236" cy="282" r="9"/>
+      <circle class="sk-halo" cx="196" cy="246" r="20"/><circle class="sk-you" cx="196" cy="246" r="14"/>
+    </svg>
+  </div>
+  <div class="tn-sky-words"><div class="tn-login-wm">trustnet</div><p class="tn-sky-line">Recommendations from the people you trust.</p></div>
+  <div class="tn-login-card" style="background:var(--surface);padding:calc(28px + env(safe-area-inset-top, 0px)) 26px calc(28px + env(safe-area-inset-bottom, 0px));max-width:440px;width:100%;">
     <div id="login-form">
       <!-- Filled by showInviteBannerIfPending() when a ?join= token is pending.
            This is a stranger's FIRST contact with Trustnet: the invitation must
@@ -2979,7 +3036,7 @@ const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
 // The Trustnet business number, in one place: the invite join and the
 // sign-in both open WhatsApp with it.
 const TN_WA_NUMBER = '972587786049';
-const APP_VERSION = 'v0.102.1 · live';
+const APP_VERSION = 'v0.103.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
