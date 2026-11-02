@@ -4,8 +4,8 @@
   "description": "Recommendations from people you actually trust",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#F4F8F5",
-  "theme_color": "#217A4B",
+  "background_color": "#E9F1FB",
+  "theme_color": "#1B4FC4",
   "lang": "en",
   "dir": "auto",
   "icons": [

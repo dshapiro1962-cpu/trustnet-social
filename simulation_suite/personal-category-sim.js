@@ -175,8 +175,10 @@ const ck = (n, c, x) => {
   // The rule is that the eight have FIXED colours, from the table rather than
   // the hashed pool. Which colours changed deliberately in v0.95.0: the
   // redesign dan approved on 19 Sep uses a calmer palette (dining was #B84A0B).
+  // v0.100.0: the table's colours are slots of THE THEME (dining is the first
+  // label colour), so a change of theme changes them in one place.
   ck('the built-in eight keep the colours people know',
-     X.catHue('dining').fg === '#97472A', X.catHue('dining').fg);
+     X.catHue('dining').fg === 'var(--tag-1)' && X.catHue('dining').bg === 'var(--tag-1-soft)', X.catHue('dining').fg);
 
   console.log('\n── it is persisted ──\n');
   captured = null;

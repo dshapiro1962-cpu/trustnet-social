@@ -187,12 +187,14 @@ function sheet() {
     const sw = await page.$$('.tn-swatch');
     if (sw[2]) await sw[2].click();
     const picked = await page.evaluate(() => ({ v: (document.getElementById('nc-color') || {}).value, on: [].map.call(document.querySelectorAll('.tn-swatch.on'), (b) => b.dataset.colour) }));
-    ck('...tapping one picks it', picked.v === '#C0392B' && JSON.stringify(picked.on) === '["#C0392B"]', JSON.stringify(picked));
+    // v0.100.0: a swatch is a slot of THE THEME, not a colour, so the next
+    // change of theme recolours the circle (theme-sim.js).
+    ck('...tapping one picks it', picked.v === 'var(--circle-3)' && JSON.stringify(picked.on) === '["var(--circle-3)"]', JSON.stringify(picked));
     await page.fill('#nc-name', 'Food');
     await click(page, '[data-action="save-circle"]');
     await page.waitForTimeout(900);
     const circ = writes(wire, 'circles').find((r) => r.name === 'Food');
-    ck('the circle is saved, in that colour', !!circ && circ.color === '#C0392B', JSON.stringify(circ));
+    ck('the circle is saved, in that colour', !!circ && circ.color === 'var(--circle-3)', JSON.stringify(circ));
     S = await page.evaluate(sheet);
     ck('the same sheet goes straight on to friends', S && /Add friends to Food/.test(S.title) && /Your circle is ready/.test(S.text), S && S.title);
     ck('...Home is still behind it', (await page.evaluate(() => AppState.currentView)) === 'home');
@@ -255,13 +257,13 @@ function sheet() {
     const { ctx, page, wire } = await open({ kind: 'existing', go: "showView('circle-detail',{circleId:'c1'}); openModal('edit-circle',{circleId:'c1'})" });
     const S = await page.evaluate(sheet);
     const on = await page.evaluate(() => [].map.call(document.querySelectorAll('.tn-swatch.on'), (b) => b.dataset.colour));
-    ck('Edit circle: colours as colours, its own one picked', S && S.swatches === 8 && !S.colourSelect && JSON.stringify(on) === '["#1A6FA8"]', JSON.stringify({ sw: S && S.swatches, on }));
+    ck('Edit circle: colours as colours, its own one picked', S && S.swatches === 8 && !S.colourSelect && JSON.stringify(on) === '["var(--circle-7)"]', JSON.stringify({ sw: S && S.swatches, on }));
     const sw = await page.$$('.tn-swatch');
     if (sw[4]) await sw[4].click();
     await click(page, '[data-action="save-edit-circle"]');
     await page.waitForTimeout(900);
     const row = writes(wire, 'circles').find((r) => r.id === 'c1');
-    ck('...and saving keeps the new one', !!row && row.color === '#8B2FC9', JSON.stringify(row));
+    ck('...and saving keeps the new one', !!row && row.color === 'var(--circle-5)', JSON.stringify(row));
     await ctx.close();
   });
 

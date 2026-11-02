@@ -345,7 +345,10 @@ console.log('\n== 9. v0.95.1: buttons that look like buttons, actions you can re
 ck('Home: "Ask your circles" is a button that sets Ask', (P('home').verbs || []).indexOf('Ask your circles|ask') > -1, JSON.stringify(P('home').verbs));
 ck('...beside a Recommend button that sets Recommend', (P('home').verbs || []).indexOf('Recommend|recommend') > -1);
 ck('...and no grey box pretending to be a text field', P('home').ask === 0, String(P('home').ask));
-ck('the circles under them are outlined, so Ask is the one solid green', P('home').chipBg === 'rgb(255, 255, 255)', P('home').chipBg);
+// v0.100.0: the circles sit on the colour band now (dan chose colour on top,
+// 2 Nov), as see-through chips; the rule they serve is unchanged - nothing
+// beside Ask is a solid fill.
+ck('the circles under them are outlined, so Ask is the one solid green', /^rgba\(.*, 0(\.\d+)?\)$/.test(P('home').chipBg) || P('home').chipBg === 'rgb(255, 255, 255)', P('home').chipBg);
 ck("a circle's own actions open from a ... on screen by its name", P('circle').more === true, String(P('circle').more));
 ck('...and nothing is left at the foot of the page', P('circle').bottom === 0, String(P('circle').bottom));
 ['open-circle-link', 'open-invite', 'open-modal:edit-circle', 'circle-more-delete'].forEach(function (a) {

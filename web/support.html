@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#217A4B">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#1B4FC4">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#14357C">
 <title>Trustnet — Help</title>
 <meta name="description" content="Help for Trustnet: signing in, invite links, putting it on your home screen, and how to reach a person.">
 <meta property="og:title" content="Trustnet — Help">
@@ -15,6 +16,195 @@
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <style>
+/* THEME:START
+   ═══════════════════════════════════════════════════════════════════════
+   THE THEME. EVERY COLOUR AND FONT IN THE PRODUCT COMES FROM THIS BLOCK.
+
+   To change the look: change the values here, in web/index.html, and nowhere
+   else. Then run  node tools/sync-theme.js  which copies this block into the
+   other pages. theme-sim.js fails if a colour is written anywhere outside it.
+
+   Names say what a colour is FOR, never what it looks like: --accent, not
+   --blue, so the next change of colour needs no renaming. Every colour has a
+   day value in the first block and a night value in the second; night follows
+   the phone's own setting.
+
+   This is Riviera (dan, 2 Nov 2026): cobalt on a pale sky, coral on the +.
+   ═══════════════════════════════════════════════════════════════════════ */
+:root {
+  color-scheme: light;
+
+  /* the phone's own fonts: nothing to load, nothing to go missing */
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Menlo", "Courier New", monospace;
+
+  /* the screen, and what sits on it */
+  --ground: #E9F1FB;
+  --surface: #FFFFFF;
+  --field: #EEF3FA;
+  --field-hover: #E2EAF6;
+  --ink: #1C1C1E;
+  --ink-2: #3A3F4B;
+  --muted: #5A6272;
+  --faint: #9AA4B5;
+  --line: #DFE7F2;
+  --line-strong: #C4D1E3;
+
+  /* the one colour that means "press me" */
+  --accent: #1B4FC4;
+  --accent-hover: #163FA0;
+  --accent-deep: #123A96;
+  --accent-fg: #1B4FC4;
+  --on-accent: #FFFFFF;
+  --accent-soft: #DCE7F8;
+  --accent-soft-fg: #1B4FC4;
+  --accent-shadow: rgba(27,79,196,0.55);
+
+  /* the colour across the top of Home */
+  --band: #1B4FC4;
+  --on-band: #FFFFFF;
+  --band-fill: rgba(255,255,255,0.18);
+
+  /* the + button */
+  --fab: #E8553A;
+  --on-fab: #FFFFFF;
+
+  /* the side bar on a computer */
+  --sidebar: #0F2D6B;
+  --on-sidebar: #FFFFFF;
+  --on-sidebar-2: #B8C8E8;
+  --sidebar-fill: rgba(255,255,255,0.08);
+
+  /* what floats: glass over the screen */
+  --glass: rgba(255,255,255,0.62);
+  --glass-edge: rgba(255,255,255,0.8);
+  --glass-hi: rgba(255,255,255,0.95);
+  --fill: rgba(120,120,128,0.14);
+  --shadow: rgba(16,24,40,0.28);
+  --scrim: rgba(10,14,22,0.42);
+
+  /* saying something: errors, warnings, good news, a second voice */
+  --danger: #B3261E;
+  --on-danger: #FFFFFF;
+  --danger-soft: #FDEDEB;
+  --warn: #8A5A00;
+  --warn-soft: #FFF3D6;
+  --warn-line: #E8A020;
+  --good: #0F7B6C;
+  --good-soft: #DFF3EE;
+  --violet: #5B3E9E;
+  --violet-soft: #F3EEFB;
+
+  /* a circle's colour, a person's colour, the question cards */
+  --on-colour: #FFFFFF;
+  --circle-1: #2470CC;
+  --circle-2: #C9442A;
+  --circle-3: #7A55D8;
+  --circle-4: #0B7A8C;
+  --circle-5: #C23B6E;
+  --circle-6: #9E6512;
+  --circle-7: #4A5FA8;
+  --circle-8: #7C6A58;
+  --card-1: #1B4FC4;
+  --card-2: #C2462B;
+  --card-3: #5F45B8;
+  --card-4: #0E7489;
+
+  /* the small coloured labels: words and their backgrounds */
+  --tag-1: #97472A; --tag-1-soft: #F5E2D6;
+  --tag-2: #1F4E8C; --tag-2-soft: #DCE8F8;
+  --tag-3: #0E6B62; --tag-3-soft: #DDF1EE;
+  --tag-4: #6E5A26; --tag-4-soft: #EDE6D4;
+  --tag-5: #62427A; --tag-5-soft: #EAE1EF;
+  --tag-6: #A32B56; --tag-6-soft: #FAEAF0;
+  --tag-7: #3F4A68; --tag-7-soft: #E2E5EE;
+  --tag-8: #5A6272; --tag-8-soft: #EDF0F5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --ground: #07122B;
+    --surface: #101F42;
+    --field: #182A54;
+    --field-hover: #20356A;
+    --ink: #F2F4F8;
+    --ink-2: #D5DAE4;
+    --muted: #A9B4CC;
+    --faint: #6B7A9A;
+    --line: #1F3260;
+    --line-strong: #33497F;
+
+    --accent: #7FB0FF;
+    --accent-hover: #9CC2FF;
+    --accent-deep: #CFE0FF;
+    --accent-fg: #8FBAFF;
+    --on-accent: #07122B;
+    --accent-soft: #16305F;
+    --accent-soft-fg: #A9CAFF;
+    --accent-shadow: rgba(0,0,0,0.5);
+
+    --band: #14357C;
+    --on-band: #FFFFFF;
+    --band-fill: rgba(255,255,255,0.18);
+
+    --fab: #FF8A6B;
+    --on-fab: #2A0E06;
+
+    --sidebar: #0A1733;
+    --on-sidebar: #FFFFFF;
+    --on-sidebar-2: #B8C8E8;
+    --sidebar-fill: rgba(255,255,255,0.08);
+
+    --glass: rgba(26,44,88,0.6);
+    --glass-edge: rgba(255,255,255,0.16);
+    --glass-hi: rgba(255,255,255,0.14);
+    --fill: rgba(255,255,255,0.1);
+    --shadow: rgba(0,0,0,0.7);
+    --scrim: rgba(0,0,0,0.55);
+
+    --danger: #FF8A80;
+    --on-danger: #2A0E0E;
+    --danger-soft: #4A1C22;
+    --warn: #F2C46B;
+    --warn-soft: #3D2F10;
+    --warn-line: #8A6A1F;
+    --good: #6FD8C4;
+    --good-soft: #103A38;
+    --violet: #C3B2F2;
+    --violet-soft: #2A2350;
+
+    --on-colour: #FFFFFF;
+    --circle-1: #2470CC;
+    --circle-2: #C9442A;
+    --circle-3: #7A55D8;
+    --circle-4: #0B7A8C;
+    --circle-5: #C23B6E;
+    --circle-6: #9E6512;
+    --circle-7: #4A5FA8;
+    --circle-8: #7C6A58;
+    --card-1: #1B4FC4;
+    --card-2: #C2462B;
+    --card-3: #5F45B8;
+    --card-4: #0E7489;
+
+    --tag-1: #FFB596; --tag-1-soft: #4A2517;
+    --tag-2: #A9CAFF; --tag-2-soft: #16305F;
+    --tag-3: #7FE0CF; --tag-3-soft: #0F3B3A;
+    --tag-4: #E5CF8E; --tag-4-soft: #3B3113;
+    --tag-5: #D3B9EE; --tag-5-soft: #332148;
+    --tag-6: #FFA9C6; --tag-6-soft: #4A1A2E;
+    --tag-7: #C2CCEA; --tag-7-soft: #252F4D;
+    --tag-8: #C2CAD8; --tag-8-soft: #2A3347;
+  }
+}
+/* THEME:END */
+/* The page stands on the theme: a field the browser would draw in its own
+   white and black takes the theme's colours instead. */
+input, textarea, select { background-color: var(--surface); color: var(--ink); }
+button { color: inherit; }
+
 /* ═══════════════════════════════════════════════════════════════════
    SUPPORT / HELP.
 
@@ -35,8 +225,8 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
-  background: #F4F8F5;
-  color: #1C2420;
+  background: var(--field);
+  color: var(--ink);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   font-size: 15.5px;
   line-height: 1.65;
@@ -44,44 +234,44 @@ body {
 }
 .wrap { max-width: 640px; margin: 0 auto; padding: 0 16px 56px; }
 
-header { background: #0D2B1F; color: #fff; padding: calc(26px + env(safe-area-inset-top, 0px)) 0 26px; }
+header { background: var(--band); color: var(--on-band); padding: calc(26px + env(safe-area-inset-top, 0px)) 0 26px; }
 header .wrap { padding-bottom: 0; }
 .brand { display: flex; align-items: center; gap: 11px; }
 .brand img { width: 38px; height: 38px; border-radius: 10px; display: block; }
 .brand b { font-size: 21px; font-weight: 700; letter-spacing: -0.3px; }
-header p { color: #CFE0D8; font-size: 14.5px; margin-top: 12px; }
+header p { color: var(--on-band); font-size: 14.5px; margin-top: 12px; }
 
 h2 { font-size: 12px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase;
-     color: #7A9086; margin: 34px 0 12px; }
-h3 { font-size: 16px; font-weight: 700; color: #1C2420; margin: 0 0 4px; }
+     color: var(--muted); margin: 34px 0 12px; }
+h3 { font-size: 16px; font-weight: 700; color: var(--ink); margin: 0 0 4px; }
 
-.card { background: #fff; border: 1px solid #E5EDE8; border-radius: 14px; padding: 15px 16px;
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 15px 16px;
         margin-bottom: 10px; }
-.card p { color: #46564E; font-size: 14.5px; }
+.card p { color: var(--ink-2); font-size: 14.5px; }
 .card p + p { margin-top: 9px; }
 
-.lead { background: #fff; border: 1px solid #E5EDE8; border-radius: 14px; padding: 16px;
-        margin-top: 26px; font-size: 15.5px; color: #1C2420; }
+.lead { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px;
+        margin-top: 26px; font-size: 15.5px; color: var(--ink); }
 
-ol, ul { margin: 9px 0 0 20px; color: #46564E; font-size: 14.5px; }
+ol, ul { margin: 9px 0 0 20px; color: var(--ink-2); font-size: 14.5px; }
 li { margin-bottom: 5px; }
 li:last-child { margin-bottom: 0; }
 
 .key { display: inline-block; min-width: 21px; text-align: center; padding: 0 5px;
-       border: 1px solid #C2CFC8; border-radius: 5px; background: #F4F8F5;
-       font-size: 13px; line-height: 19px; color: #1C2420; }
+       border: 1px solid var(--line-strong); border-radius: 5px; background: var(--field);
+       font-size: 13px; line-height: 19px; color: var(--ink); }
 
-a { color: #1D5A45; }
-.btn { display: inline-block; background: #1D5A45; color: #fff; text-decoration: none;
+a { color: var(--accent-fg); }
+.btn { display: inline-block; background: var(--accent); color: var(--on-accent); text-decoration: none;
        font-size: 15px; font-weight: 600; padding: 11px 20px; border-radius: 11px;
        border: 0; cursor: pointer; font-family: inherit; }
-.btn.sec { background: #fff; color: #1D5A45; border: 1px solid #C7DACF; }
+.btn.sec { background: var(--surface); color: var(--accent-fg); border: 1px solid var(--line-strong); }
 .btns { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 13px; }
 
-.note { font-size: 13px; color: #7A9086; margin-top: 10px; }
-footer { border-top: 1px solid #E5EDE8; margin-top: 34px; padding-top: 18px;
-         font-size: 13px; color: #7A9086; }
-footer a { color: #7A9086; }
+.note { font-size: 13px; color: var(--muted); margin-top: 10px; }
+footer { border-top: 1px solid var(--line); margin-top: 34px; padding-top: 18px;
+         font-size: 13px; color: var(--muted); }
+footer a { color: var(--muted); }
 </style>
 </head>
 <body>

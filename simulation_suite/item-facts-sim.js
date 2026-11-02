@@ -201,7 +201,8 @@ const ck = (n, c, x) => {
 
   ck('the two halves are separated', /WHY YOU/.test(one));
   ck('the location is still shown as a fact about the item',
-     /Agia Marina[\s\S]{0,200}?Leros/.test(one));
+     // read as text: the markup between them grew when its colours became var()s (v0.100.0)
+     /Agia Marina[\s\S]{0,200}?Leros/.test(one.replace(/<[^>]+>/g, ' ')));
   ck('one circle still gets its interest named',
      /You share ski, which is about/.test(one), one.indexOf('You share') > -1 ? '' : 'no sentence');
 

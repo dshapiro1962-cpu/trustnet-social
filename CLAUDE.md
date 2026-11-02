@@ -120,6 +120,16 @@ Hard constraints, learned from breakages:
 - No external CSS or font imports
 - Hardcoded fallback colours for all critical layout CSS
 - `node --check` on the extracted script before every commit
+- **Every colour and font comes from THE THEME** (v0.100.0): the block between
+  `THEME:START` and `THEME:END` at the top of the `<style>` in `web/index.html`.
+  Never write a colour anywhere else, in CSS or in a render function: use a
+  token, or add one to BOTH the day and the night half. Names say what a
+  colour is FOR (`--accent`, `--muted`), never what it looks like. To change
+  the look: edit the block, `node tools/sync-theme.js` (copies it into the
+  seven other pages, their browser-bar tags and the manifest), and
+  `node tools/make-icons.js` if `--band` changed. `theme-sim.js` fails on a
+  colour written outside it. A stored circle or person colour is read through
+  `tnColour()`, and new rows store a slot (`var(--circle-3)`), not a colour
 - Bump `APP_VERSION` on every client change; it renders on Home and is how dan
   confirms a deploy landed
 
@@ -313,6 +323,31 @@ unsatisfactory"; dan marked 28 screens on the screen map, see the handover):
   typed there was refused. Baseline `pre-v0.99.16/`; control fails 14.
   home-screen-step-sim, redesign-browser-sim and answer-words-sim were
   rewritten where they encoded the gate and the paste box dan removed
+
+Added 2 Nov, the visual redesign (step 1 of 4, v0.100.0: Riviera, with colour
+on top, "built so that we can change it later easily"):
+
+- `theme-sim.js` — every colour is written once, in THE THEME, and the other
+  pages carry the same copy. Its proof is not the source: it draws 21
+  screens and pages in Chrome (two at computer width) with every colour in the block swapped for a
+  SENTINEL, by day and by night, and every coloured thing on screen - text,
+  backgrounds, borders, icons - must then show a sentinel; a colour left
+  behind is named with its element. Then every piece of text is measured
+  against what is really behind it (4.5:1, 3:1 for large), day and night;
+  and the frame: the bar floats as glass, the + apart, the list runs on
+  underneath, Ask's send sits above the bar, Home wears the band, the icons
+  and the manifest follow the theme. Baseline `pre-riviera/`. **ITS FIRST
+  RUN FOUND 27 REAL FAULTS**, among them black text at night on every unstyled
+  button (a browser's own default), and a table of old circle colours that
+  the colour rewrite had itself rewritten, so every saved circle came back
+  the wrong colour. A rewrite that maps every `#hex` must not touch the
+  tables that READ old colours; their keys are written without the `#`
+  Its send-button check then PASSED WITH ITS MECHANISM REMOVED (found by
+  sabotage): two people in a circle leave the button in the flow, never held
+  at the bottom, and Chrome also lifts a held element by its scroller's
+  padding, which Safari may not. The room under the list is now a spacer
+  (`.view-body::after`), the check uses a circle of sixteen, and six
+  sabotages each break it
 
 Added 6 Oct:
 
@@ -578,3 +613,31 @@ fixed on 24 Aug, guarded by `unchecked-writes-sim.js`. What remains:
    is a "connect WhatsApp to this account" step, not built.
 14. **`web/hs-test/` is temporary** — the home-screen and WhatsApp-hop test
    pages. Remove once Android testing is done.
+
+---
+
+## To do
+
+Decided or found, not built yet:
+
+1. **Instagram and TikTok links fill nothing in.** Tested 29 Oct on real
+   public links with the link reader's own fetch (`ingest-link`). Instagram
+   answers with its sign-in wall: title "Instagram", no description, no
+   picture. A TikTok video page answers, but its title is "TikTok - Make Your
+   Day" and there is no description, so the AI step has nothing to read. The
+   TikTok CAPTION is in the page the reader already downloads (in the page's
+   embedded data) and is thrown away with the scripts. TikTok's official
+   oEmbed returned no caption and no author. Tested from a home connection;
+   Supabase's servers may fare worse, so paste one of each into Save on a
+   phone before building anything. Three parts:
+   - TikTok: hand the caption the reader already has to the AI step.
+   - Instagram: the legitimate route is Meta's official oEmbed through
+     Trustnet's Meta app, which needs Meta's approval ("oEmbed Read"). Until
+     then the link is kept and the person types the name.
+   - What the Save sheet says when a link gives nothing. The AI is told not
+     to answer with the website's name, and a low-confidence answer shows
+     "Filled what I could"; what a person actually sees for these two links
+     is not checked.
+2. **"Share everything I've saved"**: one tap on Saved that makes a real list
+   (a collection) on the same page. Decided 15 Oct; the fake Share-list sheet
+   it replaces is already gone (v0.99.13).
