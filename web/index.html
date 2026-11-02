@@ -264,6 +264,13 @@ a { color: inherit; text-decoration: none; }
   display: flex; height: 100vh; width: 100%; max-width: 100vw; overflow: hidden;
   position: relative;
 }
+/* THE HEIGHT YOU CAN SEE (v0.102.1). In Safari on an iPhone, 100vh is the
+   screen with Safari's bars hidden, so a strip at the foot of every screen sat
+   below what you could see: Ask's send button, once it moved to the bottom,
+   showed only after a tap in the question opened the keyboard (dan's phone,
+   2 Nov). dvh is the height actually visible; 100vh stays as the fallback for
+   a browser that cannot read it. */
+#app { height: 100dvh; }
 /* Nothing may push the page wider than the screen — that horizontal swipe was
    dragging the tab bar's last icon out of reach on phones. (v0.30.0) */
 html, body { max-width: 100%; overflow-x: hidden; }
@@ -1705,6 +1712,8 @@ button, input, textarea, select { color: inherit; }
   #main.tn-on-sheet .tn-q::before { content: ""; display: block; width: 38px; height: 5px; border-radius: 3px; background: var(--line-strong); margin: 0 auto 10px; }
   #app.tn-sheet-open .tn-q #q-send { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
 }
+/* while you type, the send button waits at the end of the form (v0.102.1) */
+#app.tn-typing .tn-q #q-send { position: static; box-shadow: none; }
 
 /* ── the bar folds to the tab you are on while you scroll ── */
 @media (max-width: 768px) {
@@ -2970,7 +2979,7 @@ const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
 // The Trustnet business number, in one place: the invite join and the
 // sign-in both open WhatsApp with it.
 const TN_WA_NUMBER = '972587786049';
-const APP_VERSION = 'v0.102.0 · live';
+const APP_VERSION = 'v0.102.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -3011,6 +3020,35 @@ function tnOpenSheet(fromEl, params) {
   if (vb) vb.animate([{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }],
     { duration: 420, delay: 120, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', fill: 'backwards' });
 }
+// WHILE YOU TYPE, THE SEND BUTTON STEPS BACK (v0.102.1). dan's iPhone, 2 Nov:
+// with the keyboard up half the screen is gone, and a button held at the foot
+// of what is left sat on the question being typed. While a field of Ask or
+// Recommend has the cursor, the button waits at the end of the form. It is held
+// again a moment after the keyboard goes, so a tap on it cannot land on
+// whatever moves into its place.
+(function() {
+  if (!document.addEventListener) return;
+  let timer = 0;
+  const typing = function(el) {
+    return !!(el && el.closest && el.closest('.tn-q') && /^(INPUT|TEXTAREA)$/.test(el.tagName)
+      && el.type !== 'checkbox' && el.type !== 'radio' && el.type !== 'hidden');
+  };
+  document.addEventListener('focusin', function(e) {
+    if (!typing(e.target)) return;
+    clearTimeout(timer);
+    const app = document.getElementById('app');
+    if (app) app.classList.add('tn-typing');
+  });
+  document.addEventListener('focusout', function(e) {
+    if (!typing(e.target)) return;
+    clearTimeout(timer);
+    timer = setTimeout(function() {
+      if (typing(document.activeElement)) return;
+      const app = document.getElementById('app');
+      if (app) app.classList.remove('tn-typing');
+    }, 300);
+  });
+})();
 function tnCloseSheet() {
   const from = AppState._sheetFrom && AppState._sheetFrom.view !== 'query' ? AppState._sheetFrom : { view: 'home', params: {} };
   AppState._sheetFrom = null;
@@ -4118,7 +4156,7 @@ function renderQuery() {
 
     + '<div class="field" id="q-ask-block"' + (mode === 'ask' ? '' : ' style="display:none;"') + '>'
     + '<div class="tn-sl" style="margin-top:18px;">Your question</div>'
-    + '<textarea class="field-input field-textarea" id="q-text" dir="auto" placeholder="' + esc(qPlaceholder) + '">' + esc(draft) + '</textarea>'
+    + '<textarea class="field-input field-textarea" id="q-text" dir="auto" autocomplete="off" placeholder="' + esc(qPlaceholder) + '">' + esc(draft) + '</textarea>'
     + '</div>'
 
     + '<div class="field" id="q-rec-block"' + (mode === 'recommend' ? '' : ' style="display:none;"') + '>'
@@ -4132,8 +4170,8 @@ function renderQuery() {
     + '<div id="q-item-results" style="max-height:190px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:2px 8px;margin-top:8px;display:none;"></div>'
     + '<div id="q-item-picked" style="margin-top:8px;"></div>'
     + '<div id="q-new-more" style="display:none;margin-top:10px;">'
-    + '<input class="field-input" id="q-new-loc" dir="auto" placeholder="Where? (optional) \u2014 e.g. Lecce" maxlength="80" style="width:100%;margin-bottom:8px;">'
-    + '<textarea class="field-input field-textarea" id="q-new-note" dir="auto" placeholder="Why do you recommend it? (optional)" style="min-height:70px;"></textarea>'
+    + '<input class="field-input" id="q-new-loc" dir="auto" autocomplete="off" placeholder="Where? (optional) \u2014 e.g. Lecce" maxlength="80" style="width:100%;margin-bottom:8px;">'
+    + '<textarea class="field-input field-textarea" id="q-new-note" dir="auto" autocomplete="off" placeholder="Why do you recommend it? (optional)" style="min-height:70px;"></textarea>'
     + '</div>'
     + '<input type="hidden" id="q-item">'
     + '</div>'

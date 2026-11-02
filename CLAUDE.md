@@ -377,6 +377,22 @@ on top, "built so that we can change it later easily"):
   missing button; every tap now records and carries on. Seventeen sabotages
   across theme-, home-circles- and sheets-sim, each caught
 
+- `typing-sim.js` — Ask and Recommend on a phone with the keyboard up
+  (v0.102.1). dan's iPhone on v0.102.0: the send button showed only after a
+  tap in the question, and then sat on it. **`#app` WAS `100vh`, WHICH IN
+  SAFARI ON AN IPHONE IS THE SCREEN WITH SAFARI'S BARS HIDDEN**: the foot of
+  every screen was below what you could see, and step 3 had moved the button
+  into it. Now `100dvh`, with 100vh as the fallback. While a field of the
+  sheet has the cursor (`#app.tn-typing`), the button waits at the end of
+  the form, and is held again 300ms after the cursor leaves so a tap on it
+  stays a tap on it. Chrome cannot draw Safari's bars, so the height is
+  checked in the stylesheet; the rest is drawn and used with the keyboard
+  modelled as the screen it leaves (360 / 320 px). Baseline
+  `pre-v0.102.1/`; control fails 9 of 11 (the 2 it passes are
+  preconditions); four sabotages, each caught. The key / card / pin bar
+  above the keyboard is iOS's AutoFill: the fields now ask for none
+  (`autocomplete="off"`); whether iOS 26 hides the bar is for a real phone
+
 Added 6 Oct:
 
 - `version-check-sim.js` — the app notices when it is out of date and replaces
