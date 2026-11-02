@@ -360,6 +360,23 @@ on top, "built so that we can change it later easily"):
   tapped, New opens New circle). Baseline `pre-step2/`; control fails 32 of
   40, and the 8 it passes are what must not change (Answer still works)
 
+- `sheets-sim.js` — step 3 (v0.102.0, dan: "go with step 3"). Ask and
+  Recommend arrive as a SHEET that grows out of the button pressed
+  (`tnOpenSheet`; read off the animation itself: its first frame must be the
+  button's own box), the bar steps aside, and the round x (`close-sheet`)
+  goes back to where you were - Home, a circle; none of it on a computer or
+  with reduced motion. The bar FOLDS to the tab you are on while you scroll
+  down and opens on a scroll up or a tap, which goes nowhere; the + never
+  folds. Saved is one card of rows; an item wears its picture, pills, and
+  where it stands as ONE switch with the true one lit. Baseline
+  `pre-step3/`; control fails 24. **ITS FIRST CONTROL FAILED FOR THE WRONG
+  REASON**: the old page read the live `/version.json`, found itself out of
+  date and RELOADED mid-run (the update check working as designed). A sim
+  that serves an OLD page must serve a version.json that matches it; this
+  one and home-circles-sim now do. Its control then stopped at the first
+  missing button; every tap now records and carries on. Seventeen sabotages
+  across theme-, home-circles- and sheets-sim, each caught
+
 Added 6 Oct:
 
 - `version-check-sim.js` — the app notices when it is out of date and replaces

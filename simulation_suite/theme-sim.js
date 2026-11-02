@@ -388,10 +388,14 @@ const PICKED = SCREENS.filter((x) => !process.env.PICK || process.env.PICK.split
       await page.evaluate(() => { document.getElementById('view-body').scrollTop = 0; });
       await page.waitForTimeout(200);
       return page.evaluate(() => { const s = document.getElementById('q-send'), b = document.getElementById('mobile-tabbar'), vb = document.getElementById('view-body');
-        return s && b ? { s: s.getBoundingClientRect().bottom, b: b.getBoundingClientRect().top, longer: vb.scrollHeight > vb.clientHeight + 200 } : null; });
+        return s && b ? { s: s.getBoundingClientRect().bottom, b: b.getBoundingClientRect().top, barOpacity: parseFloat(getComputedStyle(b).opacity), longer: vb.scrollHeight > vb.clientHeight + 200 } : null; });
     });
     ck('[precondition] the Ask screen is long enough to scroll', ask.r && ask.r.longer, JSON.stringify(ask.r));
-    ck('Ask\'s send button sits above the bar, not behind it', ask.r && ask.r.s <= ask.r.b - 4, JSON.stringify(ask.r));
+    // v0.102.0: Ask is a sheet and the bar steps aside for it (sheets-sim.js).
+    // What must hold is that its send button is held ON the screen, where the
+    // bar was, not below it.
+    ck('Ask is a sheet: the bar steps aside', ask.r && (ask.r.barOpacity < 0.1 || ask.r.b >= 844), JSON.stringify(ask.r));
+    ck('Ask\'s send button sits above the bar, not behind it', ask.r && ask.r.s <= 844 - 8 && ask.r.s > 700, JSON.stringify(ask.r));
     const colours = await draw({}, SCREENS[2], (page) => page.evaluate(() => typeof tnColour === 'function'
       ? [tnColour('#1D5A45'), tnColour('#c0392b'), tnColour('#217A4B'), tnColour('var(--circle-3)'), tnColour('')] : null));
     const C = colours.r || [];

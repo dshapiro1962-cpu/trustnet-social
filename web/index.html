@@ -1682,6 +1682,59 @@ button, input, textarea, select { color: inherit; }
 .tn-film-t b { color: var(--on-colour); font-size: 17px; }
 .tn-film-t small { color: var(--on-colour); }
 .tn-film > svg { display: none; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SHEETS, SAVED AND AN ITEM (v0.102.0). Step 3 of 4 of the redesign (dan,
+   2 Nov: "go with step 3"): Ask and Recommend arrive as a sheet that grows
+   out of the button you pressed, with the bar stepped aside; the bar folds to
+   one tab while you scroll down a list; Saved is a card of rows; an item wears
+   its picture, its buttons as pills, and where it stands as one switch.
+   No colour is written here: they all come from THE THEME.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Ask and Recommend, as a sheet ── */
+.tn-sheet-x { display: inline-flex; vertical-align: middle; margin: -4px 12px 0 0; width: 40px; height: 40px; }
+.tn-sheet-x svg { width: 18px; height: 18px; }
+.topbar-title .tn-sheet-x + span { vertical-align: middle; }
+@media (max-width: 768px) {
+  #mobile-tabbar { transition: transform 0.45s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.3s, left 0.45s cubic-bezier(0.32, 0.72, 0, 1); }
+  #app.tn-sheet-open #mobile-tabbar { transform: translateY(160%); opacity: 0; pointer-events: none; }
+  #main.tn-on-sheet .view-body { background: var(--surface); border-radius: 30px 30px 0 0; margin: 2px 6px 0;
+    padding-top: 10px; box-shadow: 0 -8px 26px -14px var(--shadow); }
+  #main.tn-on-sheet .view-body::after { height: calc(24px + env(safe-area-inset-bottom, 0px)); }
+  #main.tn-on-sheet .tn-q::before { content: ""; display: block; width: 38px; height: 5px; border-radius: 3px; background: var(--line-strong); margin: 0 auto 10px; }
+  #app.tn-sheet-open .tn-q #q-send { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ── the bar folds to the tab you are on while you scroll ── */
+@media (max-width: 768px) {
+  .mtab { max-width: 120px; transition: max-width 0.4s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.25s, padding 0.4s; }
+  #mobile-tabbar.tn-min { left: calc(100% - 156px); }
+  #mobile-tabbar.tn-min .mtab:not(.on) { max-width: 0; opacity: 0; padding: 0; overflow: hidden; pointer-events: none; }
+  #mobile-tabbar.tn-min .mtab.on { font-size: 0; }
+}
+
+/* ── Saved: one card of rows ── */
+.tn-reclist { background: var(--surface); border-radius: 24px; padding: 0 16px; gap: 0 !important; }
+.tn-reclist > .tn-rec:last-child { border-bottom: 0; }
+
+/* ── an item ── */
+.tn-item-hero { height: 200px; border-radius: 24px; margin-bottom: 12px; background-color: var(--field); background-size: cover; background-position: center; }
+.tn-item-card .card-body { padding: 18px; }
+.tn-item-head { display: flex; gap: 14px; align-items: center; }
+.tn-item-name { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; color: var(--ink); }
+.tn-item-chip { margin-top: 12px; }
+.tn-item-links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.tn-item-links .btn, .tn-item-links a { border-radius: 999px; }
+.tn-item-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+.tn-item-acts .btn-primary, .tn-item-acts .btn-secondary { min-height: 44px; padding: 0 18px; font-size: 15px; gap: 6px; }
+.tn-item-acts .btn svg { width: 17px; height: 17px; }
+.tn-item-acts .btn-danger { margin-left: auto; }
+.tn-status { display: flex; width: 100%; margin: 14px 0 0; }
+.tn-status .btn { flex: 1 1 0; padding: 0 6px; font-size: 13.5px; white-space: nowrap; justify-content: center; }
+.tn-item-recs .tn-row { align-items: flex-start; }
+.tn-item-who { font-size: 15px; font-weight: 700; color: var(--ink); }
+.tn-item-note { margin-top: 5px; font-size: 15px; line-height: 1.45; color: var(--ink-2); white-space: normal; }
 </style>
 </head>
 <body>
@@ -2917,7 +2970,7 @@ const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
 // The Trustnet business number, in one place: the invite join and the
 // sign-in both open WhatsApp with it.
 const TN_WA_NUMBER = '972587786049';
-const APP_VERSION = 'v0.101.0 · live';
+const APP_VERSION = 'v0.102.0 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -2930,6 +2983,43 @@ function showView(name, params) {
   AppState.activeFilter = 'all';
   AppState.searchQuery = '';
   renderApp();
+}
+
+// ASK AND RECOMMEND ARE A SHEET (v0.102.0, step 3 of the redesign). The screen
+// grows out of the button that opened it, the bar at the bottom steps aside,
+// and its round x goes back to wherever you were - Home, a circle, Saved.
+// The screen itself is the same view it always was; only how it arrives and
+// leaves is new. On a computer it arrives as before.
+function tnReducedMotion() {
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+function tnOpenSheet(fromEl, params) {
+  const rect = fromEl && fromEl.getBoundingClientRect ? fromEl.getBoundingClientRect() : null;
+  if (AppState.currentView !== 'query') {
+    AppState._sheetFrom = { view: AppState.currentView, params: AppState.viewParams || {} };
+  }
+  showView('query', params || {});
+  const main = document.getElementById('main');
+  if (!rect || !main || !main.animate || window.innerWidth > 768 || tnReducedMotion()) return;
+  const m = main.getBoundingClientRect();
+  const inset = function(v) { return Math.max(0, Math.round(v)) + 'px'; };
+  main.animate([
+    { clipPath: 'inset(' + inset(rect.top - m.top) + ' ' + inset(m.right - rect.right) + ' ' + inset(m.bottom - rect.bottom) + ' ' + inset(rect.left - m.left) + ' round 26px)' },
+    { clipPath: 'inset(0px 0px 0px 0px round 0px)' }
+  ], { duration: 480, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' });
+  const vb = document.getElementById('view-body');
+  if (vb) vb.animate([{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }],
+    { duration: 420, delay: 120, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', fill: 'backwards' });
+}
+function tnCloseSheet() {
+  const from = AppState._sheetFrom && AppState._sheetFrom.view !== 'query' ? AppState._sheetFrom : { view: 'home', params: {} };
+  AppState._sheetFrom = null;
+  const go = function() { showView(from.view, from.params || {}); };
+  const vb = document.getElementById('view-body');
+  if (!vb || !vb.animate || window.innerWidth > 768 || tnReducedMotion()) { go(); return; }
+  const a = vb.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(40%)' }],
+    { duration: 260, easing: 'cubic-bezier(0.4, 0, 0.9, 0.6)', fill: 'forwards' });
+  a.onfinish = function() { go(); a.cancel(); };
 }
 
 const VIEW_TITLES = {
@@ -2981,7 +3071,13 @@ function renderApp() {
   ttEl.classList.toggle('is-wordmark', AppState.currentView === 'home');
   const mainEl = document.getElementById('main');
   if (mainEl) mainEl.classList.toggle('tn-on-home', AppState.currentView === 'home');
+  const onSheet = AppState.currentView === 'query';
+  if (mainEl) mainEl.classList.toggle('tn-on-sheet', onSheet);
+  const appEl = document.getElementById('app');
+  if (appEl) appEl.classList.toggle('tn-sheet-open', onSheet);
   if (AppState.currentView === 'home') ttEl.textContent = 'trustnet';
+  else if (onSheet) ttEl.innerHTML = '<button type="button" class="tn-x tn-sheet-x" data-action="close-sheet" aria-label="Close">'
+    + tnIcon('x', 2.2) + '</button><span>' + esc(name) + '</span>';
   else if (back) ttEl.innerHTML = '<button type="button" class="tn-back" data-action="nav" data-view="' + back[0] + '">'
     + tnIcon('back', 2) + esc(back[1]) + '</button>';
   else ttEl.textContent = name;
@@ -3786,7 +3882,7 @@ function renderCircleDetail() {
     + (asked.length ? '<div class="tn-sl">Asked here <span>' + asked.length + '</span></div><div class="tn-rows">' + askedRows + '</div>' : '')
     + '<div class="tn-sl"><b class="tn-sl-l">Saved in <bdi>' + esc(circle.name) + '</bdi></b><span>' + recs.length + '</span></div>'
     + (recs.length
-        ? '<div>' + recs.map(function(r) { return recCardHtml(r, true); }).join('') + '</div>'
+        ? '<div class="tn-reclist">' + recs.map(function(r) { return recCardHtml(r, true); }).join('') + '</div>'
         : '<p class="tn-t2" style="white-space:normal;">Nothing saved here yet. Ask this circle something, and the answers you keep land here.</p>')
     + '</div>';
 }
@@ -6111,7 +6207,7 @@ function libResultsHtml(f) {
     return shimmer + '<div class="empty-state"><div class="empty-icon">\ud83d\udcda</div><div class="empty-title">' + (search ? 'No matches' : 'Nothing here yet') + '</div><div class="empty-body">' + (search ? 'Try different keywords.' : 'This fills up as you ask questions and save recommendations.') + '</div></div>';
   }
   const groups = f.groups || libGroupByCanonical(f);
-  return shimmer + '<div style="display:flex;flex-direction:column;gap:10px;">'
+  return shimmer + '<div class="tn-reclist" style="display:flex;flex-direction:column;gap:10px;">'
     + groups.map(function(g) { return recCardHtml(g.lead, true, { semantic: g.semantic, group: g }); }).join('')
     + '</div>';
 }
@@ -7507,7 +7603,31 @@ function updateMobileTabs() {
     if (!el) return;
     if (id === active) el.classList.add('on'); else el.classList.remove('on');
   });
+  const bar = document.getElementById('mobile-tabbar');
+  if (bar) bar.classList.remove('tn-min');
 }
+
+// THE BAR STEPS ASIDE WHILE YOU READ (v0.102.0). Scrolling down a list folds
+// the bar to the one tab you are on, next to the +; scrolling back up, or a tap
+// on it, opens it again. The + never folds: making something is always one tap.
+(function() {
+  const vb = document.getElementById('view-body');
+  const bar = document.getElementById('mobile-tabbar');
+  if (!vb || !bar || !vb.addEventListener) return;
+  let last = 0;
+  vb.addEventListener('scroll', function() {
+    const y = vb.scrollTop;
+    if (y > last + 6 && y > 120 && bar.querySelector('.mtab.on')) bar.classList.add('tn-min');
+    else if (y < last - 6 || y < 120) bar.classList.remove('tn-min');
+    last = y;
+  }, { passive: true });
+  bar.addEventListener('click', function(e) {
+    if (!bar.classList.contains('tn-min') || (e.target.closest && e.target.closest('.mfab'))) return;
+    e.preventDefault();
+    e.stopPropagation();
+    bar.classList.remove('tn-min');
+  }, true);
+})();
 
 function ensureNotificationsFetched() {
   if (AppState.isDemoMode || AppState._notifFetched || !CURRENT_UID) return;
@@ -7716,39 +7836,48 @@ function renderRecDetail() {
   if (rec.sourceLabel) ctxHtml += '<div dir="auto" style="font-size:11px;color:var(--violet);font-weight:700;margin-bottom:8px;">From ' + esc(rec.sourceLabel) + '</div>';
   const isMine = AppState.userRecs.some(function(x) { return x.id === rec.id; });
   const actionRow = (!AppState.isDemoMode && isMine)
-    ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">'
-      + '<button class="btn btn-primary btn-sm" data-action="open-modal" data-modal="share-rec" data-rec-id="' + esc(rec.id) + '">Send to a member</button>'
-      + '<button class="btn btn-secondary btn-sm" data-action="open-modal" data-modal="edit-rec" data-rec-id="' + esc(rec.id) + '">Edit</button>'
+    ? '<div class="tn-item-acts">'
+      + '<button class="btn btn-primary" data-action="open-modal" data-modal="share-rec" data-rec-id="' + esc(rec.id) + '">' + tnIcon('send', 2) + 'Send to a member</button>'
+      + '<button class="btn btn-secondary" data-action="open-modal" data-modal="edit-rec" data-rec-id="' + esc(rec.id) + '">' + tnIcon('pencil', 2) + 'Edit</button>'
       + '<button class="btn btn-danger btn-sm" data-action="delete-rec" data-rec-id="' + esc(rec.id) + '">Delete</button>'
       + '</div>'
     : '';
+  // WHERE IT STANDS, AS ONE SWITCH (v0.102.0): the three were separate buttons
+  // that never said which one was true. Now the one it is, is the one lit.
+  const st = rec.status || '';
+  const stBtn = function(s, label) {
+    return '<button type="button" class="btn' + (st === s ? ' on' : '') + '" aria-pressed="' + (st === s) + '" data-action="toggle-status"'
+      + ' data-rec-id="' + esc(rec.id) + '" data-status="' + s + '">' + label + '</button>';
+  };
+  // ITS PICTURE ACROSS THE TOP, when it has one (v0.102.0); otherwise the
+  // tile of its kind, large, beside its name.
+  const hasImg = !!(can.imageUrl && /^https?:\/\//i.test(can.imageUrl));
 
-  return '<div style="max-width:640px;">'
+  return '<div class="tn-item" style="max-width:640px;">'
     // (the way back is in the top bar since v0.95.0)
-
-    + '<div class="card" style="margin-bottom:20px;">'
+    + (hasImg ? '<div class="tn-item-hero" style="background-image:url(&quot;' + esc(can.imageUrl) + '&quot;);"></div>' : '')
+    + '<div class="card tn-item-card" style="margin-bottom:20px;">'
     + '<div class="card-body">'
-    + '<div style="display:flex;gap:14px;align-items:flex-start;">'
-    + tnTile(can.name, can.primaryCategory, can.imageUrl, 60)
-    + '<div style="flex:1;">'
-    + '<div style="font-size:20px;font-weight:800;letter-spacing:-0.3px;margin-bottom:3px;">' + esc(can.name) + '</div>'
-    + '<div style="font-size:13px;color:var(--muted);margin-bottom:10px;">' + esc(can.category || '') + (can.location ? ' · ' + esc(can.location) : '') + '</div>'
-    + catChipHtml(can, rec)
+    + '<div class="tn-item-head">'
+    + (hasImg ? '' : tnTile(can.name, can.primaryCategory, '', 64))
+    + '<div class="tn-row-b">'
+    + '<div class="tn-item-name" dir="auto">' + esc(can.name) + '</div>'
+    + '<div class="tn-t2" style="white-space:normal;">' + esc(can.category || '') + (can.location ? ' · ' + esc(can.location) : '') + '</div>'
+    + '</div></div>'
+    + '<div class="tn-item-chip">' + catChipHtml(can, rec) + '</div>'
     + ctxHtml
-    + (linksHtml ? '<div style="display:flex;gap:6px;flex-wrap:wrap;">' + linksHtml + '</div>' : '')
+    + (linksHtml ? '<div class="tn-item-links">' + linksHtml + '</div>' : '')
     + actionRow
     // Up here since v0.95.1: under every recommendation they needed a scroll.
-    + '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">'
-    + '<button class="btn btn-secondary btn-sm" data-action="toggle-status" data-rec-id="' + esc(rec.id) + '" data-status="visited">Mark visited</button>'
-    + '<button class="btn btn-secondary btn-sm" data-action="toggle-status" data-rec-id="' + esc(rec.id) + '" data-status="saved">Save for later</button>'
-    + '<button class="btn btn-ghost btn-sm" data-action="toggle-status" data-rec-id="' + esc(rec.id) + '" data-status="dismissed">Dismiss</button>'
+    + '<div class="tn-seg tn-status" role="group" aria-label="Where it stands">'
+    + stBtn('visited', 'Mark visited') + stBtn('saved', 'Save for later') + stBtn('dismissed', 'Dismiss')
     + '</div>'
     + shareRowHtml(rec)
     + '</div>'
     + '</div>'
-    + '</div></div>'
 
-    + '<h2 style="font-size:12px;font-weight:700;letter-spacing:0.5px;color:var(--muted);text-transform:uppercase;margin-bottom:12px;">' + allRecsForCanon.length + ' RECOMMENDATION' + (allRecsForCanon.length !== 1 ? 'S' : '') + '</h2>'
+    + '<div class="tn-sl">' + allRecsForCanon.length + ' RECOMMENDATION' + (allRecsForCanon.length !== 1 ? 'S' : '') + '</div>'
+    + '<div class="tn-rows tn-item-recs">'
     + allRecsForCanon.map(function(r) {
       const rec2 = r;
       // Resolve recommender: check members first, then user profile (self-added recs)
@@ -7757,19 +7886,17 @@ function renderRecDetail() {
         rcm = AppState.userProfile;
       }
       const rc = AppState.circleById(rec2.circleId);
-      return '<div class="card" style="margin-bottom:10px;"><div class="card-body">'
-        + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">'
+      return '<div class="tn-row tn-item-rec">'
         + (rcm ? avatarEl(rcm, 'sm') : '<div class="avatar avatar-sm" style="background:var(--line-strong);">?</div>')
-        + '<div>'
-        + '<div style="font-size:13px;font-weight:600;">' + (rcm ? esc(rcm.name) : (rec2.isAnonymous ? 'Anonymous (D2)' : '—')) + '</div>'
-        + '<div style="font-size:11px;color:var(--muted);">' + (rc ? 'via ' + esc(rc.name) : '') + ' · ' + relDate(rec2.date) + '</div>'
-        + '</div>'
-        + (rec2.rating ? '<div style="margin-left:auto;">' + stars(rec2.rating) + '</div>' : '')
-        + '</div>'
-        + (rec2.note ? '<div style="font-size:13px;color:var(--ink-2);line-height:1.6;margin-bottom:10px;">' + esc(rec2.note) + '</div>' : '')
-        + (rec2.tags && rec2.tags.length ? '<div style="display:flex;gap:4px;flex-wrap:wrap;">' + rec2.tags.map(function(t){return'<span class="chip" style="font-size:10px;">#'+esc(t)+'</span>';}).join('') + '</div>' : '')
+        + '<div class="tn-row-b">'
+        + '<div class="tn-item-who">' + (rcm ? esc(rcm.name) : (rec2.isAnonymous ? 'Anonymous (D2)' : '—'))
+        + (rec2.rating ? ' <span class="tn-item-stars">' + stars(rec2.rating) + '</span>' : '') + '</div>'
+        + '<div class="tn-t2">' + (rc ? 'via ' + esc(rc.name) : '') + ' · ' + relDate(rec2.date) + '</div>'
+        + (rec2.note ? '<div class="tn-item-note" dir="auto">' + esc(rec2.note) + '</div>' : '')
+        + (rec2.tags && rec2.tags.length ? '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;">' + rec2.tags.map(function(t){return'<span class="chip" style="font-size:10px;">#'+esc(t)+'</span>';}).join('') + '</div>' : '')
         + '</div></div>';
     }).join('')
+    + '</div>'
 
     + '</div>';
 }
@@ -11083,7 +11210,7 @@ document.addEventListener('click', function(e) {
     // Every door into the two-verb screen now SAYS its verb and sets it - the
     // Home box used to land on whichever one was used last (USER-FLOWS #7).
     AppState.queryMode = target.dataset.mode === 'recommend' ? 'recommend' : 'ask';
-    showView('query', target.dataset.circleId ? { circleId: target.dataset.circleId } : {});
+    tnOpenSheet(target, target.dataset.circleId ? { circleId: target.dataset.circleId } : {});
   }
   else if (action === 'fab-recommend') {
     // Straight to the Recommend verb, not to whichever one was last used -
@@ -11092,7 +11219,10 @@ document.addEventListener('click', function(e) {
     // does and then makes it true.
     closeModal();
     AppState.queryMode = 'recommend';
-    showView('query');
+    tnOpenSheet(document.querySelector('.mfab'), {});
+  }
+  else if (action === 'close-sheet') {
+    tnCloseSheet();
   }
   else if (action === 'fab-save') {
     closeModal();

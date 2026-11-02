@@ -74,6 +74,10 @@ function seed(kind) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: scheme });
     await ctx.route('https://trustnetsocial.com/**', (route) => {
       const p = decodeURIComponent(new URL(route.request().url()).pathname);
+      // The page checks /version.json and replaces itself when it is out of
+      // date. Served the live file, an old page would reload in the middle of
+      // the run and fail for that reason, not for what it draws.
+      if (p === '/version.json') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ version: (fs.readFileSync(INDEX, 'utf8').match(/const APP_VERSION = '([^']+)'/) || [])[1] || '' }) });
       const f = p === '/' || p === '/index.html' ? INDEX : path.join(REPO, 'web', p);
       if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) return route.fulfill({ status: 404, body: '' });
       return route.fulfill({ status: 200, contentType: /\.html$/.test(f) ? 'text/html; charset=utf-8' : undefined, body: fs.readFileSync(f) });
