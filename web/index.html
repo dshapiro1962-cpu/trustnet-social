@@ -2063,7 +2063,7 @@ button, input, textarea, select { color: inherit; }
 <!-- The menu (v0.95.0) -->
 <div id="tn-menu" hidden></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.min.js"></script>
 <!-- libphonenumber-js, min metadata: 43KB gzipped, 245 countries. Phone number
      rules are NOT regular — a regex cannot know which leading digits to strip
      without country-specific metadata, and Italy KEEPS its trunk zero in E.164
@@ -3038,7 +3038,7 @@ const NAME_PROMPT_FROM = Date.parse('2026-09-09T16:55:00Z');
 // The Trustnet business number, in one place: the invite join and the
 // sign-in both open WhatsApp with it.
 const TN_WA_NUMBER = '972587786049';
-const APP_VERSION = 'v0.104.0 · live';
+const APP_VERSION = 'v0.104.1 · live';
 (function(){ var e = document.getElementById('app-version-footer'); if (e) e.textContent = APP_VERSION; })();
 // The strip is the version marker now. Static "BETA" cannot break; the version
 // is driven by the constant so a bump can never silently stop showing.
@@ -11100,10 +11100,16 @@ async function handleSaveFromFeed(idx) {
 
 async function handleClearData() {
   if (!confirm('Sign out of Trustnet on this device?')) return;
-  // signOut clears the cookie through tnCookieStorage.removeItem, and does so
-  // even when the server call fails or the connection drops - checked both
-  // ways in session-cookie-sim, which is why no second clear is written here.
-  try { await sb.auth.signOut(); } catch (e) {}
+  // First sign out everywhere. Since supabase-js 2.119.0 a server call that
+  // fails (offline, a 5xx) KEEPS the session on this device and returns an
+  // error - people pressed Sign out and stayed signed in. So on an error, sign
+  // out this device: scope 'local' clears the cookie (through
+  // tnCookieStorage.removeItem) BEFORE it tries the server, so it does not
+  // depend on the connection. Supabase's own advice for 2.119.0. Checked
+  // answering, failing and offline in signout-sim.
+  let res = null;
+  try { res = await sb.auth.signOut(); } catch (e) { res = { error: e }; }
+  if (!res || res.error) { try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {} }
   location.reload();
 }
 

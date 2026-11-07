@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#2F5BA8">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#22406F">
+<meta name="robots" content="noindex, nofollow">
+<title>Trustnet — before this goes out</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<style>
+/* THEME:START
+   ═══════════════════════════════════════════════════════════════════════
+   THE THEME. EVERY COLOUR AND FONT IN THE PRODUCT COMES FROM THIS BLOCK.
+
+   To change the look: change the values here, in web/index.html, and nowhere
+   else. Then run  node tools/sync-theme.js  which copies this block into the
+   other pages. theme-sim.js fails if a colour is written anywhere outside it.
+
+   Names say what a colour is FOR, never what it looks like: --accent, not
+   --blue, so the next change of colour needs no renaming. Every colour has a
+   day value in the first block and a night value in the second; night follows
+   the phone's own setting.
+
+   This is Riviera (dan, 2 Nov 2026): cobalt and coral on the +, softened
+   7 Nov ("the blue is too blueish"): a third less blue, an off-white ground.
+   ═══════════════════════════════════════════════════════════════════════ */
+:root {
+  color-scheme: light;
+
+  /* the phone's own fonts: nothing to load, nothing to go missing */
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Menlo", "Courier New", monospace;
+
+  /* the screen, and what sits on it */
+  --ground: #EEF2F7;
+  --surface: #FFFFFF;
+  --field: #F0F3F8;
+  --field-hover: #E4E9F1;
+  --ink: #1C1C1E;
+  --ink-2: #3A3F4B;
+  --muted: #5A6272;
+  --faint: #9AA4B5;
+  --line: #E1E6EE;
+  --line-strong: #C9D1DD;
+
+  /* the one colour that means "press me" */
+  --accent: #2F5BA8;
+  --accent-hover: #284D8F;
+  --accent-deep: #223F78;
+  --accent-fg: #2F5BA8;
+  --on-accent: #FFFFFF;
+  --accent-soft: #E1E8F3;
+  --accent-soft-fg: #2B539A;
+  --accent-shadow: rgba(47,91,168,0.45);
+
+  /* the colour across the top of Home */
+  --band: #2F5BA8;
+  --on-band: #FFFFFF;
+  --band-fill: rgba(255,255,255,0.14);
+
+  /* the + button */
+  --fab: #E8553A;
+  --on-fab: #FFFFFF;
+
+  /* the side bar on a computer */
+  --sidebar: #1A2E55;
+  --on-sidebar: #FFFFFF;
+  --on-sidebar-2: #BAC6DA;
+  --sidebar-fill: rgba(255,255,255,0.08);
+
+  /* what floats: glass over the screen */
+  --glass: rgba(255,255,255,0.62);
+  --glass-edge: rgba(255,255,255,0.8);
+  --glass-hi: rgba(255,255,255,0.95);
+  --fill: rgba(120,120,128,0.14);
+  --shadow: rgba(16,24,40,0.28);
+  --scrim: rgba(10,14,22,0.42);
+
+  /* saying something: errors, warnings, good news, a second voice */
+  --danger: #B3261E;
+  --on-danger: #FFFFFF;
+  --danger-soft: #FDEDEB;
+  --warn: #8A5A00;
+  --warn-soft: #FFF3D6;
+  --warn-line: #E8A020;
+  --good: #0F7B6C;
+  --good-soft: #DFF3EE;
+  --violet: #5B3E9E;
+  --violet-soft: #F3EEFB;
+
+  /* a circle's colour, a person's colour, the question cards */
+  --on-colour: #FFFFFF;
+  --circle-1: #3565B0;
+  --circle-2: #C9442A;
+  --circle-3: #7A55D8;
+  --circle-4: #0B7A8C;
+  --circle-5: #C23B6E;
+  --circle-6: #9E6512;
+  --circle-7: #4A5FA8;
+  --circle-8: #7C6A58;
+  --card-1: #2F5BA8;
+  --card-2: #C2462B;
+  --card-3: #5F45B8;
+  --card-4: #0E7489;
+
+  /* the tile beside a thing: what KIND of thing it is (food, a stay, a book...) */
+  /* the night sky behind sign in and the answer page */
+  --night: #111B2B;
+  --on-night: #FFFFFF;
+  --on-night-2: #C8D2E3;
+  --star: rgba(255,255,255,0.6);
+  --star-line: rgba(255,255,255,0.16);
+  --sky-ring: #8FB2EB;
+  --sky-you: #FF8A6B;
+
+  --tile-1: #C9442A;
+  --tile-2: #3565B0;
+  --tile-3: #0B7A8C;
+  --tile-4: #9E6512;
+  --tile-5: #7A55D8;
+  --tile-6: #C23B6E;
+  --tile-7: #4A5FA8;
+  --tile-8: #7C6A58;
+
+  /* the small coloured labels: words and their backgrounds */
+  --tag-1: #97472A; --tag-1-soft: #F5E2D6;
+  --tag-2: #284D8F; --tag-2-soft: #E1E8F3;
+  --tag-3: #0E6B62; --tag-3-soft: #DDF1EE;
+  --tag-4: #6E5A26; --tag-4-soft: #EDE6D4;
+  --tag-5: #62427A; --tag-5-soft: #EAE1EF;
+  --tag-6: #A32B56; --tag-6-soft: #FAEAF0;
+  --tag-7: #3F4A68; --tag-7-soft: #E2E5EE;
+  --tag-8: #5A6272; --tag-8-soft: #EDF0F5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --ground: #0B1220;
+    --surface: #141D2F;
+    --field: #1C273D;
+    --field-hover: #25314A;
+    --ink: #F2F4F8;
+    --ink-2: #D5DAE4;
+    --muted: #A7B1C4;
+    --faint: #6E7A90;
+    --line: #222D44;
+    --line-strong: #36435E;
+
+    --accent: #8FB0E6;
+    --accent-hover: #A6C1EC;
+    --accent-deep: #D2DFF5;
+    --accent-fg: #9DB9E8;
+    --on-accent: #0B1220;
+    --accent-soft: #1D2D4C;
+    --accent-soft-fg: #AFC6EE;
+    --accent-shadow: rgba(0,0,0,0.5);
+
+    --band: #22406F;
+    --on-band: #FFFFFF;
+    --band-fill: rgba(255,255,255,0.18);
+
+    --fab: #FF8A6B;
+    --on-fab: #2A0E06;
+
+    --sidebar: #0A1120;
+    --on-sidebar: #FFFFFF;
+    --on-sidebar-2: #B8C3D6;
+    --sidebar-fill: rgba(255,255,255,0.08);
+
+    --glass: rgba(28,40,64,0.6);
+    --glass-edge: rgba(255,255,255,0.16);
+    --glass-hi: rgba(255,255,255,0.14);
+    --fill: rgba(255,255,255,0.1);
+    --shadow: rgba(0,0,0,0.7);
+    --scrim: rgba(0,0,0,0.55);
+
+    --danger: #FF8A80;
+    --on-danger: #2A0E0E;
+    --danger-soft: #4A1C22;
+    --warn: #F2C46B;
+    --warn-soft: #3D2F10;
+    --warn-line: #8A6A1F;
+    --good: #6FD8C4;
+    --good-soft: #103A38;
+    --violet: #C3B2F2;
+    --violet-soft: #2A2350;
+
+    --on-colour: #FFFFFF;
+    --circle-1: #3565B0;
+    --circle-2: #C9442A;
+    --circle-3: #7A55D8;
+    --circle-4: #0B7A8C;
+    --circle-5: #C23B6E;
+    --circle-6: #9E6512;
+    --circle-7: #4A5FA8;
+    --circle-8: #7C6A58;
+    --card-1: #2F5BA8;
+    --card-2: #C2462B;
+    --card-3: #5F45B8;
+    --card-4: #0E7489;
+    --night: #0D1626;
+    --on-night: #FFFFFF;
+    --on-night-2: #C5D3EC;
+    --star: rgba(255,255,255,0.6);
+    --star-line: rgba(255,255,255,0.16);
+    --sky-ring: #8FB0E6;
+    --sky-you: #FF8A6B;
+    --tile-1: #C9442A;
+    --tile-2: #3565B0;
+    --tile-3: #0B7A8C;
+    --tile-4: #9E6512;
+    --tile-5: #7A55D8;
+    --tile-6: #C23B6E;
+    --tile-7: #4A5FA8;
+    --tile-8: #7C6A58;
+
+    --tag-1: #FFB596; --tag-1-soft: #4A2517;
+    --tag-2: #AFC6EE; --tag-2-soft: #1D2D4C;
+    --tag-3: #7FE0CF; --tag-3-soft: #0F3B3A;
+    --tag-4: #E5CF8E; --tag-4-soft: #3B3113;
+    --tag-5: #D3B9EE; --tag-5-soft: #332148;
+    --tag-6: #FFA9C6; --tag-6-soft: #4A1A2E;
+    --tag-7: #C2CCEA; --tag-7-soft: #252D40;
+    --tag-8: #C2CAD8; --tag-8-soft: #283041;
+  }
+}
+/* THEME:END */
+/* The page stands on the theme: a field the browser would draw in its own
+   white and black takes the theme's colours instead. */
+input, textarea, select { background-color: var(--surface); color: var(--ink); }
+button { color: inherit; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   THE HUMAN PRESS.
+
+   A connector — Muse — can WRITE a question to one of your circles. It
+   cannot send one. This page is where a person reads who would receive
+   exactly what, and presses send.
+
+   The people in a circle are real, and they are in it because you trust
+   them. An agent that can message them because you mumbled something at
+   it is a different product and a worse one. This screen is the line
+   between "Muse can ask my circle" and "Muse can message my friends",
+   and it is the same shape the invite flow already has: Trustnet opens
+   YOUR WhatsApp with a message ready, and YOU press send.
+
+   NO SIGN-IN. The token in the URL is the credential, exactly as
+   respond.html works. It authorises ONE described action on ONE draft:
+   you can edit the wording and nothing else — not the recipients, not
+   the circle, not whose account. Thirty minutes, single use, and the
+   single use is enforced in SQL (0053 §8) so two taps send once.
+
+   dan's rule, Sep 2026: the actions at the bottom must be visible
+   without scrolling. They are in a fixed bar.
+
+   House rules as index.html: no external CSS, no font imports,
+   hardcoded colours, no template literals.
+   ═══════════════════════════════════════════════════════════════════ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { background: var(--field); color: var(--ink); min-height: 100vh; min-height: 100dvh;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 15.5px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 560px; margin: 0 auto; padding: 0 16px 140px; }
+header { background: var(--band); color: var(--on-band); padding: calc(22px + env(safe-area-inset-top, 0px)) 0 20px; }
+header .wrap { padding-bottom: 0; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand img { width: 32px; height: 32px; border-radius: 9px; display: block; }
+.brand b { font-size: 17px; font-weight: 700; color: var(--on-band); }
+h1 { font-size: 20px; font-weight: 700; margin: 22px 0 3px; }
+.sub { color: var(--muted); font-size: 13.5px; margin-bottom: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 15px; padding: 15px 16px; margin-bottom: 12px; }
+.lbl { font-size: 11.5px; font-weight: 700; letter-spacing: 0.7px; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 7px; }
+.to { font-size: 17px; font-weight: 700; }
+.who { color: var(--ink-2); font-size: 14px; margin-top: 5px; }
+.q { width: 100%; border: 0; background: var(--field); border-radius: 11px; padding: 12px 13px;
+  font: inherit; font-size: 15.5px; color: var(--ink); line-height: 1.55; resize: vertical;
+  min-height: 92px; border: 1px solid var(--line); }
+.q:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.hint { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+/* dan, Sep 2026: bottom actions must be visible without scrolling. */
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface);
+  border-top: 1px solid var(--line); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  display: flex; gap: 9px; justify-content: center; }
+.bar .inner { width: 100%; max-width: 560px; display: flex; gap: 9px; }
+.btn { flex: 1; border: 0; border-radius: 12px; padding: 14px 16px; font: inherit;
+  font-size: 15.5px; font-weight: 700; cursor: pointer; }
+.btn-go { background: var(--accent); color: var(--on-accent); }
+.btn-go:disabled { background: var(--line-strong); cursor: default; }
+.btn-no { background: var(--surface); color: var(--muted); border: 1px solid var(--line); flex: 0 0 auto; padding: 14px 18px; font-weight: 600; }
+.state { text-align: center; padding: 46px 20px; }
+.state .big { font-size: 40px; }
+.state h2 { font-size: 19px; font-weight: 700; margin: 12px 0 6px; }
+.state p { color: var(--muted); font-size: 14.5px; }
+.hidden { display: none !important; }
+.note { background: var(--warn-soft); border: 1px solid var(--warn-line); border-radius: 13px;
+  padding: 12px 14px; font-size: 13.5px; color: var(--warn); margin-bottom: 12px; }
+/* Anyone who did NOT get the question is the part worth acting on, so it gets
+   its own line and its own colour rather than trailing a sentence that opens
+   with a green tick. */
+.miss { margin: 14px auto 0; max-width: 420px; background: var(--warn-soft);
+  border: 1px solid var(--warn-line); border-radius: 13px; padding: 11px 14px;
+  font-size: 13.5px; color: var(--warn); text-align: left; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="brand"><img src="/icons/icon-512.png" alt=""><b>Trustnet</b></div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div id="loading" class="state">
+    <div class="big">&#8987;</div>
+    <h2>Opening the draft&hellip;</h2>
+  </div>
+
+  <div id="ready" class="hidden">
+    <h1>Before this goes out</h1>
+    <div class="sub">Nothing has been sent yet.</div>
+
+    <div class="note">Muse wrote this. Read it, change anything you like, and
+      press send &mdash; or discard it and nobody hears a thing.</div>
+
+    <div class="card">
+      <div class="lbl">To</div>
+      <div class="to" id="circle"></div>
+      <div class="who" id="who"></div>
+    </div>
+
+    <div class="card">
+      <div class="lbl">The question</div>
+      <textarea class="q" id="text" maxlength="500"></textarea>
+      <div class="hint" id="hint"></div>
+    </div>
+  </div>
+
+  <div id="done" class="state hidden">
+    <div class="big">&#10003;</div>
+    <h2 id="done-h">Sent</h2>
+    <p id="done-p"></p>
+    <p id="done-miss" class="miss hidden"></p>
+  </div>
+
+  <div id="signedout" class="state hidden">
+    <div class="big">&#128274;</div>
+    <h2>Sign in to send this</h2>
+    <p>Sending needs to be you, not just this link &mdash; so the link is safe
+       to hand to an assistant. Open <a href="/">Trustnet</a>, sign in, then
+       open this link again.</p>
+  </div>
+
+  <div id="bad" class="state hidden">
+    <div class="big">&#9888;&#65039;</div>
+    <h2 id="bad-h">This draft is no longer live</h2>
+    <p id="bad-p">Ask Muse to draft it again.</p>
+  </div>
+
+</div>
+
+<div class="bar hidden" id="bar">
+  <div class="inner">
+    <button class="btn btn-no" id="discard" type="button">Discard</button>
+    <button class="btn btn-go" id="send" type="button">Send</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+(function () {
+  var SB_URL = 'https://kgsdtfrcyjrxeyqqxoic.supabase.co';
+  var FN = SB_URL + '/functions/v1/connector-confirm';
+  var KEY = 'sb_publishable_8MAMd56FzHTyNZtnO2XK4A_cp2lFGEm';
+  var token = new URLSearchParams(location.search).get('d') || '';
+
+  var $ = function (id) { return document.getElementById(id); };
+  function show(which) {
+    ['loading', 'ready', 'done', 'bad', 'signedout'].forEach(function (v) { $(v).classList.add('hidden'); });
+    $(which).classList.remove('hidden');
+    $('bar').classList.toggle('hidden', which !== 'ready');
+  }
+  function bad(h, p) {
+    if (h) $('bad-h').textContent = h;
+    if (p) $('bad-p').textContent = p;
+    show('bad');
+  }
+
+// ── TN SESSION STORE (v0.99.11) ───────────────────────────────────────────
+// IDENTICAL in index, respond, collection, connect and confirm;
+// session-cookie-sim.js holds the five copies equal and runs them.
+// THE SIGN-IN LIVES IN A COOKIE. Measured on dan's iPhone (Chrome and Safari)
+// and an Android, 10 Oct 2026, with web/hs-test: an icon added to the home
+// screen sees the browser's COOKIES but not its saved data (localStorage),
+// where supabase-js keeps the session by default - so every iPhone icon asked
+// for a second sign-in. Cookies ONLY, never a cookie and localStorage both:
+// refresh tokens rotate, and two copies would drift until one signed the
+// other out. Long enough to need splitting, so it is kept in numbered parts.
+var TN_SB_KEY = 'sb-kgsdtfrcyjrxeyqqxoic-auth-token';
+var TN_COOKIE_PART = 3000;
+function tnCookieJar() {
+  var jar = {};
+  var all = (document.cookie || '').split('; ');
+  for (var i = 0; i < all.length; i++) {
+    var at = all[i].indexOf('=');
+    if (at > 0) jar[all[i].slice(0, at)] = all[i].slice(at + 1);
+  }
+  return jar;
+}
+function tnCookieClear(key) {
+  var jar = tnCookieJar();
+  for (var name in jar) {
+    if (name.indexOf(key + '.') === 0) document.cookie = name + '=; path=/; max-age=0; SameSite=Lax; Secure';
+  }
+}
+var tnCookieStorage = {
+  getItem: function (key) {
+    var jar = tnCookieJar();
+    if (jar[key + '.0'] === undefined) return null;
+    var enc = '';
+    for (var i = 0; jar[key + '.' + i] !== undefined; i++) enc += jar[key + '.' + i];
+    try { return decodeURIComponent(enc); } catch (e) { return null; }
+  },
+  setItem: function (key, value) {
+    tnCookieClear(key);
+    // Encoded first and split after, so a %XX is never cut in a way that
+    // matters: the parts are joined again before anything is decoded.
+    var enc = encodeURIComponent(value);
+    for (var i = 0, n = 0; i < enc.length; i += TN_COOKIE_PART, n++) {
+      document.cookie = key + '.' + n + '=' + enc.slice(i, i + TN_COOKIE_PART)
+        + '; path=/; max-age=34560000; SameSite=Lax; Secure';
+    }
+  },
+  removeItem: function (key) { tnCookieClear(key); }
+};
+// A sign-in saved before v0.99.11 is in localStorage: move it, once, so
+// nobody is signed out by the change, and leave no second copy behind.
+function tnMoveSessionToCookie() {
+  try {
+    var old = localStorage.getItem(TN_SB_KEY);
+    if (old && tnCookieStorage.getItem(TN_SB_KEY) === null) tnCookieStorage.setItem(TN_SB_KEY, old);
+    if (old) localStorage.removeItem(TN_SB_KEY);
+  } catch (e) {}
+}
+// ── END TN SESSION STORE ──────────────────────────────────────────────────
+  // Served from the same origin as the app, so the member's sign-in is already
+  // in its cookie (since v0.99.11). Nothing to sign into, nothing to type.
+  tnMoveSessionToCookie();
+  var sb = window.supabase ? window.supabase.createClient(SB_URL, KEY, { auth: { storage: tnCookieStorage } }) : null;
+  var session = null;
+
+  // `view` goes out with the anon key: reading a draft needs only the token,
+  // deliberately, so a member whose session lapsed still SEES their own draft
+  // rather than an error. `send` and `discard` go out with the member's own
+  // access token, because those are the ones that must be them.
+  function post(body, asMember) {
+    var bearer = (asMember && session) ? session.access_token : KEY;
+    return fetch(FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: KEY, Authorization: 'Bearer ' + bearer },
+      body: JSON.stringify(body)
+    }).then(function (r) { return r.json(); });
+  }
+
+  if (!token) { bad('No draft in this link', 'The link is incomplete.'); return; }
+
+  // ── what the page shows ──────────────────────────────────────────────────
+  (sb ? sb.auth.getSession() : Promise.resolve({ data: {} }))
+    .then(function (r) { session = (r && r.data && r.data.session) || null; })
+    .then(function () { return post({ action: 'view', token: token }); })
+    .then(function (d) {
+    if (!d || d.state !== 'ready') {
+      var m = {
+        already_sent: ['Already sent', 'This question went out. Answers arrive in Trustnet.'],
+        discarded: ['Discarded', 'Nobody was messaged.'],
+        expired: ['This draft expired', 'Drafts last thirty minutes. Ask Muse for a new one.'],
+        not_found: ['This draft does not exist', 'Check the link, or ask Muse to draft it again.']
+      }[(d && d.state) || 'not_found'] || ['This draft is no longer live', 'Ask Muse to draft it again.'];
+      bad(m[0], m[1]);
+      return;
+    }
+    $('circle').textContent = d.circle || 'your circle';
+    var names = d.recipients || [];
+    $('who').textContent = d.count === 0
+      ? 'Nobody is in this circle yet — there is no one to ask.'
+      : d.count + (d.count === 1 ? ' person: ' : ' people: ') + names.join(', ');
+    $('text').value = d.text || '';
+    $('hint').textContent = 'They receive this on WhatsApp, from Trustnet, as a question from you.';
+    if (d.count === 0) $('send').disabled = true;
+    show('ready');
+  }).catch(function () {
+    bad('Could not open the draft', 'Check your connection and open the link again.');
+  });
+
+  // ── the press ────────────────────────────────────────────────────────────
+  $('send').addEventListener('click', function () {
+    var btn = $('send');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    post({ action: 'send', token: token, text: $('text').value }, true)
+      .then(function (d) {
+        if (d && d.reason === 'sign_in_required') { show('signedout'); return; }
+        if (d && d.sent) {
+          // SAY WHERE IT WENT. This screen used to say only "Sent", and the
+          // first person to use it asked "sent where?" — the screen before it
+          // names the recipients and this one dropped them.
+          //
+          // It reports what the server says was DELIVERED, not the list shown
+          // a moment ago, so a partial failure reads as a partial failure.
+          var reached = d.reached || [];
+          var missed = d.missed || [];
+          var where = d.circle ? ' in ' + d.circle : '';
+          if (reached.length) {
+            $('done-h').textContent = 'Sent to ' + reached.length
+              + (reached.length === 1 ? ' person' : ' people');
+            $('done-p').textContent = reached.join(', ') + where
+              + '. Answers land in Trustnet, and you will be told when they do.';
+          } else {
+            $('done-h').textContent = 'Sent';
+            $('done-p').textContent = 'Answers land in Trustnet. You will be told when they do.';
+          }
+          if (missed.length) {
+            var names = missed.map(function (m) { return m.name; });
+            var list = names.length > 1
+              ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]
+              : names[0];
+            $('done-miss').textContent = list + ' did not receive it. Their contact '
+              + 'details may be wrong, or their WhatsApp did not accept the message.';
+            $('done-miss').classList.remove('hidden');
+          }
+          show('done');
+        } else if (d && d.reason === 'already_handled') {
+          bad('Already sent', 'This draft had already gone out. Nothing was sent twice.');
+        } else {
+          btn.disabled = false; btn.textContent = 'Send';
+          bad('It did not go out', 'Nothing was delivered. Ask Muse to draft it again.');
+        }
+      })
+      .catch(function () {
+        btn.disabled = false; btn.textContent = 'Send';
+        bad('It did not go out', 'Nothing was delivered. Check your connection and try again.');
+      });
+  });
+
+  $('discard').addEventListener('click', function () {
+    $('discard').disabled = true;
+    post({ action: 'discard', token: token }, true).then(function () {
+      $('bad-h').textContent = 'Discarded';
+      $('bad-p').textContent = 'Nobody was messaged.';
+      show('bad');
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

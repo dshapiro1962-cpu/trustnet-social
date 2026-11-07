@@ -133,6 +133,11 @@ Hard constraints, learned from breakages:
   `tnColour()`, and new rows store a slot (`var(--circle-3)`), not a colour
 - Bump `APP_VERSION` on every client change; it renders on Home and is how dan
   confirms a deploy landed
+- **supabase-js is pinned to ONE EXACT version** on every page that loads it
+  (index, connect, confirm: `@2.119.0` since v0.104.1). Never `@2`: that is
+  "the newest 2.x", and 2.119.0 changed sign-out the day it was released
+  (4 Nov), with no change of ours. To upgrade, change the number on all
+  three and run `signout-sim.js` and `session-cookie-sim.js`
 
 Extract and check the script:
 
@@ -418,6 +423,24 @@ on top, "built so that we can change it later easily"):
   must not change). Its first draft of "the line is not said twice" passed
   on the OLD page because the old page had no sheet to look in; it now
   also requires the line in the sky. Six sabotages, each caught
+
+Added 7 Nov:
+
+- `signout-sim.js` — Sign out signs this device out whatever the
+  connection does (v0.104.1). Found by `session-cookie-sim` failing on the
+  live app: the pages loaded supabase-js `@2`, and 2.119.0 (4 Nov) made a
+  failed sign-out (offline, a 5xx) KEEP the session and return an error, so
+  the person stayed signed in. `handleClearData` now falls back to
+  `signOut({ scope: 'local' })` on an error (Supabase's own advice), and the
+  library is pinned. Runs the REAL app with the REAL library the page names,
+  the server answering, failing and dropping, a browser each; also requires
+  the server to be asked to sign out everywhere FIRST, so a local-only "fix"
+  fails. Baseline `pre-v0.104.1/`; control fails 5 of 13 (the 8 it passes
+  are what must not change). Five sabotages, each caught. **ONE OF THEM
+  FIRST MISSED FOR THE WRONG REASON**: its text, `if (!res || res.error) {`,
+  also occurs in the Save code above sign-out, so it edited that, broke
+  nothing, and still called itself a sabotage. A sabotage's text must occur
+  exactly once; check the count, not just that it was found
 
 Added 6 Oct:
 
