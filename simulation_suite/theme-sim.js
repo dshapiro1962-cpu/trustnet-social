@@ -8,7 +8,9 @@
 //      the top of web/index.html, and the other pages carry an identical copy
 //      (tools/sync-theme.js). Outside the block a colour may appear only as the
 //      fallback half of `prop: #hex; prop: var(--x)` on critical layout, which
-//      the client rules require. Every token has a night value.
+//      the client rules require, and that #hex is --x's own day value (7 Nov,
+//      the first change of theme: 99 of them still said the old blue). Every
+//      token has a night value.
 //   2. CHANGING THE BLOCK CHANGES EVERYTHING. The real pages are drawn in
 //      Chrome with the block swapped for one in which every colour is a
 //      SENTINEL, and every coloured thing on every screen - text, backgrounds,
@@ -260,6 +262,16 @@ const PICKED = SCREENS.filter((x) => !process.env.PICK || process.env.PICK.split
   const crit = [['body', 'background'], ['body', 'color'], ['.btn-primary', 'background'], ['#mobile-tabbar', 'background'], ['.field-input, .search-input', 'background']];
   const noFall = crit.filter(([s, p]) => !fall(s, p));
   ck('critical layout keeps a plain colour beside its var() (client rule)', !noFall.length, noFall.map((x) => x.join(' ')).join(', '));
+  // 7 Nov: the blue changed, and the plain colours beside the var()s would
+  // still have said the old one. Each must be its token's DAY value
+  // (tools/sync-theme.js keeps them so). A token that is not a plain colour
+  // (--glass) keeps its own opaque stand-in, and is not counted.
+  if (at) {
+    const dayT = splitTheme(at.text).day, re = /([a-z-]+):\s*(#[0-9A-Fa-f]{3,8})\s*;\s*\1:\s*var\((--[a-z0-9-]+)\)/g, o = code(outside(index)), stale = [];
+    let m, pairs = 0;
+    while ((m = re.exec(o))) { const v = dayT[m[3]]; if (!v || !/^#[0-9A-Fa-f]{3,8}$/.test(v)) continue; pairs++; if (v.toUpperCase() !== m[2].toUpperCase()) stale.push(m[1] + ': ' + m[2] + ' beside ' + m[3] + ' = ' + v); }
+    ck('...and that plain colour is the theme\'s own, so a change of theme leaves none behind (' + pairs + ')', pairs >= 50 && !stale.length, stale.length + ' stale: ' + stale.slice(0, 4).join(' | '));
+  }
   PAGES.forEach((p) => {
     const t = read(p + '.html'), b = block(t);
     ck(p + '.html carries the same theme', !!(b && at && b.text === at.text), b ? 'differs - run node tools/sync-theme.js' : 'no block');
@@ -359,6 +371,7 @@ const PICKED = SCREENS.filter((x) => !process.env.PICK || process.env.PICK.split
         tabs: [].map.call(document.querySelectorAll('#mobile-tabbar .mtab'), (t) => t.innerText.trim().split(/\s*\n\s*/).pop()),
         band, ground, bandFirst: !!bandEl, bandBg: bandEl ? getComputedStyle(bandEl).backgroundColor : '',
         topbar: getComputedStyle(document.querySelector('#main .topbar')).backgroundColor,
+        menuFilter: (function () { const s = getComputedStyle(document.getElementById('topbar-menu')); return s.backdropFilter || s.webkitBackdropFilter || ''; })(),
         wide: document.scrollingElement.scrollWidth };
     }));
     const F = frame.r;
@@ -370,8 +383,14 @@ const PICKED = SCREENS.filter((x) => !process.env.PICK || process.env.PICK.split
     ck('Home opens with the colour band', F.bandFirst && F.bandBg === F.band, F.bandBg + ' vs ' + F.band);
     ck('...and the top of the screen wears it too', F.topbar === F.band, F.topbar);
     ck('nothing on Home is wider than the phone', F.wide <= 390, F.wide);
-    const saved = await draw({}, SCREENS[3], (page) => page.evaluate(() => getComputedStyle(document.querySelector('#main .topbar')).backgroundColor));
-    ck('other screens keep the plain sky at the top', saved.r !== F.band && saved.r === F.ground, saved.r);
+    const saved = await draw({}, SCREENS[3], (page) => page.evaluate(() => { const s = getComputedStyle(document.getElementById('topbar-menu'));
+      return { top: getComputedStyle(document.querySelector('#main .topbar')).backgroundColor, menuFilter: s.backdropFilter || s.webkitBackdropFilter || '' }; }));
+    ck('other screens keep the plain sky at the top', saved.r.top !== F.band && saved.r.top === F.ground, saved.r.top);
+    // 7 Nov: on the band the menu button's glass ran the band through
+    // saturate(180%), so it showed LOUDER than the band it sits on. On the
+    // band it is plain; elsewhere it stays glass (which is what makes the
+    // first half of this mean something).
+    ck('Home\'s menu button shows the band as it is, with no glass over it; elsewhere it is still glass', F.menuFilter === 'none' && /blur/.test(saved.r.menuFilter), 'Home ' + F.menuFilter + ' / Saved ' + saved.r.menuFilter);
     const first = await draw({}, SCREENS[1], (page) => page.evaluate(() => {
       const big = document.querySelector('.tn-band .tn-intro-big');
       return { text: big ? big.innerText : '', font: big ? getComputedStyle(big).fontFamily : '' };

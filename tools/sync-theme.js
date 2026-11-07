@@ -38,16 +38,33 @@ const metas = (text) => text
   .replace(/(<meta name="theme-color" media="\(prefers-color-scheme: light\)" content=")[^"]*(")/, '$1' + bandDay + '$2')
   .replace(/(<meta name="theme-color" media="\(prefers-color-scheme: dark\)" content=")[^"]*(")/, '$1' + bandNight + '$2');
 
+// Critical layout keeps a plain colour beside its var() for a browser that
+// cannot read one (`background: #2F5BA8; background: var(--accent);`). That
+// plain colour is the token's DAY value, and follows it here, so a change of
+// theme leaves no old colour behind (7 Nov: the blue changed, and 99 of these
+// still said the old one). A token whose value is not a plain colour (--glass)
+// keeps the fallback it was given. Only text OUTSIDE the block is touched.
+const dayValues = {};
+block.slice(0, dark).replace(/(--[a-z0-9-]+):\s*([^;]+);/g, (m, k, v) => { dayValues[k] = v.trim(); });
+const fallbacks = (text) => {
+  const t = grab(text);
+  const fix = (part) => part.replace(/([a-z-]+):(\s*)(#[0-9A-Fa-f]{3,8})(\s*;\s*)\1:(\s*)var\((--[a-z0-9-]+)\)/g, (m, prop, s1, hex, sep, s2, tok) => {
+    const v = dayValues[tok];
+    return v && /^#[0-9A-Fa-f]{3,8}$/.test(v) ? prop + ':' + s1 + v + sep + prop + ':' + s2 + 'var(' + tok + ')' : m;
+  });
+  return t ? fix(text.slice(0, t.a)) + text.slice(t.a, t.b) + fix(text.slice(t.b)) : fix(text);
+};
+
 let changed = 0;
-const own = metas(src);
-if (own !== src) { fs.writeFileSync(path.join(WEB, 'index.html'), own); changed++; console.log('updated  index.html (its bar colour)'); }
+const own = fallbacks(metas(src));
+if (own !== src) { fs.writeFileSync(path.join(WEB, 'index.html'), own); changed++; console.log('updated  index.html (its bar colour and fallbacks)'); }
 for (const name of PAGES) {
   const file = path.join(WEB, name + '.html');
   const text = fs.readFileSync(file, 'utf8');
   const crlf = text.indexOf('\r\n') > -1;
   const t = grab(text);
   if (!t) { console.error(name + '.html has no theme block - not touched'); process.exitCode = 1; continue; }
-  const next = metas(text.slice(0, t.a) + (crlf ? block.replace(/\n/g, '\r\n') : block) + text.slice(t.b));
+  const next = fallbacks(metas(text.slice(0, t.a) + (crlf ? block.replace(/\n/g, '\r\n') : block) + text.slice(t.b)));
   if (next !== text) { fs.writeFileSync(file, next); changed++; console.log('updated  ' + name + '.html'); }
   else console.log('same     ' + name + '.html');
 }

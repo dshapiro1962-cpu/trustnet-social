@@ -126,7 +126,8 @@ Hard constraints, learned from breakages:
   token, or add one to BOTH the day and the night half. Names say what a
   colour is FOR (`--accent`, `--muted`), never what it looks like. To change
   the look: edit the block, `node tools/sync-theme.js` (copies it into the
-  seven other pages, their browser-bar tags and the manifest), and
+  seven other pages, their browser-bar tags and the manifest, and sets every
+  plain fallback colour beside a `var()` to that token's day value), and
   `node tools/make-icons.js` if `--band` changed. `theme-sim.js` fails on a
   colour written outside it. A stored circle or person colour is read through
   `tnColour()`, and new rows store a slot (`var(--circle-3)`), not a colour
@@ -348,6 +349,19 @@ on top, "built so that we can change it later easily"):
   padding, which Safari may not. The room under the list is now a spacer
   (`.view-body::after`), the check uses a circle of sixteen, and six
   sabotages each break it
+
+  7 Nov (v0.104.0, dan: "the blue is too blueish"; he picked Softer
+  cobalt from five drawn options): the first real change of theme. Values
+  only, plus two things it exposed, each now checked here: the 99 plain
+  fallback colours beside `var()`s still said the OLD blue (sync-theme now
+  rewrites them; the check fails on a stale one), and Home's menu button
+  ran the band through its glass's `saturate(180%)`, showing louder than
+  the band (plain on the band, still glass elsewhere - the check fails if
+  the glass goes everywhere). **THE OPTIONS' OWN CONTRAST TABLE MISSED ONE**:
+  it compared token pairs, and Recommend sits on `--band-fill` OVER the
+  band (4.39); only this sim's measurement of what is really behind the
+  text found it. `--band-fill` went 0.18 to 0.14 by day. Four sabotages,
+  each caught
 
 - `home-circles-sim.js` — step 2 (v0.101.0, dan: "go with step 2"). Every
   circle is a DISC of its own colour (`tnDisc`, through `tnColour`), on
